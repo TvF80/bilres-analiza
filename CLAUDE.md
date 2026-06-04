@@ -1,8 +1,9 @@
 # BilRes Analiza Sprawozdań Finansowych
 
 Aplikacja webowa do interaktywnej analizy Bilansu i RZiS.  
-Stack: **React 19 · Vite · TypeScript · Tailwind CSS v4**  
-Lokalizacja: `C:\Users\tvf19\exco-analiza`
+Stack: **React 19 · Vite · TypeScript · Tailwind CSS v4 · Recharts**  
+Lokalizacja: `C:\Users\tvf19\exco-analiza`  
+Online: **https://tvf80.github.io/bilres-analiza/**
 
 ---
 
@@ -10,7 +11,8 @@ Lokalizacja: `C:\Users\tvf19\exco-analiza`
 
 ```bash
 npm run dev          # dev server — http://localhost:5173
-node scripts/convert-xlsx.mjs   # odśwież dane z plików Excel
+npm run build        # build produkcyjny → dist/
+node scripts/convert-xlsx.mjs "C:\path\to\excel"   # konwersja danych
 ```
 
 ---
@@ -20,28 +22,81 @@ node scripts/convert-xlsx.mjs   # odśwież dane z plików Excel
 ```
 src/
   lib/
-    crypto.ts          SHA-256 hashing (Web Crypto API) — bez zewnętrznych deps
-    xlsxParser.ts      Parsowanie xlsx w przeglądarce → typy danych
+    crypto.ts           SHA-256 hashing (Web Crypto API)
+    xlsxParser.ts       Parsowanie xlsx w przeglądarce → typy danych
+    fieldMapping.ts     Mapowanie pozycji BIL/RZiS → FieldMap (keyword matching)
+    controlChecks.ts    Funkcje kontroli integralności i wskaźników
   store/
-    AuthContext.tsx    Lista użytkowników + sesja (localStorage + sessionStorage)
-    CompaniesContext.tsx  Biblioteka firm + aktywna firma + lazy-load zapisów
+    AuthContext.tsx      Użytkownicy + sesja (localStorage + sessionStorage)
+    CompaniesContext.tsx Biblioteka firm + isLoaded guard (fix race condition)
   components/
-    LoginScreen.tsx    Lista użytkowników → hasło → opcjonalny reset
-    Sidebar.tsx        Lewa nawigacja — zwijana (w-56/w-14), lista firm
-    Header.tsx         Nagłówek — edycja nazwy, Bilans/RZiS, zoom (−/+), szukaj, Import
-    ImportModal.tsx    Import 6 plików xlsx (drag&drop + auto-wykrycie lub ręcznie)
-    ReportTable.tsx    Tabela raportu — hierarchia, formatowanie PL
-    DrilldownPanel.tsx Dwupoziomowy panel: konta (obroty) → zapisy dziennika
+    LoginScreen.tsx      Siatka avatarów → hasło
+    Sidebar.tsx          Nawigacja lewa — zwijana, podmień/usuń firmę
+    Header.tsx           Bilans | RZiS | Kontrola | Analiza + zoom + szukaj
+    ImportModal.tsx      Import 6 xlsx (tryb nowy + tryb podmiana danych)
+    ReportTable.tsx      Tabela raportu z hierarchią
+    DrilldownPanel.tsx   Konta (obroty) → Zapisy FK
+    ControlSheet.tsx     Arkusz kontrolny: integralność, wskaźniki, makro
+    RatioAnalysis.tsx    Analiza wskaźnikowa: 8 pod-zakładek + wykresy
+    AnalysisCharts.tsx   Wykresy Recharts (lazy-loaded)
   hooks/
-    useReportData.ts   Dostęp do danych aktywnej firmy (useMemo na 98k wierszach)
-    useFormatNumber.ts Formatowanie PLN (Intl.NumberFormat pl-PL)
-  data/               Statyczne JSON (bilans, rzis, obroty) — generowane skryptem
-  types/index.ts      ReportRow · AccountRow · JournalEntry · Company · AppUser
+    useReportData.ts     useMemo na danych aktywnej firmy
+    useFormatNumber.ts   Formatowanie PLN (Intl.NumberFormat pl-PL)
+  types/index.ts         ReportRow · AccountRow · JournalEntry · Company · AppUser · ViewType
 public/
-  data/zapisy.json    Dziennik FK — 98 302 wiersze, ~42 MB — ładowany async w tle
+  data/zapisy.json       Dziennik FK — ~98 k wierszy, ~42 MB — lazy fetch
 scripts/
-  convert-xlsx.mjs    Konwersja 6 plików Excel → src/data/*.json + public/data/zapisy.json
+  convert-xlsx.mjs       6 plików Excel → JSON
 ```
+
+---
+
+## Widoki aplikacji (ViewType)
+
+| Widok | Kolor przycisku | Zawartość |
+|-------|----------------|-----------|
+| `bilans` | niebieski | Tabela bilansu + drilldown |
+| `rzis` | niebieski | Tabela RZiS + drilldown |
+| `kontrola` | fioletowy | Arkusz kontrolny (5 sekcji) |
+| `analiza` | zielony | Analiza wskaźnikowa (8 pod-zakładek) |
+
+---
+
+## Arkusz kontrolny (`kontrola`)
+
+1. **Kompletność danych** — status ładowania bilansu/RZiS/obrotów/zapisów
+2. **Kontrole integralności** — Aktywa=Pasywa, zasada podwójnego zapisu, BO+obroty=saldo
+3. **Wskaźniki finansowe** — 10 wskaźników (płynność, ROA/ROE/ROS, zadłużenie, rotacje)
+4. **Dane makroekonomiczne** — tabela GUS/NBP 2020–2026 (inflacja, EUR/PLN, WIBOR, PKB...)
+5. **Statystyki dokumentu** — liczniki, zakres dat, sumy FK
+
+---
+
+## Analiza wskaźnikowa (`analiza`)
+
+### Zakładki wskaźnikowe (każda: wykres + tabela)
+- **Płynność** — bieżąca, szybka, gotówkowa
+- **Sprawność** — rotacje aktywów (×3), DSO/DSI/DPO w dniach, CCC
+- **Zadłużenie** — ogólne, KW, dług-/krótkoterminowe, DFL, ICR, dług netto/EBITDA
+- **Rentowność** — ROE, ROA, ROS, marża brutto, EBIT, EBITDA
+- **Dyskryminacyjne** — 6 modeli: Hołdy, Gajdki i Stosa, Prusaka BP2, Poznańska, Mączyńskiej, Jagiełły
+
+### Zakładki struktury (uproszczone do poziomu 1)
+- **Bilans** — donut aktywów + donut pasywów + tabela: udział% + Δ r/r
+- **RZiS** — kaskada wyników (waterfall) + marże% + tabela: % przychodów + Δ r/r
+
+### Narzędzia
+- **Mapowanie pól** — diagnostyka: które pozycje bilansu/RZiS zostały dopasowane
+
+---
+
+## Zarządzanie firmami
+
+- Import: 6 plików xlsx → auto-wykrycie po nazwie
+- **Podmiana danych** (⟳ na kafelku): zastępuje bilans/RZiS/obroty bez zmiany ID firmy
+- Firmy persystowane w `localStorage` per użytkownik (bez zapisów — za duże)
+- **Bug fix**: `isLoaded` guard w CompaniesContext zapobiega nadpisaniu danych zerami przy logowaniu
+- Zapisy FK: `fetch('/data/zapisy.json')` async przy pierwszym drilldownie
 
 ---
 
@@ -54,106 +109,43 @@ scripts/
 | EX_RZIS schemat.xlsx | Pozycje zestawienia | 37 | Formuły RZiS |
 | EX_RZIS.xlsx | Wyniki zestawienia | 37 | Wartości RZiS |
 | EX_OBROTY.xlsx | Obroty i salda | 3 829 | Salda kont |
-| EX_ZAPISY.xlsx | Zapisy księgowe | 98 302 | Pełny dziennik FK |
-
-Okres: **10.2024 – 09.2025**. Spółka: BilRes Poland.
+| EX_ZAPISY.xlsx | Zapisy księgowe | ~98 302 | Pełny dziennik FK |
 
 ---
 
-## Flow danych
+## Wydajność
 
-```
-Excel → convert-xlsx.mjs → src/data/*.json (statyczne)
-                         → public/data/zapisy.json (lazy fetch)
-                         ↓
-CompaniesContext → useReportData / useJournalEntries (memoized)
-                         ↓
-ReportTable → DrilldownPanel (AccountsView → JournalView)
-```
-
----
-
-## Logowanie i użytkownicy
-
-- **Pierwsza wizyta**: formularz tworzenia konta (imię, hasło, podpowiedź)
-- **Kolejne wizyty**: siatka avatarów → klik → hasło
-- Hasło: SHA-256 + stały salt, hash w `localStorage`
-- Sesja: flaga `ok` w `sessionStorage` (czyszczona przy zamknięciu karty)
-- Odzyskiwanie: podpowiedź + reset hasła (dane firm zostają)
-- Wylogowanie wraca do siatki użytkowników
-
----
-
-## Zarządzanie firmami
-
-- Domyślna firma **BilRes Poland** ładowana ze statycznych JSON
-- Import nowej firmy: 6 plików xlsx → auto-wykrycie po nazwie (BIL/RZIS/SCHEMAT/OBROTY/ZAPISY)
-- Firmy persystowane w `localStorage` (bez zapisów — za duże)
-- Zapisy FK dla domyślnej firmy: `fetch('/data/zapisy.json')` przy pierwszym otwarciu panelu
-
----
-
-## Drilldown (analityczny flow)
-
-```
-Pozycja raportu
-  └→ [AccountsView] tabela kont z Obrotów
-       Numer | Nazwa | Saldo Wn | Saldo Ma | Persaldo
-       └→ kliknięcie konta
-            └→ [JournalView] zapisy z dziennika FK
-                 Filtr: konto = prefix LUB konto_przeciw = prefix
-                 Sortowanie: wg daty
-                 Suma kontrolna Wn/Ma na dole
-```
-
----
-
-## UX — sterowanie
-
-| Element | Skrót / akcja |
-|---------|--------------|
-| Sidebar | przycisk `«»` — zwijanie do 56px |
-| Zoom tabeli | `−` / `+` / klik `%` = reset 100% |
-| Edycja nazwy firmy | klik na nazwę w headerze → Enter / Escape |
-| Zmiana nazwy w sidebarze | najechanie → ikona ✎ |
-| Drilldown zamknij | `×` w nagłówku panelu |
-| Mobile menu | hamburger w lewym rogu headera |
-| Mobile drilldown | pełnoekranowy overlay — zamknij `×` |
+- Recharts (`RatioAnalysis`) lazy-loaded — oddzielny chunk 117 KB gzip
+- Main bundle: ~194 KB gzip
+- `zapisy.json` (~42 MB) ładowany przez `fetch()` — nie blokuje startu
+- `CompaniesContext` nie serializuje zapisów do localStorage
+- `useMemo` na wszystkich obliczeniach wskaźników i mapowaniu pól
 
 ---
 
 ## Typy TypeScript
 
 ```ts
-interface ReportRow    { segment, name, level, values, definition, positionId, drilldownAccounts[] }
+type ViewType = 'bilans' | 'rzis' | 'kontrola' | 'analiza';
+interface ReportRow    { segment, name, level, values: {period1, period2}, definition, positionId, drilldownAccounts[] }
 interface AccountRow   { numer, nazwa, saldoWn, saldoMa, persaldo, obrotyWn, obrotyMa, ... }
 interface JournalEntry { konto, kontoPrzeciwstawne, kwotaWn, kwotaMa, dataKsiegowania, opis, ... }
-interface Company      { id, name, period, bilans[], rzis[], obroty[], zapisy[] }
+interface Company      { id, name, period, bilans[], rzis[], obroty[], zapisy[], zapisyUrl? }
 interface AppUser      { id, name, passwordHash, hint, color, createdAt }
+interface FieldMap     { aktywaTrwale, aktywaObrotowe, zapasy, naleznosci, srodkiPieniezne,
+                         aktywaRazem, kapitalWlasny, zobowiazaniaDlugo, zobowiazaniaKrotko,
+                         pasywaBilans, kredytDlugo, kredytKrotko, przychody, kosztyOper,
+                         amortyzacja, cogs, zyskZeSprz, ebit, odsetki, zyskBrutto, zyskNetto,
+                         sources: Record<string, {found, name}> }
 ```
 
 ---
 
 ## Parsowanie formuł FK
 
-Formuły z systemu FK (np. `@SaldoWn(011) - @SaldoMa(071)`):
-
 ```
-@SaldoWn(konto)    saldo Wn konta
-@SaldoMa(konto)    saldo Ma konta
-@obrotyWn(konto)   obroty Wn konta
-@obrotyMa(konto)   obroty Ma konta
-@Zestawienie(X,n)  odwołanie do zestawienia — brak drilldown
-CHOOSE(a,b,c)      reguła warunkowa — implementowana jawnie wg definicji
+@SaldoWn(konto)  @SaldoMa(konto)  @obrotyWn(konto)  @obrotyMa(konto)
+CHOOSE(a,b,c)    — reguła warunkowa
 ```
 
-Regex ekstrakcji kont: `/@(?:Saldo(?:Wn|Ma)|obroty(?:Wn|Ma))\(([^)]+)\)/gi`
-
----
-
-## Wydajność
-
-- `useJournalEntries` i `useAccountsForRow` opakowane w `useMemo`
-- `zapisy.json` (~42 MB) ładowany przez `fetch()` — nie blokuje startu
-- `CompaniesContext` nie serializuje zapisów do localStorage
-- Zoom tabeli: CSS `zoom` property (natywne, bez dodatkowego DOM)
+Regex: `/@(?:Saldo(?:Wn|Ma)|obroty(?:Wn|Ma))\(([^)]+)\)/gi`

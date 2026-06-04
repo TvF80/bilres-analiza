@@ -4,6 +4,9 @@ import { importFiles, detectRole, type FilesMap, type FileRole } from '../lib/xl
 
 interface ImportModalProps {
   onClose: () => void;
+  /** Gdy podany — tryb podmiany danych istniejącej firmy */
+  replaceCompanyId?: string;
+  replaceCompanyName?: string;
 }
 
 const ROLE_LABELS: Record<FileRole, string> = {
@@ -21,9 +24,10 @@ const ROLE_ICONS: Record<FileRole, string> = {
   obroty: '🔢', zapisy: '📝',
 };
 
-export default function ImportModal({ onClose }: ImportModalProps) {
-  const { addCompany } = useCompanies();
-  const [companyName, setCompanyName] = useState('');
+export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyName }: ImportModalProps) {
+  const { addCompany, replaceCompanyData } = useCompanies();
+  const isReplaceMode = !!replaceCompanyId;
+  const [companyName, setCompanyName] = useState(isReplaceMode ? (replaceCompanyName ?? '') : '');
   const [filesMap, setFilesMap] = useState<Partial<Record<FileRole, File>>>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,16 +58,21 @@ export default function ImportModal({ onClose }: ImportModalProps) {
   }
 
   const assignedCount = Object.keys(filesMap).length;
-  const canImport = companyName.trim() && (filesMap.bilansSchema || filesMap.bilansData) && assignedCount >= 2;
+  const canImport = (isReplaceMode || companyName.trim()) && (filesMap.bilansSchema || filesMap.bilansData) && assignedCount >= 2;
 
   async function handleImport() {
     setError('');
     setLoading(true);
     try {
       const data = await importFiles(filesMap as FilesMap);
-      const name = companyName.trim();
-      addCompany({ name, period: data.period, bilans: data.bilans, rzis: data.rzis, obroty: data.obroty, zapisy: data.zapisy });
-      setImportedName(name);
+      if (isReplaceMode && replaceCompanyId) {
+        replaceCompanyData(replaceCompanyId, data);
+        setImportedName(replaceCompanyName ?? '');
+      } else {
+        const name = companyName.trim();
+        addCompany({ name, period: data.period, bilans: data.bilans, rzis: data.rzis, obroty: data.obroty, zapisy: data.zapisy });
+        setImportedName(name);
+      }
       setStep('done');
     } catch (e) {
       setError(`Błąd importu: ${(e as Error).message}`);
@@ -76,28 +85,45 @@ export default function ImportModal({ onClose }: ImportModalProps) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-base font-semibold text-slate-800">
-            {step === 'done' ? 'Import zakończony' : 'Import danych firmy'}
-          </h2>
+        <div className={`flex items-center justify-between px-6 py-4 border-b border-slate-100 ${isReplaceMode ? 'bg-amber-50' : ''}`}>
+          <div>
+            <h2 className="text-base font-semibold text-slate-800">
+              {step === 'done'
+                ? (isReplaceMode ? 'Dane podmienione' : 'Import zakończony')
+                : (isReplaceMode ? 'Podmień dane firmy' : 'Import danych firmy')}
+            </h2>
+            {isReplaceMode && step === 'form' && (
+              <p className="text-xs text-amber-700 mt-0.5">
+                Istniejące dane <strong>{replaceCompanyName}</strong> zostaną zastąpione nowymi plikami.
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
         </div>
 
         {step === 'done' ? (
-          <DoneScreen name={importedName} onClose={onClose} />
+          <DoneScreen name={importedName} onClose={onClose} isReplace={isReplaceMode} />
         ) : (
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
             {/* Company name */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa firmy</label>
-              <input
-                type="text"
-                value={companyName}
-                onChange={e => setCompanyName(e.target.value)}
-                placeholder="np. ABC Sp. z o.o."
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
+            {isReplaceMode ? (
+              <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-200">
+                <span className="text-slate-400 text-sm">Firma:</span>
+                <span className="text-sm font-semibold text-slate-800">{replaceCompanyName}</span>
+                <span className="ml-auto text-xs bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full">podmiana danych</span>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nazwa firmy</label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={e => setCompanyName(e.target.value)}
+                  placeholder="np. ABC Sp. z o.o."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            )}
 
             {/* Drag & drop zone */}
             <div
@@ -152,9 +178,11 @@ export default function ImportModal({ onClose }: ImportModalProps) {
             <button
               onClick={handleImport}
               disabled={!canImport || loading}
-              className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold text-sm transition-colors shadow-sm"
+              className={`flex-1 py-2 rounded-lg disabled:opacity-40 text-white font-semibold text-sm transition-colors shadow-sm ${
+                isReplaceMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              {loading ? 'Importowanie…' : 'Importuj'}
+              {loading ? 'Importowanie…' : isReplaceMode ? 'Podmień dane' : 'Importuj'}
             </button>
           </div>
         )}
@@ -190,13 +218,18 @@ function FileRow({ label, icon, file, onChange }: {
   );
 }
 
-function DoneScreen({ name, onClose }: { name: string; onClose: () => void }) {
+function DoneScreen({ name, onClose, isReplace }: { name: string; onClose: () => void; isReplace?: boolean }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-      <div className="text-4xl mb-4">✅</div>
-      <h3 className="text-lg font-semibold text-slate-800 mb-2">Import zakończony!</h3>
+      <div className="text-4xl mb-4">{isReplace ? '🔄' : '✅'}</div>
+      <h3 className="text-lg font-semibold text-slate-800 mb-2">
+        {isReplace ? 'Dane podmienione!' : 'Import zakończony!'}
+      </h3>
       <p className="text-sm text-slate-500 mb-6">
-        Firma <strong>{name}</strong> została dodana do biblioteki i jest teraz aktywna.
+        {isReplace
+          ? <>Dane firmy <strong>{name}</strong> zostały zastąpione nowymi plikami.</>
+          : <>Firma <strong>{name}</strong> została dodana do biblioteki i jest teraz aktywna.</>
+        }
       </p>
       <button
         onClick={onClose}

@@ -7,10 +7,11 @@ interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   onImport: () => void;
+  onReplaceData: (companyId: string, companyName: string) => void;
   onMobileClose: () => void;
 }
 
-export default function Sidebar({ collapsed, onToggle, onImport, onMobileClose }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, onImport, onReplaceData, onMobileClose }: SidebarProps) {
   const { companies, activeCompany, setActiveCompany, updateCompanyName, deleteCompany, zapisyLoading, clearUserData } = useCompanies();
   const { logout, currentUser } = useAuth();
   const [confirmClear, setConfirmClear] = useState(false);
@@ -105,6 +106,7 @@ export default function Sidebar({ collapsed, onToggle, onImport, onMobileClose }
               onEditKeyDown={e => handleKeyDown(e, company.id)}
               onEditBlur={() => commitEdit(company.id)}
               onDeleteRequest={() => setConfirmDelete(company.id)}
+              onReplaceData={() => onReplaceData(company.id, company.name)}
               confirmDelete={confirmDelete === company.id}
               onDeleteConfirm={() => { deleteCompany(company.id); setConfirmDelete(null); }}
               onDeleteCancel={() => setConfirmDelete(null)}
@@ -196,13 +198,13 @@ function CompanyDot({ company, isActive, onSelect }: {
 function CompanyItem({
   company, isActive, isEditing, editValue, canDelete, confirmDelete,
   onSelect, onStartEdit, onEditChange, onEditKeyDown, onEditBlur,
-  onDeleteRequest, onDeleteConfirm, onDeleteCancel,
+  onDeleteRequest, onReplaceData, onDeleteConfirm, onDeleteCancel,
 }: {
   company: Company; isActive: boolean; isEditing: boolean; editValue: string;
   canDelete: boolean; confirmDelete: boolean;
   onSelect: () => void; onStartEdit: () => void;
   onEditChange: (v: string) => void; onEditKeyDown: (e: React.KeyboardEvent) => void;
-  onEditBlur: () => void; onDeleteRequest: () => void;
+  onEditBlur: () => void; onDeleteRequest: () => void; onReplaceData: () => void;
   onDeleteConfirm: () => void; onDeleteCancel: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -246,6 +248,11 @@ function CompanyItem({
       </div>
       {!isEditing && (
         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+          <button title="Podmień dane (nowe pliki Excel)" onClick={e => { e.stopPropagation(); onReplaceData(); }} className="p-0.5 rounded text-slate-500 hover:text-amber-400 text-xs" aria-label="Podmień dane">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
           <button title="Zmień nazwę" onClick={e => { e.stopPropagation(); onStartEdit(); }} className="p-0.5 rounded text-slate-500 hover:text-slate-300 text-xs">✎</button>
           {canDelete && <button title="Usuń firmę" onClick={e => { e.stopPropagation(); onDeleteRequest(); }} className="p-0.5 rounded text-slate-500 hover:text-red-400 text-xs">×</button>}
         </div>

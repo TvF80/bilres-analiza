@@ -9,12 +9,21 @@ const companyKey  = (uid: string) => `exco_companies_${uid}`;
 const activeKey   = (uid: string) => `exco_active_${uid}`;
 const zapisyKey   = (cid: string) => `exco_zapisy_${cid}`;
 
+export interface CompanyData {
+  period: string;
+  bilans: Company['bilans'];
+  rzis: Company['rzis'];
+  obroty: Company['obroty'];
+  zapisy: Company['zapisy'];
+}
+
 interface CompaniesContextValue {
   companies: Company[];
   activeCompany: Company | null;
   zapisyLoading: boolean;
   setActiveCompany: (id: string) => void;
   addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Company;
+  replaceCompanyData: (id: string, data: CompanyData) => void;
   updateCompanyName: (id: string, name: string) => void;
   deleteCompany: (id: string) => void;
   clearUserData: () => void;
@@ -64,9 +73,15 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   const [zapisyLoading, setZapisyLoading] = useState(false);
   const zapisyLoadedRef = useRef<Set<string>>(new Set());
 
+  // Flaga: czy dane zostały już załadowane dla bieżącego uid.
+  // Bez niej efekt zapisu odpala się z companies=[] zanim efekt ładowania
+  // zdąży wypełnić state — co nadpisuje dane w localStorage zerami.
+  const [isLoaded, setIsLoaded] = useState(false);
+
   // ── Reload companies when user changes (login / logout / switch) ──
   useEffect(() => {
     if (!uid) {
+      setIsLoaded(false);
       setCompanies([]);
       setActiveId('');
       return;
@@ -76,17 +91,18 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     const first  = loaded[0]?.id ?? '';
     setCompanies(loaded);
     setActiveId(saved && loaded.some(c => c.id === saved) ? saved : first);
+    setIsLoaded(true);
     zapisyLoadedRef.current.clear();
   }, [uid]);
 
-  // ── Persist companies on change ──
+  // ── Persist companies on change — tylko po zakończeniu ładowania ──
   useEffect(() => {
-    if (uid) saveToStorage(uid, companies);
-  }, [companies, uid]);
+    if (uid && isLoaded) saveToStorage(uid, companies);
+  }, [companies, uid, isLoaded]);
 
   useEffect(() => {
-    if (uid && activeId) localStorage.setItem(activeKey(uid), activeId);
-  }, [activeId, uid]);
+    if (uid && activeId && isLoaded) localStorage.setItem(activeKey(uid), activeId);
+  }, [activeId, uid, isLoaded]);
 
   const activeCompany = companies.find(c => c.id === activeId) ?? companies[0] ?? null;
 
@@ -134,6 +150,17 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     return company;
   }, []);
 
+  const replaceCompanyData = useCallback((id: string, data: CompanyData) => {
+    sessionStorage.removeItem(zapisyKey(id));
+    zapisyLoadedRef.current.delete(id);
+    if (data.zapisy.length > 0) cacheZapisy(id, data.zapisy);
+    setCompanies(prev => prev.map(c =>
+      c.id === id
+        ? { ...c, period: data.period, bilans: data.bilans, rzis: data.rzis, obroty: data.obroty, zapisy: data.zapisy }
+        : c
+    ));
+  }, []);
+
   const updateCompanyName = useCallback((id: string, name: string) => {
     setCompanies(prev => prev.map(c => c.id === id ? { ...c, name } : c));
   }, []);
@@ -163,7 +190,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   return (
     <CompaniesContext.Provider value={{
       companies, activeCompany, zapisyLoading,
-      setActiveCompany, addCompany, updateCompanyName, deleteCompany, clearUserData,
+      setActiveCompany, addCompany, replaceCompanyData, updateCompanyName, deleteCompany, clearUserData,
     }}>
       {children}
     </CompaniesContext.Provider>

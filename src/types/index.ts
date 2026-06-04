@@ -1,4 +1,5 @@
 export type ReportType = 'bilans' | 'rzis';
+export type ViewType = ReportType | 'kontrola' | 'analiza';
 
 export interface ReportRow {
   segment: string;

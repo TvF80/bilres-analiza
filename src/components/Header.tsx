@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import type { ReportType } from '../types';
+import type { ReportType, ViewType } from '../types';
 import { useCompanies } from '../store/CompaniesContext';
 
 interface HeaderProps {
+  activeView: ViewType;
+  onViewChange: (view: ViewType) => void;
   reportType: ReportType;
   onReportChange: (type: ReportType) => void;
   search: string;
@@ -17,7 +19,8 @@ interface HeaderProps {
 }
 
 export default function Header({
-  reportType, onReportChange, search, onSearchChange,
+  activeView, onViewChange,
+  reportType: _reportType, onReportChange, search, onSearchChange,
   onMobileMenu, zoom, zoomIdx, zoomLevels, onZoomIn, onZoomOut, onZoomReset,
 }: HeaderProps) {
   const { activeCompany, updateCompanyName } = useCompanies();
@@ -84,19 +87,36 @@ export default function Header({
         )}
       </div>
 
-      {/* Report toggle */}
+      {/* View toggle */}
       <div className="flex items-center gap-1 shrink-0">
         {(['bilans', 'rzis'] as ReportType[]).map(t => (
           <button
             key={t}
-            onClick={() => onReportChange(t)}
+            onClick={() => { onViewChange(t); onReportChange(t); }}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              reportType === t ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              activeView === t ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             {t === 'bilans' ? 'Bilans' : 'RZiS'}
           </button>
         ))}
+        <div className="w-px h-5 bg-slate-200 mx-0.5" />
+        <button
+          onClick={() => onViewChange('kontrola')}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            activeView === 'kontrola' ? 'bg-violet-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          Kontrola
+        </button>
+        <button
+          onClick={() => onViewChange('analiza')}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            activeView === 'analiza' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          Analiza
+        </button>
       </div>
 
       <div className="flex-1 hidden md:block" />

@@ -11,4 +11,7 @@ const base = process.env.GITHUB_PAGES === 'true'
 export default defineConfig({
   base,
   plugins: [react(), tailwindcss()],
+  build: {
+    chunkSizeWarningLimit: 700,
+  },
 })
