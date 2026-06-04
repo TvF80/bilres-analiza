@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc;
+}
+
+/* ── Print / PDF ── */
+@media print {
+  /* Hide everything except the main content */
+  body { background: white; }
+
+  /* Hide sidebar, header, mobile overlay */
+  .print\:hidden { display: none !important; }
+
+  /* Remove shadows and borders for clean print */
+  .shadow-sm, .shadow-xl { box-shadow: none !important; }
+
+  /* Reset zoom — print at 100% */
+  [style*="zoom"] { zoom: 1 !important; }
+
+  /* Report table: full width, no overflow */
+  .bg-white.rounded-xl {
+    border-radius: 0 !important;
+    border: none !important;
+    width: 100% !important;
+  }
+
+  /* Drilldown panel: full width below the table */
+  .hidden.md\:flex {
+    display: flex !important;
+    width: 100% !important;
+    border: none !important;
+    border-top: 1px solid #e2e8f0 !important;
+    margin-top: 16px !important;
+    box-shadow: none !important;
+    page-break-before: auto;
+  }
+
+  /* Table fonts readable on paper */
+  table { font-size: 9pt !important; }
+  thead th { background: #f8fafc !important; }
+
+  /* Page setup */
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+}

@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Generated financial data — run: node scripts/convert-xlsx.mjs <path-to-xlsx-files>
+src/data/*.json
+public/data/
+
+# Dev / logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+dev.log
+*.local
+
+# Playwright test artifacts (generated during development)
+verify*.mjs
+v[0-9]_*.png
+vA_s*.png
+vF_s*.png
+ux_s*.png
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
