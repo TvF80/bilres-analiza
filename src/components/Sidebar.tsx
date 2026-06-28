@@ -43,10 +43,10 @@ export default function Sidebar({ collapsed, onToggle, onImport, onReplaceData, 
       <div className="px-3 py-3 border-b border-slate-700/60 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-            <span className="text-white text-xs font-bold">EX</span>
+            <span className="text-base">🧮</span>
           </div>
           {!collapsed && (
-            <span className="text-white text-sm font-semibold tracking-tight truncate">BilRes</span>
+            <span className="text-white text-sm font-semibold tracking-tight truncate">FinScope</span>
           )}
         </div>
         <button

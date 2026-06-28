@@ -216,10 +216,10 @@ function WelcomeScreen({ onImport, lang, onLangChange }: { onImport: () => void;
       <div className="max-w-md w-full text-center">
         {/* Logo */}
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 shadow-lg mb-6">
-          <span className="text-white text-2xl font-black">EX</span>
+          <span className="text-3xl">🧮</span>
         </div>
 
-        <h1 className="text-3xl font-black text-white mb-3 tracking-tight">BilRes</h1>
+        <h1 className="text-3xl font-black text-white mb-3 tracking-tight">FinScope</h1>
         <h2 className="text-lg font-semibold text-slate-300 mb-3">{c.title}</h2>
         <p className="text-sm text-slate-400 mb-8 leading-relaxed">{c.sub}</p>
 
@@ -256,6 +256,11 @@ function WelcomeScreen({ onImport, lang, onLangChange }: { onImport: () => void;
           <span className="text-green-400 shrink-0 mt-0.5">🔒</span>
           <p className="text-[11px] text-slate-400 leading-relaxed">{c.note}</p>
         </div>
+
+        {/* Author */}
+        <p className="mt-6 text-[10px] text-slate-600 tracking-wide">
+          created by <span className="text-slate-500 font-medium">TvF · Tomasz Fordymacki</span>
+        </p>
       </div>
     </div>
   );
