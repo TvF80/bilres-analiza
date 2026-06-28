@@ -171,9 +171,7 @@ export function ZadluzenieChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <Legend wrapperStyle={{ fontSize: 11 }} />
         <ReferenceLine y={0.6} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'max 0,6', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} radius={[5, 5, 0, 0]} maxBarSize={32}>
-          {data.map((d, i) => <Cell key={i} fill={d.P1 <= 0.6 ? C.p1 : C.neg} />)}
-        </Bar>
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={32} />
         <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={32} />
         {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={32} />}
       </BarChart>

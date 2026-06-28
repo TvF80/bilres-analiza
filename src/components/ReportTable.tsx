@@ -71,6 +71,7 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
   const v1 = row.values.period1;
   const v2 = row.values.period2;
   const v3 = row.values.period3;
+  const delta = (v1 !== 0 && v2 !== 0) ? ((v1 / v2) - 1) * 100 : null;
 
   const isZeroRow = !isSection && v1 === 0 && (v2 === 0 || v2 === undefined) && (!hasPeriod3 || (v3 ?? 0) === 0);
 
@@ -112,8 +113,20 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
         )}
       </td>
 
-      <td className={`py-2 px-3 sm:px-4 text-right font-mono tabular-nums text-sm ${isSection ? 'font-bold' : ''} ${v1 < 0 ? 'text-red-600' : v1 === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
-        {v1 !== 0 ? formatPLN(v1) : '—'}
+      <td className={`py-2 px-2 sm:px-4 text-right ${isSection ? 'font-bold' : ''}`}>
+        <div className={`font-mono tabular-nums text-sm ${v1 < 0 ? 'text-red-600' : v1 === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
+          {v1 !== 0 ? formatPLN(v1) : '—'}
+        </div>
+        {hasPeriod2 && v2 !== 0 && (
+          <div className="sm:hidden flex items-center justify-end gap-1 mt-0.5">
+            <span className={`font-mono text-[10px] ${v2 < 0 ? 'text-red-400' : 'text-slate-400'}`}>{formatPLN(v2)}</span>
+            {delta !== null && (
+              <span className={`text-[10px] font-semibold ${delta > 5 ? 'text-emerald-500' : delta < -5 ? 'text-red-500' : 'text-slate-400'}`}>
+                {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
+              </span>
+            )}
+          </div>
+        )}
       </td>
 
       {hasPeriod2 && (

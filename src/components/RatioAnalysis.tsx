@@ -47,54 +47,65 @@ function safe(num: number, den: number): number | null {
 // ── Badge / norm assessment ───────────────────────────────────────────────────
 
 type Grade = 'B_DOBRY' | 'DOBRY' | 'UWAGA' | 'SŁABY' | 'BRAK';
+type GradeDir = 'range' | 'higher' | 'lower';
 
 /**
- * @param v            – computed value (null = brak danych)
- * @param lo           – lower bound of norm (null = no lower bound)
- * @param hi           – upper bound of norm (null = no upper bound)
- * @param higherBetter – when true, v > hi → DOBRY/B_DOBRY (not UWAGA/SŁABY)
+ * @param v   – computed value (null = brak danych)
+ * @param lo  – lower bound of norm (null = no lower bound)
+ * @param hi  – upper bound of norm (null = no upper bound)
+ * @param dir – 'range': outside range is bad; 'higher': above hi is good; 'lower': below lo is good
+ *
+ * B_DOBRY threshold: ≥50% beyond the "good" bound (e.g., hi=2.0 dir=higher → v≥3.0 = B_DOBRY;
+ *                    lo=30 dir=lower → v≤15 = B_DOBRY)
  */
 function grade(
   v: number | null,
   lo: number | null,
   hi: number | null,
-  higherBetter = false,
+  dir: GradeDir = 'range',
 ): Grade {
   if (v === null) return 'BRAK';
-  const margin = 0.30;
 
   const tooLow  = lo !== null && v < lo;
   const tooHigh = hi !== null && v > hi;
 
   if (!tooLow && !tooHigh) return 'DOBRY';
 
-  if (tooHigh && higherBetter) {
+  if (tooLow) {
+    if (dir === 'lower') {
+      // below lo is GOOD: the further below, the better
+      const pct = (lo! - v) / Math.abs(lo!);
+      return pct >= 0.50 ? 'B_DOBRY' : 'DOBRY';
+    }
+    const pct = (lo! - v) / Math.abs(lo!);
+    return pct <= 0.30 ? 'UWAGA' : 'SŁABY';
+  }
+
+  // tooHigh
+  if (dir === 'higher') {
+    // above hi is GOOD: the further above, the better
     const pct = (v - hi!) / Math.abs(hi!);
     return pct >= 0.50 ? 'B_DOBRY' : 'DOBRY';
   }
-
-  if (tooLow) {
-    const pct = (lo! - v) / Math.abs(lo!);
-    return pct <= margin ? 'UWAGA' : 'SŁABY';
-  }
-  // tooHigh (not higherBetter)
   const pct = (v - hi!) / Math.abs(hi!);
-  return pct <= margin ? 'UWAGA' : 'SŁABY';
-}
-
-/** For "lower is better": good if v < threshold */
-function gradeLower(v: number | null, threshold: number): Grade {
-  if (v === null) return 'BRAK';
-  if (v < threshold) return 'DOBRY';
-  const pct = (v - threshold) / Math.abs(threshold);
   return pct <= 0.30 ? 'UWAGA' : 'SŁABY';
 }
 
-/** For "higher is better": good if v > threshold */
+/** Higher is better with single threshold. B_DOBRY when v ≥ threshold × 2. */
 function gradeHigher(v: number | null, threshold: number): Grade {
   if (v === null) return 'BRAK';
+  if (threshold !== 0 && v >= threshold * 2) return 'B_DOBRY';
   if (v > threshold) return 'DOBRY';
   const pct = (threshold - v) / Math.abs(threshold);
+  return pct <= 0.30 ? 'UWAGA' : 'SŁABY';
+}
+
+/** Lower is better with single threshold. B_DOBRY when v ≤ threshold × 0.5. */
+function gradeLower(v: number | null, threshold: number): Grade {
+  if (v === null) return 'BRAK';
+  if (threshold !== 0 && v <= threshold * 0.5) return 'B_DOBRY';
+  if (v < threshold) return 'DOBRY';
+  const pct = (v - threshold) / Math.abs(threshold);
   return pct <= 0.30 ? 'UWAGA' : 'SŁABY';
 }
 
@@ -350,9 +361,9 @@ function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap;
         val2: fmtRatio(safe(f2.aktywaObrotowe, f2.zobowiazaniaKrotko)),
         val3: f3 ? fmtRatio(safe(f3.aktywaObrotowe, f3.zobowiazaniaKrotko)) : undefined,
         norm: '1.2 – 2.0',
-        grade1: grade(safe(f1.aktywaObrotowe, f1.zobowiazaniaKrotko), 1.2, 2.0, true),
-        grade2: grade(safe(f2.aktywaObrotowe, f2.zobowiazaniaKrotko), 1.2, 2.0, true),
-        grade3: f3 ? grade(safe(f3.aktywaObrotowe, f3.zobowiazaniaKrotko), 1.2, 2.0, true) : undefined,
+        grade1: grade(safe(f1.aktywaObrotowe, f1.zobowiazaniaKrotko), 1.2, 2.0, 'higher'),
+        grade2: grade(safe(f2.aktywaObrotowe, f2.zobowiazaniaKrotko), 1.2, 2.0, 'higher'),
+        grade3: f3 ? grade(safe(f3.aktywaObrotowe, f3.zobowiazaniaKrotko), 1.2, 2.0, 'higher') : undefined,
         descPL: 'Informuje, ile razy aktywa obrotowe pokrywają zobowiązania krótkoterminowe. Wartość poniżej 1 sygnalizuje ryzyko utraty płynności bieżącej. Norma 1,2–2,0 jest standardem dla większości branż niefinansowych.',
         steps1: [{ label: 'Aktywa obrotowe (AO)', val: f1.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f1.zobowiazaniaKrotko }],
         steps2: [{ label: 'Aktywa obrotowe (AO)', val: f2.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f2.zobowiazaniaKrotko }],
@@ -365,9 +376,9 @@ function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap;
         val2: fmtRatio(safe(f2.aktywaObrotowe - f2.zapasy, f2.zobowiazaniaKrotko)),
         val3: f3 ? fmtRatio(safe(f3.aktywaObrotowe - f3.zapasy, f3.zobowiazaniaKrotko)) : undefined,
         norm: '0.7 – 1.2',
-        grade1: grade(safe(f1.aktywaObrotowe - f1.zapasy, f1.zobowiazaniaKrotko), 0.7, 1.2, true),
-        grade2: grade(safe(f2.aktywaObrotowe - f2.zapasy, f2.zobowiazaniaKrotko), 0.7, 1.2, true),
-        grade3: f3 ? grade(safe(f3.aktywaObrotowe - f3.zapasy, f3.zobowiazaniaKrotko), 0.7, 1.2, true) : undefined,
+        grade1: grade(safe(f1.aktywaObrotowe - f1.zapasy, f1.zobowiazaniaKrotko), 0.7, 1.2, 'higher'),
+        grade2: grade(safe(f2.aktywaObrotowe - f2.zapasy, f2.zobowiazaniaKrotko), 0.7, 1.2, 'higher'),
+        grade3: f3 ? grade(safe(f3.aktywaObrotowe - f3.zapasy, f3.zobowiazaniaKrotko), 0.7, 1.2, 'higher') : undefined,
         descPL: 'Lepsza miara zdolności do natychmiastowej spłaty — wyklucza zapasy jako najmniej płynny składnik aktywów obrotowych. Rekomendowana dla branż z długim cyklem rotacji zapasów.',
         steps1: [{ label: 'Aktywa obrotowe (AO)', val: f1.aktywaObrotowe }, { label: 'Zapasy', val: f1.zapasy }, { label: 'AO − Zapasy (licznik)', val: f1.aktywaObrotowe - f1.zapasy }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f1.zobowiazaniaKrotko }],
         steps2: [{ label: 'Aktywa obrotowe (AO)', val: f2.aktywaObrotowe }, { label: 'Zapasy', val: f2.zapasy }, { label: 'AO − Zapasy (licznik)', val: f2.aktywaObrotowe - f2.zapasy }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f2.zobowiazaniaKrotko }],
@@ -429,7 +440,7 @@ function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap
     const rotZap = (f: FieldMap) => { if (f.zapasy === 0) return null; const c = f.cogs !== 0 ? f.cogs : f.kosztyOper; return c !== 0 ? (f.zapasy / c) * 360 : null; };
     const rotZob = (f: FieldMap) => { const c = f.cogs !== 0 ? f.cogs : f.kosztyOper; return c !== 0 ? (f.zobowiazaniaKrotko / c) * 360 : null; };
     const ccc = (f: FieldMap) => { const n = rotNal(f); const z = rotZap(f); const zo = rotZob(f); return n !== null && z !== null && zo !== null ? n + z - zo : null; };
-    const cccGrade = (v: number | null): Grade => v === null ? 'BRAK' : v < 60 ? 'DOBRY' : v < 90 ? 'UWAGA' : 'SŁABY';
+    const cccGrade = (v: number | null): Grade => v === null ? 'BRAK' : v < 0 ? 'B_DOBRY' : v < 60 ? 'DOBRY' : v < 90 ? 'UWAGA' : 'SŁABY';
     const cogsFallback = (f: FieldMap) => f.cogs !== 0 ? f.cogs : f.kosztyOper;
     return [
       {
@@ -484,9 +495,9 @@ function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap
         val2: fmtDays(rotNal(f2)),
         val3: f3 ? fmtDays(rotNal(f3)) : undefined,
         norm: '30 – 60 dni',
-        grade1: grade(rotNal(f1), 30, 60),
-        grade2: grade(rotNal(f2), 30, 60),
-        grade3: f3 ? grade(rotNal(f3), 30, 60) : undefined,
+        grade1: grade(rotNal(f1), 30, 60, 'lower'),
+        grade2: grade(rotNal(f2), 30, 60, 'lower'),
+        grade3: f3 ? grade(rotNal(f3), 30, 60, 'lower') : undefined,
         descPL: 'Days Sales Outstanding (DSO) — średnia liczba dni oczekiwania na zapłatę od klientów. Im niższa, tym szybciej firma inkasuje należności. Przekroczenie 60 dni może sygnalizować problemy z ściągalnością.',
         steps1: [{ label: 'Należności od odbiorców', val: f1.naleznosci }, { label: 'Przychody ze sprzedaży', val: f1.przychody }, { label: 'Przychody / 360', val: f1.przychody !== 0 ? f1.przychody / 360 : null }],
         steps2: [{ label: 'Należności od odbiorców', val: f2.naleznosci }, { label: 'Przychody ze sprzedaży', val: f2.przychody }, { label: 'Przychody / 360', val: f2.przychody !== 0 ? f2.przychody / 360 : null }],
@@ -499,9 +510,9 @@ function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap
         val2: fmtDays(rotZap(f2)),
         val3: f3 ? fmtDays(rotZap(f3)) : undefined,
         norm: '30 – 90 dni',
-        grade1: grade(rotZap(f1), 30, 90),
-        grade2: grade(rotZap(f2), 30, 90),
-        grade3: f3 ? grade(rotZap(f3), 30, 90) : undefined,
+        grade1: grade(rotZap(f1), 30, 90, 'lower'),
+        grade2: grade(rotZap(f2), 30, 90, 'lower'),
+        grade3: f3 ? grade(rotZap(f3), 30, 90, 'lower') : undefined,
         descPL: 'Days Sales of Inventory (DSI) — jak długo zapasy „leżą" w magazynie przed sprzedażą. Dla firm usługowych bez zapasów wskaźnik wynosi 0 lub nie jest istotny.',
         steps1: [{ label: 'Zapasy', val: f1.zapasy }, { label: 'COGS / Koszty oper. (mianownik)', val: cogsFallback(f1) }],
         steps2: [{ label: 'Zapasy', val: f2.zapasy }, { label: 'COGS / Koszty oper. (mianownik)', val: cogsFallback(f2) }],
@@ -576,9 +587,9 @@ function ZadluzenieTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
         val2: fmtRatio(safe(totalDebt(f2), f2.aktywaRazem)),
         val3: f3 ? fmtRatio(safe(totalDebt(f3), f3.aktywaRazem)) : undefined,
         norm: '0.4 – 0.6',
-        grade1: grade(safe(totalDebt(f1), f1.aktywaRazem), 0.4, 0.6),
-        grade2: grade(safe(totalDebt(f2), f2.aktywaRazem), 0.4, 0.6),
-        grade3: f3 ? grade(safe(totalDebt(f3), f3.aktywaRazem), 0.4, 0.6) : undefined,
+        grade1: grade(safe(totalDebt(f1), f1.aktywaRazem), 0.4, 0.6, 'lower'),
+        grade2: grade(safe(totalDebt(f2), f2.aktywaRazem), 0.4, 0.6, 'lower'),
+        grade3: f3 ? grade(safe(totalDebt(f3), f3.aktywaRazem), 0.4, 0.6, 'lower') : undefined,
         descPL: 'Wskaźnik zadłużenia ogółem — jaka część aktywów jest finansowana długiem. Wartość > 0,6 sygnalizuje wysokie ryzyko finansowe. Kluczowy komponent wielu modeli dyskryminacyjnych.',
         steps1: [{ label: 'Zobowiązania długoterminowe (ZD)', val: f1.zobowiazaniaDlugo }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f1.zobowiazaniaKrotko }, { label: 'Dług ogółem (ZD+ZK)', val: totalDebt(f1) }, { label: 'Aktywa razem', val: f1.aktywaRazem }],
         steps2: [{ label: 'Zobowiązania długoterminowe (ZD)', val: f2.zobowiazaniaDlugo }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f2.zobowiazaniaKrotko }, { label: 'Dług ogółem (ZD+ZK)', val: totalDebt(f2) }, { label: 'Aktywa razem', val: f2.aktywaRazem }],
@@ -606,9 +617,9 @@ function ZadluzenieTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
         val2: fmtRatio(safe(totalDebt(f2), f2.kapitalWlasny)),
         val3: f3 ? fmtRatio(safe(totalDebt(f3), f3.kapitalWlasny)) : undefined,
         norm: '0.5 – 1.0',
-        grade1: grade(safe(totalDebt(f1), f1.kapitalWlasny), 0.5, 1.0),
-        grade2: grade(safe(totalDebt(f2), f2.kapitalWlasny), 0.5, 1.0),
-        grade3: f3 ? grade(safe(totalDebt(f3), f3.kapitalWlasny), 0.5, 1.0) : undefined,
+        grade1: grade(safe(totalDebt(f1), f1.kapitalWlasny), 0.5, 1.0, 'lower'),
+        grade2: grade(safe(totalDebt(f2), f2.kapitalWlasny), 0.5, 1.0, 'lower'),
+        grade3: f3 ? grade(safe(totalDebt(f3), f3.kapitalWlasny), 0.5, 1.0, 'lower') : undefined,
         descPL: 'Dźwignia finansowa — stosunek zobowiązań do kapitału własnego (debt-to-equity). Norma zależy od sektora; firmy usługowe mogą funkcjonować przy niższym D/E.',
         steps1: [{ label: 'Dług ogółem (ZD+ZK)', val: totalDebt(f1) }, { label: 'Kapitał własny (KW)', val: f1.kapitalWlasny }],
         steps2: [{ label: 'Dług ogółem (ZD+ZK)', val: totalDebt(f2) }, { label: 'Kapitał własny (KW)', val: f2.kapitalWlasny }],
@@ -621,9 +632,9 @@ function ZadluzenieTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
         val2: fmtRatio(safe(f2.zobowiazaniaDlugo, f2.kapitalWlasny)),
         val3: f3 ? fmtRatio(safe(f3.zobowiazaniaDlugo, f3.kapitalWlasny)) : undefined,
         norm: '0.2 – 0.5',
-        grade1: grade(safe(f1.zobowiazaniaDlugo, f1.kapitalWlasny), 0.2, 0.5),
-        grade2: grade(safe(f2.zobowiazaniaDlugo, f2.kapitalWlasny), 0.2, 0.5),
-        grade3: f3 ? grade(safe(f3.zobowiazaniaDlugo, f3.kapitalWlasny), 0.2, 0.5) : undefined,
+        grade1: grade(safe(f1.zobowiazaniaDlugo, f1.kapitalWlasny), 0.2, 0.5, 'lower'),
+        grade2: grade(safe(f2.zobowiazaniaDlugo, f2.kapitalWlasny), 0.2, 0.5, 'lower'),
+        grade3: f3 ? grade(safe(f3.zobowiazaniaDlugo, f3.kapitalWlasny), 0.2, 0.5, 'lower') : undefined,
         descPL: 'Udział długu długoterminowego względem KW — miara struktury zadłużenia. Długoterminowe finansowanie jest mniej ryzykowne od krótkoterminowego.',
         steps1: [{ label: 'Zobowiązania długoterminowe (ZD)', val: f1.zobowiazaniaDlugo }, { label: 'Kapitał własny (KW)', val: f1.kapitalWlasny }],
         steps2: [{ label: 'Zobowiązania długoterminowe (ZD)', val: f2.zobowiazaniaDlugo }, { label: 'Kapitał własny (KW)', val: f2.kapitalWlasny }],
@@ -2055,14 +2066,14 @@ function PodsumowanieTab({
   const roe3 = f3 ? safe(f3.zyskNetto, f3.kapitalWlasny) : null;
   const dso3 = (f3 && f3.przychody !== 0) ? (f3.naleznosci / f3.przychody) * 360 : null;
 
-  const gCR  = grade(cr1, 1.2, 2.0, true);
-  const gQR  = grade(qr1, 0.7, 1.2, true);
-  const gDA  = grade(da1, 0.4, 0.6);
+  const gCR  = grade(cr1, 1.2, 2.0, 'higher');
+  const gQR  = grade(qr1, 0.7, 1.2, 'higher');
+  const gDA  = grade(da1, 0.4, 0.6, 'lower');
   const gICR = icr1 !== null ? gradeHigher(icr1, 3.0) : 'BRAK' as Grade;
   const gROE = gradeHigher(roe1 !== null ? roe1 * 100 : null, 10);
   const gROA = gradeHigher(roa1 !== null ? roa1 * 100 : null, 5);
   const gROS = gradeHigher(ros1 !== null ? ros1 * 100 : null, 5);
-  const gDSO = grade(dso1, 30, 60);
+  const gDSO = grade(dso1, 30, 60, 'lower');
   const gEBITDA = gradeHigher(ebitdaM1 !== null ? ebitdaM1 * 100 : null, 8);
 
   const aggGrade = (gs: Grade[]): Grade => {
@@ -2114,7 +2125,7 @@ function PodsumowanieTab({
     formula: 'AO / ZK',
     val1: fmtRatio(cr1), val2: fmtRatio(cr2), val3: f3 ? fmtRatio(cr3) : undefined,
     norm: '1,2 – 2,0',
-    grade1: gCR, grade2: grade(cr2, 1.2, 2.0, true), grade3: f3 ? grade(cr3, 1.2, 2.0, true) : undefined,
+    grade1: gCR, grade2: grade(cr2, 1.2, 2.0, 'higher'), grade3: f3 ? grade(cr3, 1.2, 2.0, 'higher') : undefined,
     descPL: 'Wskaźnik bieżącej płynności — ile razy aktywa obrotowe pokrywają zobowiązania krótkoterminowe.',
     steps1: [{ label: 'Aktywa obrotowe', val: f1.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm.', val: f1.zobowiazaniaKrotko }],
     steps2: [{ label: 'Aktywa obrotowe', val: f2.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm.', val: f2.zobowiazaniaKrotko }],
@@ -2125,7 +2136,7 @@ function PodsumowanieTab({
     formula: 'Należności / Przychody × 360',
     val1: fmtDays(dso1), val2: fmtDays(dso2), val3: f3 ? fmtDays(dso3) : undefined,
     norm: '30 – 60 dni',
-    grade1: gDSO, grade2: grade(dso2, 30, 60), grade3: f3 ? grade(dso3, 30, 60) : undefined,
+    grade1: gDSO, grade2: grade(dso2, 30, 60, 'lower'), grade3: f3 ? grade(dso3, 30, 60, 'lower') : undefined,
     descPL: 'Średnia liczba dni oczekiwania na zapłatę od klientów. Im niższa, tym szybciej firma inkasuje należności.',
     steps1: [{ label: 'Należności', val: f1.naleznosci }, { label: 'Przychody', val: f1.przychody }],
     steps2: [{ label: 'Należności', val: f2.naleznosci }, { label: 'Przychody', val: f2.przychody }],
@@ -2136,7 +2147,7 @@ function PodsumowanieTab({
     formula: '(ZD + ZK) / AT',
     val1: fmtRatio(da1), val2: fmtRatio(da2), val3: f3 ? fmtRatio(da3) : undefined,
     norm: '0,4 – 0,6',
-    grade1: gDA, grade2: grade(da2, 0.4, 0.6), grade3: f3 ? grade(da3, 0.4, 0.6) : undefined,
+    grade1: gDA, grade2: grade(da2, 0.4, 0.6, 'lower'), grade3: f3 ? grade(da3, 0.4, 0.6, 'lower') : undefined,
     descPL: 'Jaka część aktywów jest finansowana długiem. Wartość > 0,6 sygnalizuje wysokie ryzyko finansowe.',
     steps1: [{ label: 'Zobowiązania razem', val: totalDebt(f1) }, { label: 'Aktywa razem', val: f1.aktywaRazem }],
     steps2: [{ label: 'Zobowiązania razem', val: totalDebt(f2) }, { label: 'Aktywa razem', val: f2.aktywaRazem }],
@@ -2430,20 +2441,20 @@ export default function RatioAnalysis() {
   const [activeTab, setActiveTab] = useState<SubTab>('podsumowanie');
 
   const subTabs: { key: SubTab; label: string; group: string }[] = useMemo(() => [
-    { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
-    { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
+    { key: 'podsumowanie',     label: t('analysis.summary'),        group: t('ratio.indicators') },
     { key: 'plynnosc',         label: t('analysis.liquidity'),      group: t('ratio.indicators') },
     { key: 'sprawnosc',        label: t('analysis.efficiency'),     group: t('ratio.indicators') },
     { key: 'zadluzenie',       label: t('analysis.debt'),           group: t('ratio.indicators') },
     { key: 'rentownosc',       label: t('analysis.profitability'),  group: t('ratio.indicators') },
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
-    { key: 'podsumowanie',     label: t('analysis.summary'),        group: t('ratio.indicators') },
+    { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
+    { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
   ], [t]);
 
   const groupNames = useMemo(() => [
-    t('ratio.structure'),
     t('ratio.indicators'),
+    t('ratio.structure'),
   ], [t]);
 
   const f1 = useMemo(
@@ -2525,10 +2536,8 @@ export default function RatioAnalysis() {
               {subTabs.filter(tab => tab.group === group).map(tab => {
                 const active = activeTab === tab.key;
                 const colorOn = group === groupNames[0]
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : group === groupNames[1]
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-600 text-white shadow-sm';
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-blue-600 text-white shadow-sm';
                 return (
                   <button
                     key={tab.key}

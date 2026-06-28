@@ -133,17 +133,23 @@ function MainApp() {
 
             <div className="flex flex-1 overflow-hidden">
               {activeView === 'kontrola' ? (
-                <ControlSheet />
+                <div className="flex-1 overflow-hidden" style={{ zoom }}>
+                  <ControlSheet />
+                </div>
               ) : activeView === 'analiza' ? (
                 <ErrorBoundary>
                   <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-                    <RatioAnalysis />
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ zoom }}>
+                      <RatioAnalysis />
+                    </div>
                   </Suspense>
                 </ErrorBoundary>
               ) : activeView === 'raport_miesieczny' ? (
                 <ErrorBoundary>
                   <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-                    <RaportMiesieczny />
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ zoom }}>
+                      <RaportMiesieczny />
+                    </div>
                   </Suspense>
                 </ErrorBoundary>
               ) : activeView === 'raport_grupy' ? (
