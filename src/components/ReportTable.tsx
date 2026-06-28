@@ -89,7 +89,7 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
     return (
       <tr className="border-b border-slate-100 opacity-45 select-none">
         <td className="py-1.5 px-2 sm:px-3 text-xs text-slate-300 font-mono hidden sm:table-cell">{row.segment}</td>
-        <td className={`py-1.5 px-2 sm:px-3 text-xs text-slate-400 ${indent}`}>{row.name}</td>
+        <td className={`py-1.5 px-2 sm:px-3 text-xs text-slate-400 ${indent}`}>{lang !== 'pl' ? (ROW_TR[row.name]?.[lang as 'fr' | 'en'] ?? row.name) : row.name}</td>
         <td className="py-1.5 px-3 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums">—</td>
         {hasPeriod2 && <td className="py-1.5 px-3 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums hidden sm:table-cell">—</td>}
         {hasPeriod3 && <td className="py-1.5 px-3 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums hidden md:table-cell">—</td>}

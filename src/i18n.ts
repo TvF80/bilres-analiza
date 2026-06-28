@@ -214,6 +214,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'analysis.gradeP1': 'Ocena P1',
 
     // Grades
+    'grade.vgood': 'B.DOBRY',
     'grade.good': 'DOBRY',
     'grade.warning': 'UWAGA',
     'grade.weak': 'SŁABY',
@@ -782,6 +783,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'analysis.norm': 'Norme',
     'analysis.gradeP1': 'Note P1',
 
+    'grade.vgood': 'EXCELLENT',
     'grade.good': 'BON',
     'grade.warning': 'ATTENTION',
     'grade.weak': 'FAIBLE',
@@ -1331,6 +1333,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'analysis.norm': 'Norm',
     'analysis.gradeP1': 'Grade P1',
 
+    'grade.vgood': 'EXCELLENT',
     'grade.good': 'GOOD',
     'grade.warning': 'WATCH',
     'grade.weak': 'WEAK',

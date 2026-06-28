@@ -46,33 +46,38 @@ function safe(num: number, den: number): number | null {
 
 // ── Badge / norm assessment ───────────────────────────────────────────────────
 
-type Grade = 'DOBRY' | 'UWAGA' | 'SŁABY' | 'BRAK';
+type Grade = 'B_DOBRY' | 'DOBRY' | 'UWAGA' | 'SŁABY' | 'BRAK';
 
 /**
- * @param v   – computed value (null = brak danych)
- * @param lo  – lower bound of norm (null = no lower bound)
- * @param hi  – upper bound of norm (null = no upper bound)
- * @param reverse – true for "lower is better" indicators (e.g. debt ratios where hi is max)
+ * @param v            – computed value (null = brak danych)
+ * @param lo           – lower bound of norm (null = no lower bound)
+ * @param hi           – upper bound of norm (null = no upper bound)
+ * @param higherBetter – when true, v > hi → DOBRY/B_DOBRY (not UWAGA/SŁABY)
  */
 function grade(
   v: number | null,
   lo: number | null,
   hi: number | null,
+  higherBetter = false,
 ): Grade {
   if (v === null) return 'BRAK';
-  const margin = 0.30; // 30% tolerance for UWAGA
+  const margin = 0.30;
 
   const tooLow  = lo !== null && v < lo;
   const tooHigh = hi !== null && v > hi;
 
   if (!tooLow && !tooHigh) return 'DOBRY';
 
-  // check 30% outside
+  if (tooHigh && higherBetter) {
+    const pct = (v - hi!) / Math.abs(hi!);
+    return pct >= 0.50 ? 'B_DOBRY' : 'DOBRY';
+  }
+
   if (tooLow) {
     const pct = (lo! - v) / Math.abs(lo!);
     return pct <= margin ? 'UWAGA' : 'SŁABY';
   }
-  // tooHigh
+  // tooHigh (not higherBetter)
   const pct = (v - hi!) / Math.abs(hi!);
   return pct <= margin ? 'UWAGA' : 'SŁABY';
 }
@@ -94,17 +99,19 @@ function gradeHigher(v: number | null, threshold: number): Grade {
 }
 
 const GRADE_CLS: Record<Grade, string> = {
-  DOBRY: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-  UWAGA: 'bg-amber-100  text-amber-700  border border-amber-200',
-  SŁABY: 'bg-red-100    text-red-700    border border-red-200',
-  BRAK:  'bg-slate-100  text-slate-500  border border-slate-200',
+  B_DOBRY: 'bg-violet-100 text-violet-700 border border-violet-200',
+  DOBRY:   'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  UWAGA:   'bg-amber-100  text-amber-700  border border-amber-200',
+  SŁABY:   'bg-red-100    text-red-700    border border-red-200',
+  BRAK:    'bg-slate-100  text-slate-500  border border-slate-200',
 };
 
 const GRADE_KEY: Record<Grade, string> = {
-  DOBRY: 'grade.good',
-  UWAGA: 'grade.warning',
-  SŁABY: 'grade.weak',
-  BRAK:  'grade.nodata',
+  B_DOBRY: 'grade.vgood',
+  DOBRY:   'grade.good',
+  UWAGA:   'grade.warning',
+  SŁABY:   'grade.weak',
+  BRAK:    'grade.nodata',
 };
 
 function Badge({ g }: { g: Grade }) {
@@ -140,11 +147,23 @@ interface Indicator {
 
 function IndicatorDrawer({ ind, labels, onClose }: { ind: Indicator; labels: string[]; onClose: () => void }) {
   const gradeColor = (g: Grade) =>
-    g === 'DOBRY' ? 'text-emerald-700 bg-emerald-100' : g === 'UWAGA' ? 'text-amber-700 bg-amber-100' : g === 'SŁABY' ? 'text-red-700 bg-red-100' : 'text-slate-400 bg-slate-100';
+    g === 'B_DOBRY' ? 'text-violet-700 bg-violet-100'
+    : g === 'DOBRY' ? 'text-emerald-700 bg-emerald-100'
+    : g === 'UWAGA' ? 'text-amber-700 bg-amber-100'
+    : g === 'SŁABY' ? 'text-red-700 bg-red-100'
+    : 'text-slate-400 bg-slate-100';
   const gradeBorder = (g: Grade) =>
-    g === 'DOBRY' ? 'border-emerald-200 bg-emerald-50' : g === 'UWAGA' ? 'border-amber-200 bg-amber-50' : g === 'SŁABY' ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50';
+    g === 'B_DOBRY' ? 'border-violet-200 bg-violet-50'
+    : g === 'DOBRY' ? 'border-emerald-200 bg-emerald-50'
+    : g === 'UWAGA' ? 'border-amber-200 bg-amber-50'
+    : g === 'SŁABY' ? 'border-red-200 bg-red-50'
+    : 'border-slate-200 bg-slate-50';
   const gradeHeader = (g: Grade) =>
-    g === 'DOBRY' ? 'bg-emerald-100 text-emerald-800' : g === 'UWAGA' ? 'bg-amber-100 text-amber-800' : g === 'SŁABY' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600';
+    g === 'B_DOBRY' ? 'bg-violet-100 text-violet-800'
+    : g === 'DOBRY' ? 'bg-emerald-100 text-emerald-800'
+    : g === 'UWAGA' ? 'bg-amber-100 text-amber-800'
+    : g === 'SŁABY' ? 'bg-red-100 text-red-800'
+    : 'bg-slate-100 text-slate-600';
   const fmtStep = (v: number | null) => {
     if (v === null || !isFinite(v)) return '—';
     const abs = Math.abs(v);
@@ -208,11 +227,11 @@ function IndicatorDrawer({ ind, labels, onClose }: { ind: Indicator; labels: str
                         ))}
                         <div className="flex items-center justify-between pt-1.5 mt-0.5 border-t border-slate-200/80">
                           <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">= Wynik</span>
-                          <span className={`font-mono font-black text-sm tabular-nums ${g === 'DOBRY' ? 'text-emerald-700' : g === 'UWAGA' ? 'text-amber-700' : g === 'SŁABY' ? 'text-red-700' : 'text-slate-400'}`}>{val}</span>
+                          <span className={`font-mono font-black text-sm tabular-nums ${g === 'B_DOBRY' ? 'text-violet-700' : g === 'DOBRY' ? 'text-emerald-700' : g === 'UWAGA' ? 'text-amber-700' : g === 'SŁABY' ? 'text-red-700' : 'text-slate-400'}`}>{val}</span>
                         </div>
                       </>
                     ) : (
-                      <div className={`font-mono font-black text-base tabular-nums ${g === 'DOBRY' ? 'text-emerald-700' : g === 'UWAGA' ? 'text-amber-700' : g === 'SŁABY' ? 'text-red-700' : 'text-slate-400'}`}>{val}</div>
+                      <div className={`font-mono font-black text-base tabular-nums ${g === 'B_DOBRY' ? 'text-violet-700' : g === 'DOBRY' ? 'text-emerald-700' : g === 'UWAGA' ? 'text-amber-700' : g === 'SŁABY' ? 'text-red-700' : 'text-slate-400'}`}>{val}</div>
                     )}
                   </div>
                 </div>
@@ -244,7 +263,7 @@ function IndicatorCards({ rows, labels }: { rows: Indicator[]; labels: string[] 
 
   const trendArrow = (g1: Grade, g2?: Grade) => {
     if (!g2 || g2 === 'BRAK' || g1 === 'BRAK') return null;
-    const ord: Record<Grade, number> = { DOBRY: 2, UWAGA: 1, SŁABY: 0, BRAK: -1 };
+    const ord: Record<Grade, number> = { B_DOBRY: 3, DOBRY: 2, UWAGA: 1, SŁABY: 0, BRAK: -1 };
     const diff = ord[g1] - ord[g2];
     if (diff > 0) return <span className="text-emerald-600 text-xs font-bold">↑</span>;
     if (diff < 0) return <span className="text-red-500 text-xs font-bold">↓</span>;
@@ -255,15 +274,18 @@ function IndicatorCards({ rows, labels }: { rows: Indicator[]; labels: string[] 
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {rows.map((row, i) => {
-          const borderCls = row.grade1 === 'DOBRY' ? 'border-emerald-300'
+          const borderCls = row.grade1 === 'B_DOBRY' ? 'border-violet-400'
+            : row.grade1 === 'DOBRY' ? 'border-emerald-300'
             : row.grade1 === 'UWAGA' ? 'border-amber-300'
             : row.grade1 === 'SŁABY' ? 'border-red-300'
             : 'border-slate-200';
-          const bg = row.grade1 === 'DOBRY' ? 'bg-emerald-50/30'
+          const bg = row.grade1 === 'B_DOBRY' ? 'bg-violet-50/30'
+            : row.grade1 === 'DOBRY' ? 'bg-emerald-50/30'
             : row.grade1 === 'UWAGA' ? 'bg-amber-50/30'
             : row.grade1 === 'SŁABY' ? 'bg-red-50/30'
             : 'bg-white';
-          const valColor = row.grade1 === 'DOBRY' ? 'text-emerald-700'
+          const valColor = row.grade1 === 'B_DOBRY' ? 'text-violet-700'
+            : row.grade1 === 'DOBRY' ? 'text-emerald-700'
             : row.grade1 === 'UWAGA' ? 'text-amber-700'
             : row.grade1 === 'SŁABY' ? 'text-red-700'
             : 'text-slate-400';
@@ -328,9 +350,9 @@ function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap;
         val2: fmtRatio(safe(f2.aktywaObrotowe, f2.zobowiazaniaKrotko)),
         val3: f3 ? fmtRatio(safe(f3.aktywaObrotowe, f3.zobowiazaniaKrotko)) : undefined,
         norm: '1.2 – 2.0',
-        grade1: grade(safe(f1.aktywaObrotowe, f1.zobowiazaniaKrotko), 1.2, 2.0),
-        grade2: grade(safe(f2.aktywaObrotowe, f2.zobowiazaniaKrotko), 1.2, 2.0),
-        grade3: f3 ? grade(safe(f3.aktywaObrotowe, f3.zobowiazaniaKrotko), 1.2, 2.0) : undefined,
+        grade1: grade(safe(f1.aktywaObrotowe, f1.zobowiazaniaKrotko), 1.2, 2.0, true),
+        grade2: grade(safe(f2.aktywaObrotowe, f2.zobowiazaniaKrotko), 1.2, 2.0, true),
+        grade3: f3 ? grade(safe(f3.aktywaObrotowe, f3.zobowiazaniaKrotko), 1.2, 2.0, true) : undefined,
         descPL: 'Informuje, ile razy aktywa obrotowe pokrywają zobowiązania krótkoterminowe. Wartość poniżej 1 sygnalizuje ryzyko utraty płynności bieżącej. Norma 1,2–2,0 jest standardem dla większości branż niefinansowych.',
         steps1: [{ label: 'Aktywa obrotowe (AO)', val: f1.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f1.zobowiazaniaKrotko }],
         steps2: [{ label: 'Aktywa obrotowe (AO)', val: f2.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f2.zobowiazaniaKrotko }],
@@ -343,9 +365,9 @@ function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap;
         val2: fmtRatio(safe(f2.aktywaObrotowe - f2.zapasy, f2.zobowiazaniaKrotko)),
         val3: f3 ? fmtRatio(safe(f3.aktywaObrotowe - f3.zapasy, f3.zobowiazaniaKrotko)) : undefined,
         norm: '0.7 – 1.2',
-        grade1: grade(safe(f1.aktywaObrotowe - f1.zapasy, f1.zobowiazaniaKrotko), 0.7, 1.2),
-        grade2: grade(safe(f2.aktywaObrotowe - f2.zapasy, f2.zobowiazaniaKrotko), 0.7, 1.2),
-        grade3: f3 ? grade(safe(f3.aktywaObrotowe - f3.zapasy, f3.zobowiazaniaKrotko), 0.7, 1.2) : undefined,
+        grade1: grade(safe(f1.aktywaObrotowe - f1.zapasy, f1.zobowiazaniaKrotko), 0.7, 1.2, true),
+        grade2: grade(safe(f2.aktywaObrotowe - f2.zapasy, f2.zobowiazaniaKrotko), 0.7, 1.2, true),
+        grade3: f3 ? grade(safe(f3.aktywaObrotowe - f3.zapasy, f3.zobowiazaniaKrotko), 0.7, 1.2, true) : undefined,
         descPL: 'Lepsza miara zdolności do natychmiastowej spłaty — wyklucza zapasy jako najmniej płynny składnik aktywów obrotowych. Rekomendowana dla branż z długim cyklem rotacji zapasów.',
         steps1: [{ label: 'Aktywa obrotowe (AO)', val: f1.aktywaObrotowe }, { label: 'Zapasy', val: f1.zapasy }, { label: 'AO − Zapasy (licznik)', val: f1.aktywaObrotowe - f1.zapasy }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f1.zobowiazaniaKrotko }],
         steps2: [{ label: 'Aktywa obrotowe (AO)', val: f2.aktywaObrotowe }, { label: 'Zapasy', val: f2.zapasy }, { label: 'AO − Zapasy (licznik)', val: f2.aktywaObrotowe - f2.zapasy }, { label: 'Zobowiązania krótkoterm. (ZK)', val: f2.zobowiazaniaKrotko }],
@@ -1213,20 +1235,23 @@ function ModelCard({ def, f1, f2, f3, onSelect }: {
   const g2 = scoreGrade(def, r2.score);
   const g3 = r3 ? scoreGrade(def, r3.score) : null;
 
-  const borderCls = g1 === 'DOBRY' ? 'border-emerald-300'
+  const borderCls = g1 === 'B_DOBRY' ? 'border-violet-400'
+    : g1 === 'DOBRY' ? 'border-emerald-300'
     : g1 === 'UWAGA' ? 'border-amber-300'
     : g1 === 'SŁABY' ? 'border-red-300'
     : 'border-slate-200';
-  const scoreColor = g1 === 'DOBRY' ? 'text-emerald-700'
+  const scoreColor = g1 === 'B_DOBRY' ? 'text-violet-700'
+    : g1 === 'DOBRY' ? 'text-emerald-700'
     : g1 === 'UWAGA' ? 'text-amber-700'
     : g1 === 'SŁABY' ? 'text-red-700'
     : 'text-slate-300';
-  const rowBg = g1 === 'DOBRY' ? 'bg-emerald-50/40'
+  const rowBg = g1 === 'B_DOBRY' ? 'bg-violet-50/40'
+    : g1 === 'DOBRY' ? 'bg-emerald-50/40'
     : g1 === 'UWAGA' ? 'bg-amber-50/40'
     : g1 === 'SŁABY' ? 'bg-red-50/40'
     : 'bg-white';
 
-  const dotColor = (g: Grade) => g === 'DOBRY' ? 'bg-emerald-500' : g === 'UWAGA' ? 'bg-amber-500' : g === 'SŁABY' ? 'bg-red-500' : 'bg-slate-300';
+  const dotColor = (g: Grade) => g === 'B_DOBRY' ? 'bg-violet-500' : g === 'DOBRY' ? 'bg-emerald-500' : g === 'UWAGA' ? 'bg-amber-500' : g === 'SŁABY' ? 'bg-red-500' : 'bg-slate-300';
 
   const trendGrades = f3 && r3
     ? [g3!, g2, g1]
@@ -1393,7 +1418,7 @@ function ModelDrawer({ def, f1, f2, f3, labels, onClose }: {
   );
 }
 
-const GRADE_ORDER: Record<Grade, number> = { 'SŁABY': 0, 'UWAGA': 1, 'DOBRY': 2, 'BRAK': 3 };
+const GRADE_ORDER: Record<Grade, number> = { 'SŁABY': 0, 'UWAGA': 1, 'DOBRY': 2, 'B_DOBRY': 3, 'BRAK': 4 };
 
 const ALL_SECTORS = ['all', 'universal', 'manufacturing', 'trade', 'services', 'construction', 'transport'] as const;
 
@@ -1419,7 +1444,7 @@ function DyskryminacyjneTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: Fi
   );
 
   const counts = useMemo(() => {
-    const c: Record<Grade, number> = { DOBRY: 0, UWAGA: 0, SŁABY: 0, BRAK: 0 };
+    const c: Record<Grade, number> = { B_DOBRY: 0, DOBRY: 0, UWAGA: 0, SŁABY: 0, BRAK: 0 };
     modelScores.forEach(m => c[m.grade]++);
     return c;
   }, [modelScores]);
@@ -1772,110 +1797,209 @@ function NarrativeBlock({
   beneish: BeneishResult | null;
   fmtP: (v: number | null, d?: number) => string | null;
 }) {
+  const { lang } = useLang();
   const paragraphs: string[] = [];
   const fPct = (v: number | null) => { const s = fmtP(v !== null ? v * 100 : null); return s ? `${s}%` : null; };
   const fRat = (v: number | null) => { const s = fmtP(v); return s ? `${s}x` : null; };
-  const fDni = (v: number | null) => { const s = fmtP(v, 0); return s ? `${s} dni` : null; };
+  const dayLabel = lang === 'fr' ? 'j' : lang === 'en' ? 'd' : 'dni';
+  const fDni = (v: number | null) => { const s = fmtP(v, 0); return s ? `${s} ${dayLabel}` : null; };
+  const currLabel = lang === 'fr' ? 'k EUR' : lang === 'en' ? 'k PLN' : 'tys. PLN';
 
-  // Akapit 1: ocena ogólna + trend
-  const overallMap: Record<Grade, string> = { DOBRY: 'dobrą', UWAGA: 'umiarkowaną', SŁABY: 'słabą', BRAK: 'nieokreśloną' };
-  const overallVerb: Record<Grade, string> = {
-    DOBRY: 'Spółka spełnia główne kryteria zdrowia finansowego.',
-    UWAGA: 'Część wskaźników wymaga monitorowania i podjęcia działań korygujących.',
-    SŁABY: 'Wyniki wskaźnikowe sygnalizują istotne ryzyka wymagające natychmiastowej reakcji.',
-    BRAK: 'Brak wystarczających danych do pełnej oceny.',
-  };
-  paragraphs.push(
-    `${companyName} prezentuje ${overallMap[overall]} kondycję finansową za okres ${p1}. ${overallVerb[overall]}`
-  );
+  if (lang === 'fr') {
+    // ── French paragraphs ──
+    const adjMap: Record<Grade, string> = { B_DOBRY: 'excellente', DOBRY: 'bonne', UWAGA: 'mitigée', SŁABY: 'dégradée', BRAK: 'indéterminée' };
+    const verbMap: Record<Grade, string> = {
+      B_DOBRY: 'La société présente d\'excellents fondamentaux financiers.',
+      DOBRY: 'La société satisfait aux principaux critères de santé financière.',
+      UWAGA: 'Certains indicateurs nécessitent un suivi et des mesures correctives.',
+      SŁABY: 'Les indicateurs signalent des risques significatifs nécessitant une réaction immédiate.',
+      BRAK: 'Données insuffisantes pour une évaluation complète.',
+    };
+    paragraphs.push(`${companyName} présente une condition financière ${adjMap[overall]} pour la période ${p1}. ${verbMap[overall]}`);
 
-  // Akapit 2: rentowność
-  if (gProf !== 'BRAK') {
-    const desc = gProf === 'DOBRY' ? 'zadowalająca' : gProf === 'UWAGA' ? 'umiarkowana — wyniki poniżej benchmarku' : 'niska lub ujemna — spółka wymaga restrukturyzacji przychodów';
-    const vals = [
-      roe1 !== null && `ROE ${fPct(roe1)}`,
-      roa1 !== null && `ROA ${fPct(roa1)}`,
-      ros1 !== null && `marża netto ${fPct(ros1)}`,
-      ebitdaM1 !== null && `EBITDA% ${fPct(ebitdaM1)}`,
-    ].filter(Boolean).join(', ');
-    const trend = roe1 !== null && roe2 !== null
-      ? roe1 > roe2 * 1.05 ? ' Rentowność poprawiła się rok do roku.'
-      : roe1 < roe2 * 0.95 ? ' Rentowność pogorszyła się rok do roku.'
-      : ' Rentowność pozostaje na stabilnym poziomie.'
-      : '';
-    paragraphs.push(`Rentowność jest ${desc}${vals ? ` (${vals})` : ''}.${trend}`);
-  }
+    if (gProf !== 'BRAK') {
+      const desc = (gProf === 'B_DOBRY' || gProf === 'DOBRY') ? 'satisfaisante' : gProf === 'UWAGA' ? 'mitigée — résultats en deçà du benchmark' : 'faible ou négative — restructuration des revenus nécessaire';
+      const vals = [roe1 !== null && `ROE ${fPct(roe1)}`, roa1 !== null && `ROA ${fPct(roa1)}`, ros1 !== null && `marge nette ${fPct(ros1)}`, ebitdaM1 !== null && `EBITDA% ${fPct(ebitdaM1)}`].filter(Boolean).join(', ');
+      const trend = roe1 !== null && roe2 !== null ? roe1 > roe2 * 1.05 ? ' La rentabilité s\'est améliorée d\'une année sur l\'autre.' : roe1 < roe2 * 0.95 ? ' La rentabilité s\'est dégradée d\'une année sur l\'autre.' : ' La rentabilité reste stable.' : '';
+      paragraphs.push(`La rentabilité est ${desc}${vals ? ` (${vals})` : ''}.${trend}`);
+    }
 
-  // Akapit 3: płynność
-  if (gLiqd !== 'BRAK') {
-    const desc = gLiqd === 'DOBRY' ? 'dobra — spółka posiada wystarczające zasoby płynne' : gLiqd === 'UWAGA' ? 'umiarkowana — zalecane monitorowanie pozycji gotówkowej' : 'niewystarczająca — spółka może mieć trudności z regulowaniem zobowiązań bieżących';
-    const vals = [
-      cr1 !== null && `CR ${fRat(cr1)}`,
-      dso1 !== null && `DSO ${fDni(dso1)}`,
-    ].filter(Boolean).join(', ');
-    const crTrend = cr1 !== null && cr2 !== null
-      ? cr1 > cr2 ? ' Wskaźnik bieżący wzrósł względem poprzedniego okresu.' : cr1 < cr2 ? ' Wskaźnik bieżący obniżył się względem poprzedniego okresu.' : ''
-      : '';
-    paragraphs.push(`Płynność finansowa jest ${desc}${vals ? ` (${vals})` : ''}.${crTrend}`);
-  }
+    if (gLiqd !== 'BRAK') {
+      const desc = (gLiqd === 'B_DOBRY' || gLiqd === 'DOBRY') ? 'bonne — la société dispose de ressources liquides suffisantes' : gLiqd === 'UWAGA' ? 'mitigée — surveillance de la trésorerie recommandée' : 'insuffisante — risque de difficultés à honorer les dettes courantes';
+      const vals = [cr1 !== null && `RC ${fRat(cr1)}`, dso1 !== null && `DSO ${fDni(dso1)}`].filter(Boolean).join(', ');
+      const crTrend = cr1 !== null && cr2 !== null ? cr1 > cr2 ? ' Le ratio de liquidité général a progressé par rapport à la période précédente.' : cr1 < cr2 ? ' Le ratio a diminué par rapport à la période précédente.' : '' : '';
+      paragraphs.push(`La liquidité financière est ${desc}${vals ? ` (${vals})` : ''}.${crTrend}`);
+    }
 
-  // Akapit 4: zadłużenie
-  if (gDebt !== 'BRAK') {
-    const desc = gDebt === 'DOBRY' ? 'bezpieczny — poziom dźwigni finansowej nie generuje istotnego ryzyka' : gDebt === 'UWAGA' ? 'podwyższony — spółka korzysta ze znaczącego finansowania zewnętrznego' : 'wysoki — poziom zadłużenia może zagrażać zdolności do obsługi zobowiązań';
-    const da = da1 !== null ? ` D/A = ${fRat(da1)}` : '';
-    const icr = icr1 !== null ? `, ICR = ${fRat(icr1)} (${icr1 >= 3 ? 'zdolność do obsługi odsetek dobra' : 'obsługa odsetek wymaga uwagi'})` : '';
-    const strKW = f1.kapitalWlasny > 0
-      ? ` Udział kapitału własnego w finansowaniu aktywów: ${fPct(f1.kapitalWlasny / f1.aktywaRazem)}.`
-      : '';
-    paragraphs.push(`Poziom zadłużenia jest ${desc}${da}${icr}).${strKW}`);
-  }
+    if (gDebt !== 'BRAK') {
+      const desc = (gDebt === 'B_DOBRY' || gDebt === 'DOBRY') ? 'sûr — le niveau d\'endettement ne génère pas de risque significatif' : gDebt === 'UWAGA' ? 'élevé — la société recourt à un financement externe important' : 'critique — le niveau d\'endettement peut compromettre la capacité de remboursement';
+      const da = da1 !== null ? ` D/A = ${fRat(da1)}` : '';
+      const icr = icr1 !== null ? `, ICR = ${fRat(icr1)} (${icr1 >= 3 ? 'couverture des intérêts satisfaisante' : 'couverture des intérêts à surveiller'})` : '';
+      const strKW = f1.kapitalWlasny > 0 ? ` Part des capitaux propres dans le financement des actifs : ${fPct(f1.kapitalWlasny / f1.aktywaRazem)}.` : '';
+      paragraphs.push(`Le niveau d'endettement est ${desc}${da}${icr}.${strKW}`);
+    }
 
-  // Akapit 5: struktura bilansu i RZiS
-  const udzAO = f1.aktywaRazem > 0 ? f1.aktywaObrotowe / f1.aktywaRazem : null;
-  const udzAT = f1.aktywaRazem > 0 ? f1.aktywaTrwale / f1.aktywaRazem : null;
-  if (udzAO !== null && udzAT !== null) {
-    const typ = udzAO > 0.6 ? 'obrotowy (handlowy/usługowy)' : udzAT > 0.6 ? 'środkowotrwały (produkcyjny/infrastrukturalny)' : 'zrównoważony';
-    paragraphs.push(
-      `Profil bilansu ma charakter ${typ}: aktywa obrotowe stanowią ${fPct(udzAO)} aktywów ogółem, trwałe — ${fPct(udzAT)}.` +
-      (f1.przychody > 0 && f2.przychody > 0
-        ? ` Przychody zmienily się z ${Math.round(f2.przychody / 1000)} tys. PLN do ${Math.round(f1.przychody / 1000)} tys. PLN (${f1.przychody >= f2.przychody ? '+' : ''}${fmtP((f1.przychody - f2.przychody) / Math.abs(f2.przychody))}%).`
-        : '')
-    );
-  }
+    const udzAO = f1.aktywaRazem > 0 ? f1.aktywaObrotowe / f1.aktywaRazem : null;
+    const udzAT = f1.aktywaRazem > 0 ? f1.aktywaTrwale / f1.aktywaRazem : null;
+    if (udzAO !== null && udzAT !== null) {
+      const typ = udzAO > 0.6 ? 'circulant (commerce/services)' : udzAT > 0.6 ? 'immobilisé (production/infrastructure)' : 'équilibré';
+      paragraphs.push(`Le profil du bilan est ${typ} : les actifs courants représentent ${fPct(udzAO)} du total, les actifs immobilisés ${fPct(udzAT)}.` +
+        (f1.przychody > 0 && f2.przychody > 0 ? ` Le CA est passé de ${Math.round(f2.przychody / 1000)} ${currLabel} à ${Math.round(f1.przychody / 1000)} ${currLabel} (${f1.przychody >= f2.przychody ? '+' : ''}${fmtP((f1.przychody - f2.przychody) / Math.abs(f2.przychody))}%).` : ''));
+    }
 
-  // Akapit 6: modele dyskryminacyjne
-  if (keyModels.length > 0) {
-    const withZone = keyModels.filter(m => m.zone);
-    const good = withZone.filter(m => m.zone?.grade === 'DOBRY').length;
-    const bad  = withZone.filter(m => m.zone?.grade === 'SŁABY').length;
-    const warn = withZone.filter(m => m.zone?.grade === 'UWAGA').length;
-    const total = withZone.length;
-    if (total > 0) {
-      const names = keyModels.slice(0, 3).map(m => m.def.shortName).join(', ');
-      const verdict = bad === total ? 'jednomyślnie sygnalizują zagrożenie upadłością'
-        : good === total ? `klasyfikują spółkę w strefie bezpieczeństwa`
-        : `dają niejednoznaczne sygnały (bezpiecznie: ${good}, uwaga: ${warn}, zagrożenie: ${bad} z ${total})`;
-      paragraphs.push(`Modele dyskryminacyjne (${names}) ${verdict}.`);
+    if (keyModels.length > 0) {
+      const withZone = keyModels.filter(m => m.zone);
+      const good = withZone.filter(m => m.zone?.grade === 'DOBRY' || m.zone?.grade === 'B_DOBRY').length;
+      const bad = withZone.filter(m => m.zone?.grade === 'SŁABY').length;
+      const warn = withZone.filter(m => m.zone?.grade === 'UWAGA').length;
+      const total = withZone.length;
+      if (total > 0) {
+        const names = keyModels.slice(0, 3).map(m => m.def.shortName).join(', ');
+        const verdict = bad === total ? 'signalent unanimement un risque de faillite' : good === total ? 'classent la société en zone de sécurité' : `donnent des signaux mixtes (sûr : ${good}, vigilance : ${warn}, risque : ${bad} sur ${total})`;
+        paragraphs.push(`Les modèles discriminants (${names}) ${verdict}.`);
+      }
+    }
+
+    if (beneish) {
+      paragraphs.push(beneish.highRisk
+        ? `⚠ Le test de Beneish (M = ${beneish.mscore.toFixed(2)}) dépasse le seuil d'alerte −1,78, signalant un risque statistique de manipulation des états financiers. Principaux facteurs : ${beneish.topDrivers.slice(0, 3).join(', ')}.`
+        : `Le test de Beneish (M = ${beneish.mscore.toFixed(2)}) ne révèle aucun signal de manipulation des résultats — la société reste en dessous du seuil d'alerte −1,78.`);
+    }
+
+  } else if (lang === 'en') {
+    // ── English paragraphs ──
+    const adjMap: Record<Grade, string> = { B_DOBRY: 'excellent', DOBRY: 'good', UWAGA: 'moderate', SŁABY: 'weak', BRAK: 'undetermined' };
+    const verbMap: Record<Grade, string> = {
+      B_DOBRY: 'The company shows outstanding financial health across all key indicators.',
+      DOBRY: 'The company meets the main criteria for financial health.',
+      UWAGA: 'Some indicators require monitoring and corrective action.',
+      SŁABY: 'The ratio analysis signals significant risks requiring immediate response.',
+      BRAK: 'Insufficient data for a complete assessment.',
+    };
+    paragraphs.push(`${companyName} shows ${adjMap[overall]} financial condition for period ${p1}. ${verbMap[overall]}`);
+
+    if (gProf !== 'BRAK') {
+      const desc = (gProf === 'B_DOBRY' || gProf === 'DOBRY') ? 'satisfactory' : gProf === 'UWAGA' ? 'moderate — results below benchmark' : 'low or negative — revenue restructuring required';
+      const vals = [roe1 !== null && `ROE ${fPct(roe1)}`, roa1 !== null && `ROA ${fPct(roa1)}`, ros1 !== null && `net margin ${fPct(ros1)}`, ebitdaM1 !== null && `EBITDA% ${fPct(ebitdaM1)}`].filter(Boolean).join(', ');
+      const trend = roe1 !== null && roe2 !== null ? roe1 > roe2 * 1.05 ? ' Profitability improved year-over-year.' : roe1 < roe2 * 0.95 ? ' Profitability declined year-over-year.' : ' Profitability is stable.' : '';
+      paragraphs.push(`Profitability is ${desc}${vals ? ` (${vals})` : ''}.${trend}`);
+    }
+
+    if (gLiqd !== 'BRAK') {
+      const desc = (gLiqd === 'B_DOBRY' || gLiqd === 'DOBRY') ? 'good — the company holds sufficient liquid resources' : gLiqd === 'UWAGA' ? 'moderate — cash position monitoring recommended' : 'insufficient — the company may struggle to meet current liabilities';
+      const vals = [cr1 !== null && `CR ${fRat(cr1)}`, dso1 !== null && `DSO ${fDni(dso1)}`].filter(Boolean).join(', ');
+      const crTrend = cr1 !== null && cr2 !== null ? cr1 > cr2 ? ' Current ratio improved vs. prior period.' : cr1 < cr2 ? ' Current ratio declined vs. prior period.' : '' : '';
+      paragraphs.push(`Liquidity is ${desc}${vals ? ` (${vals})` : ''}.${crTrend}`);
+    }
+
+    if (gDebt !== 'BRAK') {
+      const desc = (gDebt === 'B_DOBRY' || gDebt === 'DOBRY') ? 'safe — leverage level does not generate significant risk' : gDebt === 'UWAGA' ? 'elevated — the company relies on significant external financing' : 'high — debt level may threaten debt-service capacity';
+      const da = da1 !== null ? ` D/A = ${fRat(da1)}` : '';
+      const icr = icr1 !== null ? `, ICR = ${fRat(icr1)} (${icr1 >= 3 ? 'interest coverage satisfactory' : 'interest coverage warrants attention'})` : '';
+      const strKW = f1.kapitalWlasny > 0 ? ` Equity share in asset financing: ${fPct(f1.kapitalWlasny / f1.aktywaRazem)}.` : '';
+      paragraphs.push(`Leverage is ${desc}${da}${icr}.${strKW}`);
+    }
+
+    const udzAO = f1.aktywaRazem > 0 ? f1.aktywaObrotowe / f1.aktywaRazem : null;
+    const udzAT = f1.aktywaRazem > 0 ? f1.aktywaTrwale / f1.aktywaRazem : null;
+    if (udzAO !== null && udzAT !== null) {
+      const typ = udzAO > 0.6 ? 'current-asset driven (trade/services)' : udzAT > 0.6 ? 'fixed-asset heavy (production/infrastructure)' : 'balanced';
+      paragraphs.push(`Balance sheet profile is ${typ}: current assets account for ${fPct(udzAO)} of total assets, fixed assets ${fPct(udzAT)}.` +
+        (f1.przychody > 0 && f2.przychody > 0 ? ` Revenue changed from ${Math.round(f2.przychody / 1000)} ${currLabel} to ${Math.round(f1.przychody / 1000)} ${currLabel} (${f1.przychody >= f2.przychody ? '+' : ''}${fmtP((f1.przychody - f2.przychody) / Math.abs(f2.przychody))}%).` : ''));
+    }
+
+    if (keyModels.length > 0) {
+      const withZone = keyModels.filter(m => m.zone);
+      const good = withZone.filter(m => m.zone?.grade === 'DOBRY' || m.zone?.grade === 'B_DOBRY').length;
+      const bad = withZone.filter(m => m.zone?.grade === 'SŁABY').length;
+      const warn = withZone.filter(m => m.zone?.grade === 'UWAGA').length;
+      const total = withZone.length;
+      if (total > 0) {
+        const names = keyModels.slice(0, 3).map(m => m.def.shortName).join(', ');
+        const verdict = bad === total ? 'unanimously signal bankruptcy risk' : good === total ? 'classify the company in the safe zone' : `give mixed signals (safe: ${good}, watch: ${warn}, risk: ${bad} of ${total})`;
+        paragraphs.push(`Discriminant models (${names}) ${verdict}.`);
+      }
+    }
+
+    if (beneish) {
+      paragraphs.push(beneish.highRisk
+        ? `⚠ Beneish test (M = ${beneish.mscore.toFixed(2)}) exceeds the warning threshold of −1.78, indicating statistical risk of earnings manipulation. Main drivers: ${beneish.topDrivers.slice(0, 3).join(', ')}.`
+        : `Beneish test (M = ${beneish.mscore.toFixed(2)}) shows no signals of earnings manipulation — the company is below the −1.78 warning threshold.`);
+    }
+
+  } else {
+    // ── Polish paragraphs (default) ──
+    const overallMap: Record<Grade, string> = { B_DOBRY: 'bardzo dobrą', DOBRY: 'dobrą', UWAGA: 'umiarkowaną', SŁABY: 'słabą', BRAK: 'nieokreśloną' };
+    const overallVerb: Record<Grade, string> = {
+      B_DOBRY: 'Spółka wyróżnia się znakomitymi fundamentami finansowymi we wszystkich kluczowych obszarach.',
+      DOBRY: 'Spółka spełnia główne kryteria zdrowia finansowego.',
+      UWAGA: 'Część wskaźników wymaga monitorowania i podjęcia działań korygujących.',
+      SŁABY: 'Wyniki wskaźnikowe sygnalizują istotne ryzyka wymagające natychmiastowej reakcji.',
+      BRAK: 'Brak wystarczających danych do pełnej oceny.',
+    };
+    paragraphs.push(`${companyName} prezentuje ${overallMap[overall]} kondycję finansową za okres ${p1}. ${overallVerb[overall]}`);
+
+    if (gProf !== 'BRAK') {
+      const desc = (gProf === 'B_DOBRY' || gProf === 'DOBRY') ? 'zadowalająca' : gProf === 'UWAGA' ? 'umiarkowana — wyniki poniżej benchmarku' : 'niska lub ujemna — spółka wymaga restrukturyzacji przychodów';
+      const vals = [roe1 !== null && `ROE ${fPct(roe1)}`, roa1 !== null && `ROA ${fPct(roa1)}`, ros1 !== null && `marża netto ${fPct(ros1)}`, ebitdaM1 !== null && `EBITDA% ${fPct(ebitdaM1)}`].filter(Boolean).join(', ');
+      const trend = roe1 !== null && roe2 !== null ? roe1 > roe2 * 1.05 ? ' Rentowność poprawiła się rok do roku.' : roe1 < roe2 * 0.95 ? ' Rentowność pogorszyła się rok do roku.' : ' Rentowność pozostaje na stabilnym poziomie.' : '';
+      paragraphs.push(`Rentowność jest ${desc}${vals ? ` (${vals})` : ''}.${trend}`);
+    }
+
+    if (gLiqd !== 'BRAK') {
+      const desc = (gLiqd === 'B_DOBRY' || gLiqd === 'DOBRY') ? 'dobra — spółka posiada wystarczające zasoby płynne' : gLiqd === 'UWAGA' ? 'umiarkowana — zalecane monitorowanie pozycji gotówkowej' : 'niewystarczająca — spółka może mieć trudności z regulowaniem zobowiązań bieżących';
+      const vals = [cr1 !== null && `CR ${fRat(cr1)}`, dso1 !== null && `DSO ${fDni(dso1)}`].filter(Boolean).join(', ');
+      const crTrend = cr1 !== null && cr2 !== null ? cr1 > cr2 ? ' Wskaźnik bieżący wzrósł względem poprzedniego okresu.' : cr1 < cr2 ? ' Wskaźnik bieżący obniżył się względem poprzedniego okresu.' : '' : '';
+      paragraphs.push(`Płynność finansowa jest ${desc}${vals ? ` (${vals})` : ''}.${crTrend}`);
+    }
+
+    if (gDebt !== 'BRAK') {
+      const desc = (gDebt === 'B_DOBRY' || gDebt === 'DOBRY') ? 'bezpieczny — poziom dźwigni finansowej nie generuje istotnego ryzyka' : gDebt === 'UWAGA' ? 'podwyższony — spółka korzysta ze znaczącego finansowania zewnętrznego' : 'wysoki — poziom zadłużenia może zagrażać zdolności do obsługi zobowiązań';
+      const da = da1 !== null ? ` D/A = ${fRat(da1)}` : '';
+      const icr = icr1 !== null ? `, ICR = ${fRat(icr1)} (${icr1 >= 3 ? 'zdolność do obsługi odsetek dobra' : 'obsługa odsetek wymaga uwagi'})` : '';
+      const strKW = f1.kapitalWlasny > 0 ? ` Udział kapitału własnego w finansowaniu aktywów: ${fPct(f1.kapitalWlasny / f1.aktywaRazem)}.` : '';
+      paragraphs.push(`Poziom zadłużenia jest ${desc}${da}${icr}.${strKW}`);
+    }
+
+    const udzAO = f1.aktywaRazem > 0 ? f1.aktywaObrotowe / f1.aktywaRazem : null;
+    const udzAT = f1.aktywaRazem > 0 ? f1.aktywaTrwale / f1.aktywaRazem : null;
+    if (udzAO !== null && udzAT !== null) {
+      const typ = udzAO > 0.6 ? 'obrotowy (handlowy/usługowy)' : udzAT > 0.6 ? 'środkowotrwały (produkcyjny/infrastrukturalny)' : 'zrównoważony';
+      paragraphs.push(
+        `Profil bilansu ma charakter ${typ}: aktywa obrotowe stanowią ${fPct(udzAO)} aktywów ogółem, trwałe — ${fPct(udzAT)}.` +
+        (f1.przychody > 0 && f2.przychody > 0 ? ` Przychody zmieniły się z ${Math.round(f2.przychody / 1000)} tys. PLN do ${Math.round(f1.przychody / 1000)} tys. PLN (${f1.przychody >= f2.przychody ? '+' : ''}${fmtP((f1.przychody - f2.przychody) / Math.abs(f2.przychody))}%).` : '')
+      );
+    }
+
+    if (keyModels.length > 0) {
+      const withZone = keyModels.filter(m => m.zone);
+      const good = withZone.filter(m => m.zone?.grade === 'DOBRY' || m.zone?.grade === 'B_DOBRY').length;
+      const bad  = withZone.filter(m => m.zone?.grade === 'SŁABY').length;
+      const warn = withZone.filter(m => m.zone?.grade === 'UWAGA').length;
+      const total = withZone.length;
+      if (total > 0) {
+        const names = keyModels.slice(0, 3).map(m => m.def.shortName).join(', ');
+        const verdict = bad === total ? 'jednomyślnie sygnalizują zagrożenie upadłością' : good === total ? 'klasyfikują spółkę w strefie bezpieczeństwa' : `dają niejednoznaczne sygnały (bezpiecznie: ${good}, uwaga: ${warn}, zagrożenie: ${bad} z ${total})`;
+        paragraphs.push(`Modele dyskryminacyjne (${names}) ${verdict}.`);
+      }
+    }
+
+    if (beneish) {
+      paragraphs.push(beneish.highRisk
+        ? `⚠ Test Beneisha (M = ${beneish.mscore.toFixed(2)}) przekracza próg ostrzegawczy −1,78, co sygnalizuje statystyczne ryzyko manipulacji sprawozdaniem finansowym. Główne czynniki ryzyka: ${beneish.topDrivers.slice(0, 3).join(', ')}.`
+        : `Test Beneisha (M = ${beneish.mscore.toFixed(2)}) nie wykazuje sygnałów manipulacji wynikami finansowymi — spółka mieści się poniżej progu ostrzegawczego −1,78.`);
     }
   }
 
-  // Akapit 7: Beneish
-  if (beneish) {
-    paragraphs.push(
-      beneish.highRisk
-        ? `⚠ Test Beneisha (M = ${beneish.mscore.toFixed(2)}) przekracza próg ostrzegawczy −1,78, co sygnalizuje statystyczne ryzyko manipulacji sprawozdaniem finansowym. Główne czynniki ryzyka: ${beneish.topDrivers.slice(0, 3).join(', ')}.`
-        : `Test Beneisha (M = ${beneish.mscore.toFixed(2)}) nie wykazuje sygnałów manipulacji wynikami finansowymi — spółka mieści się poniżej progu ostrzegawczego −1,78.`
-    );
-  }
-
-  const borderColor = overall === 'DOBRY' ? 'border-emerald-200' : overall === 'UWAGA' ? 'border-amber-200' : overall === 'SŁABY' ? 'border-red-200' : 'border-slate-200';
+  const borderColor = overall === 'B_DOBRY' ? 'border-violet-200' : overall === 'DOBRY' ? 'border-emerald-200' : overall === 'UWAGA' ? 'border-amber-200' : overall === 'SŁABY' ? 'border-red-200' : 'border-slate-200';
+  const titles: Record<string, string> = { pl: 'Podsumowanie analityczne', fr: 'Synthèse analytique', en: 'Analytical summary' };
 
   return (
     <div className={`bg-white rounded-xl border shadow-sm p-5 ${borderColor}`}>
       <div className="flex items-center gap-2 mb-4">
         <span className="text-base">📝</span>
-        <h3 className="text-sm font-bold text-slate-800">Podsumowanie analityczne</h3>
-        <span className="ml-auto text-[10px] text-slate-400">generowane automatycznie z danych</span>
+        <h3 className="text-sm font-bold text-slate-800">{titles[lang] ?? titles.pl}</h3>
+        <span className="ml-auto text-[10px] text-slate-400">{lang === 'fr' ? 'généré automatiquement' : lang === 'en' ? 'auto-generated from data' : 'generowane automatycznie z danych'}</span>
       </div>
       <div className="space-y-2.5">
         {paragraphs.map((p, i) => (
@@ -1898,6 +2022,7 @@ function PodsumowanieTab({
   onNavigate: (tab: SubTab) => void;
 }) {
   const [drawerInd, setDrawerInd] = useState<Indicator | null>(null);
+  const { lang } = useLang();
   const p1 = periodLabels?.[0] ?? 'Okres bieżący';
   const p2 = periodLabels?.[1] ?? 'Okres porównawczy';
   const labels = [p1, p2, ...(periodLabels?.[2] ? [periodLabels[2]] : [])];
@@ -1930,8 +2055,8 @@ function PodsumowanieTab({
   const roe3 = f3 ? safe(f3.zyskNetto, f3.kapitalWlasny) : null;
   const dso3 = (f3 && f3.przychody !== 0) ? (f3.naleznosci / f3.przychody) * 360 : null;
 
-  const gCR  = grade(cr1, 1.2, 2.0);
-  const gQR  = grade(qr1, 0.7, 1.2);
+  const gCR  = grade(cr1, 1.2, 2.0, true);
+  const gQR  = grade(qr1, 0.7, 1.2, true);
   const gDA  = grade(da1, 0.4, 0.6);
   const gICR = icr1 !== null ? gradeHigher(icr1, 3.0) : 'BRAK' as Grade;
   const gROE = gradeHigher(roe1 !== null ? roe1 * 100 : null, 10);
@@ -1945,7 +2070,7 @@ function PodsumowanieTab({
     if (!v.length) return 'BRAK';
     if (v.includes('SŁABY')) return 'SŁABY';
     if (v.includes('UWAGA')) return 'UWAGA';
-    return 'DOBRY';
+    return 'DOBRY'; // B_DOBRY na poziomie indywidualnym, nie agregujemy wyżej
   };
 
   const gLiqd  = aggGrade([gCR, gQR]);
@@ -1968,9 +2093,9 @@ function PodsumowanieTab({
     [f1],
   );
 
-  const overallBg = overall === 'DOBRY' ? 'from-emerald-50 to-emerald-100/50 border-emerald-300' : overall === 'UWAGA' ? 'from-amber-50 to-amber-100/50 border-amber-300' : overall === 'SŁABY' ? 'from-red-50 to-red-100/50 border-red-300' : 'from-slate-50 to-slate-100/50 border-slate-200';
-  const overallDot = overall === 'DOBRY' ? 'bg-emerald-500' : overall === 'UWAGA' ? 'bg-amber-500' : overall === 'SŁABY' ? 'bg-red-500' : 'bg-slate-400';
-  const valColor = (g: Grade) => g === 'DOBRY' ? 'text-emerald-700' : g === 'UWAGA' ? 'text-amber-700' : g === 'SŁABY' ? 'text-red-700' : 'text-slate-400';
+  const overallBg = overall === 'B_DOBRY' ? 'from-violet-50 to-violet-100/50 border-violet-300' : overall === 'DOBRY' ? 'from-emerald-50 to-emerald-100/50 border-emerald-300' : overall === 'UWAGA' ? 'from-amber-50 to-amber-100/50 border-amber-300' : overall === 'SŁABY' ? 'from-red-50 to-red-100/50 border-red-300' : 'from-slate-50 to-slate-100/50 border-slate-200';
+  const overallDot = overall === 'B_DOBRY' ? 'bg-violet-500' : overall === 'DOBRY' ? 'bg-emerald-500' : overall === 'UWAGA' ? 'bg-amber-500' : overall === 'SŁABY' ? 'bg-red-500' : 'bg-slate-400';
+  const valColor = (g: Grade) => g === 'B_DOBRY' ? 'text-violet-700' : g === 'DOBRY' ? 'text-emerald-700' : g === 'UWAGA' ? 'text-amber-700' : g === 'SŁABY' ? 'text-red-700' : 'text-slate-400';
 
   const trend = (v1: number | null, v2: number | null) => {
     if (v1 === null || v2 === null) return null;
@@ -1989,7 +2114,7 @@ function PodsumowanieTab({
     formula: 'AO / ZK',
     val1: fmtRatio(cr1), val2: fmtRatio(cr2), val3: f3 ? fmtRatio(cr3) : undefined,
     norm: '1,2 – 2,0',
-    grade1: gCR, grade2: grade(cr2, 1.2, 2.0), grade3: f3 ? grade(cr3, 1.2, 2.0) : undefined,
+    grade1: gCR, grade2: grade(cr2, 1.2, 2.0, true), grade3: f3 ? grade(cr3, 1.2, 2.0, true) : undefined,
     descPL: 'Wskaźnik bieżącej płynności — ile razy aktywa obrotowe pokrywają zobowiązania krótkoterminowe.',
     steps1: [{ label: 'Aktywa obrotowe', val: f1.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm.', val: f1.zobowiazaniaKrotko }],
     steps2: [{ label: 'Aktywa obrotowe', val: f2.aktywaObrotowe }, { label: 'Zobowiązania krótkoterm.', val: f2.zobowiazaniaKrotko }],
@@ -2067,8 +2192,9 @@ function PodsumowanieTab({
     },
   ];
 
-  const catCardBg = (g: Grade) => g === 'DOBRY'
-    ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100/70'
+  const catCardBg = (g: Grade) => g === 'B_DOBRY'
+    ? 'bg-violet-50 border-violet-200 hover:bg-violet-100/70'
+    : g === 'DOBRY' ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100/70'
     : g === 'UWAGA' ? 'bg-amber-50 border-amber-200 hover:bg-amber-100/70'
     : g === 'SŁABY' ? 'bg-red-50 border-red-200 hover:bg-red-100/70'
     : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70';
@@ -2162,11 +2288,80 @@ function PodsumowanieTab({
         fmtP={fmtP}
       />
 
+      {/* ── Struktura bilansu ── */}
+      {(() => {
+        const udzAO = f1.aktywaRazem > 0 ? f1.aktywaObrotowe / f1.aktywaRazem : null;
+        const udzAT = f1.aktywaRazem > 0 ? f1.aktywaTrwale / f1.aktywaRazem : null;
+        const udzKW = f1.aktywaRazem > 0 ? f1.kapitalWlasny / f1.aktywaRazem : null;
+        const udzZob = f1.aktywaRazem > 0 ? (f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko) / f1.aktywaRazem : null;
+        const gStrKW = udzKW !== null ? (udzKW >= 0.40 ? 'DOBRY' : udzKW >= 0.25 ? 'UWAGA' : 'SŁABY') as Grade : 'BRAK' as Grade;
+        const structLabels: Record<string, { title: string; curr: string; fixed: string; equity: string; debt: string }> = {
+          pl: { title: 'Struktura bilansu', curr: 'Aktywa obrotowe', fixed: 'Aktywa trwałe', equity: 'Kapitał własny', debt: 'Zobowiązania' },
+          fr: { title: 'Structure du bilan', curr: 'Actifs courants', fixed: 'Actifs immobilisés', equity: 'Capitaux propres', debt: 'Dettes' },
+          en: { title: 'Balance sheet structure', curr: 'Current assets', fixed: 'Fixed assets', equity: 'Equity', debt: 'Liabilities' },
+        };
+        const sl = structLabels[lang] ?? structLabels.pl;
+        if (udzAO === null) return null;
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <button
+              onClick={() => onNavigate('bilans_str')}
+              className="w-full px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2 hover:bg-slate-100 transition-colors text-left"
+            >
+              <span className="font-bold text-sm text-slate-800 flex-1">{sl.title}</span>
+              <Badge g={gStrKW} />
+              <span className="text-[10px] text-blue-500 font-medium">→ {lang === 'fr' ? 'voir détails' : lang === 'en' ? 'see details' : 'pełna analiza'}</span>
+            </button>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{lang === 'fr' ? 'ACTIF' : lang === 'en' ? 'ASSETS' : 'AKTYWA'}</div>
+                {[
+                  { label: sl.curr, pct: udzAO, color: 'bg-blue-400' },
+                  { label: sl.fixed, pct: udzAT, color: 'bg-blue-200' },
+                ].map(row => row.pct !== null ? (
+                  <div key={row.label} className="mb-1.5">
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-slate-600">{row.label}</span>
+                      <span className="font-mono font-semibold text-slate-700">{(row.pct * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${row.color} rounded-full`} style={{ width: `${Math.min(100, row.pct * 100)}%` }} />
+                    </div>
+                  </div>
+                ) : null)}
+              </div>
+              <div>
+                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{lang === 'fr' ? 'PASSIF' : lang === 'en' ? 'EQUITY & LIAB.' : 'PASYWA'}</div>
+                {[
+                  { label: sl.equity, pct: udzKW, color: 'bg-emerald-400' },
+                  { label: sl.debt, pct: udzZob, color: 'bg-red-300' },
+                ].map(row => row.pct !== null ? (
+                  <div key={row.label} className="mb-1.5">
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-slate-600">{row.label}</span>
+                      <span className="font-mono font-semibold text-slate-700">{(row.pct * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${row.color} rounded-full`} style={{ width: `${Math.min(100, row.pct * 100)}%` }} />
+                    </div>
+                  </div>
+                ) : null)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Modele dyskryminacyjne ── */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <button
+        onClick={() => onNavigate('dyskryminacyjne')}
+        className="w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md hover:border-slate-300 transition-all text-left"
+      >
         <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-          <span className="font-bold text-sm text-slate-800 flex-1">Modele dyskryminacyjne (kluczowe)</span>
-          <span className="text-[10px] text-slate-400">zakładka Dyskryminacyjne → pełne szczegóły</span>
+          <span className="font-bold text-sm text-slate-800 flex-1">
+            {lang === 'fr' ? 'Modèles discriminants (clés)' : lang === 'en' ? 'Discriminant models (key)' : 'Modele dyskryminacyjne (kluczowe)'}
+          </span>
+          <span className="text-[10px] text-blue-500 font-medium">→ {lang === 'fr' ? 'voir tous' : lang === 'en' ? 'see all' : 'pełne szczegóły'}</span>
         </div>
         <div className="divide-y divide-slate-100">
           {keyModels.map(({ def, score, zone }) => (
@@ -2175,7 +2370,7 @@ function PodsumowanieTab({
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-slate-700">{def.shortName} — {def.author} ({def.year})</div>
                 {score !== null && (
-                  <div className="text-[10px] text-slate-400 font-mono">wynik: {score.toFixed(4)}</div>
+                  <div className="text-[10px] text-slate-400 font-mono">{lang === 'fr' ? 'score' : lang === 'en' ? 'score' : 'wynik'}: {score.toFixed(4)}</div>
                 )}
               </div>
               <div className="shrink-0 text-right space-y-1">
@@ -2185,21 +2380,27 @@ function PodsumowanieTab({
             </div>
           ))}
         </div>
-      </div>
+      </button>
 
       {/* ── Beneish M-Score ── */}
       {beneish && (
-        <div className={`rounded-xl border-2 shadow-sm p-4 ${beneish.highRisk ? 'bg-red-50 border-red-300' : 'bg-emerald-50 border-emerald-300'}`}>
+        <button
+          onClick={() => onNavigate('beneish')}
+          className={`w-full text-left rounded-xl border-2 shadow-sm p-4 hover:shadow-md transition-all ${beneish.highRisk ? 'bg-red-50 border-red-300 hover:border-red-400' : 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'}`}
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-sm text-slate-800">Beneish M-Score</span>
-            <span className={`font-mono font-black text-lg ${beneish.highRisk ? 'text-red-700' : 'text-emerald-700'}`}>
-              {beneish.mscore.toFixed(3)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`font-mono font-black text-lg ${beneish.highRisk ? 'text-red-700' : 'text-emerald-700'}`}>
+                {beneish.mscore.toFixed(3)}
+              </span>
+              <span className="text-[10px] text-blue-500 font-medium">→ {lang === 'fr' ? 'détails' : lang === 'en' ? 'details' : 'szczegóły'}</span>
+            </div>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed">
             {beneish.highRisk
-              ? `Wynik M = ${beneish.mscore.toFixed(2)} przekracza próg ostrzegawczy −1,78 — sygnał potencjalnego ryzyka manipulacji wynikami finansowymi. Główne czynniki: ${beneish.topDrivers.join(', ')}.`
-              : `Wynik M = ${beneish.mscore.toFixed(2)} poniżej progu −1,78 — brak statystycznych sygnałów manipulacji sprawozdaniami finansowymi.`
+              ? `${lang === 'fr' ? `Score M = ${beneish.mscore.toFixed(2)} dépasse le seuil d'alerte −1,78 — signal de risque de manipulation.` : lang === 'en' ? `M = ${beneish.mscore.toFixed(2)} exceeds the −1.78 warning threshold — earnings manipulation risk signal.` : `Wynik M = ${beneish.mscore.toFixed(2)} przekracza próg ostrzegawczy −1,78 — sygnał potencjalnego ryzyka manipulacji wynikami finansowymi. Główne czynniki: ${beneish.topDrivers.join(', ')}.`}`
+              : `${lang === 'fr' ? `Score M = ${beneish.mscore.toFixed(2)} en dessous du seuil −1,78 — aucun signal de manipulation.` : lang === 'en' ? `M = ${beneish.mscore.toFixed(2)} below threshold −1.78 — no manipulation signals detected.` : `Wynik M = ${beneish.mscore.toFixed(2)} poniżej progu −1,78 — brak statystycznych sygnałów manipulacji sprawozdaniami finansowymi.`}`
             }
           </p>
           {beneish.topDrivers.length > 0 && (
@@ -2209,7 +2410,7 @@ function PodsumowanieTab({
               ))}
             </div>
           )}
-        </div>
+        </button>
       )}
 
       {/* ── Category Indicator Drawer ── */}
@@ -2229,6 +2430,8 @@ export default function RatioAnalysis() {
   const [activeTab, setActiveTab] = useState<SubTab>('podsumowanie');
 
   const subTabs: { key: SubTab; label: string; group: string }[] = useMemo(() => [
+    { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
+    { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
     { key: 'plynnosc',         label: t('analysis.liquidity'),      group: t('ratio.indicators') },
     { key: 'sprawnosc',        label: t('analysis.efficiency'),     group: t('ratio.indicators') },
     { key: 'zadluzenie',       label: t('analysis.debt'),           group: t('ratio.indicators') },
@@ -2236,13 +2439,11 @@ export default function RatioAnalysis() {
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
     { key: 'podsumowanie',     label: t('analysis.summary'),        group: t('ratio.indicators') },
-    { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
-    { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
   ], [t]);
 
   const groupNames = useMemo(() => [
-    t('ratio.indicators'),
     t('ratio.structure'),
+    t('ratio.indicators'),
   ], [t]);
 
   const f1 = useMemo(
@@ -2324,9 +2525,9 @@ export default function RatioAnalysis() {
               {subTabs.filter(tab => tab.group === group).map(tab => {
                 const active = activeTab === tab.key;
                 const colorOn = group === groupNames[0]
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : group === groupNames[1]
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-emerald-600 text-white shadow-sm'
                     : 'bg-slate-600 text-white shadow-sm';
                 return (
                   <button
