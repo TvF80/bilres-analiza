@@ -22,7 +22,7 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
   const roleLabel = (role: FileRole) => t(`role.${role}`);
   const { addCompany, replaceCompanyData } = useCompanies();
   const isReplaceMode = !!replaceCompanyId;
-  const [companyName, setCompanyName] = useState(isReplaceMode ? (replaceCompanyName ?? '') : '');
+  const [companyName, setCompanyName] = useState(isReplaceMode ? (replaceCompanyName ?? '') : 'Firma');
   const [filesMap, setFilesMap] = useState<Partial<Record<FileRole, File>>>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
