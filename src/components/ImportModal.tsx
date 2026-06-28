@@ -53,7 +53,11 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
   }
 
   const assignedCount = Object.keys(filesMap).length;
-  const canImport = (isReplaceMode || companyName.trim()) && (filesMap.bilansSchema || filesMap.bilansData || filesMap.rzisData) && assignedCount >= 1;
+  const canImport = assignedCount >= 1 && (
+    isReplaceMode
+      ? true
+      : !!companyName.trim() && !!(filesMap.bilansSchema || filesMap.bilansData || filesMap.rzisData)
+  );
 
   async function handleImport() {
     setError('');
@@ -61,10 +65,21 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
     try {
       const data = await importFiles(filesMap as FilesMap);
       if (isReplaceMode && replaceCompanyId) {
+        const hasBilans = !!(filesMap.bilansData || filesMap.bilansSchema);
+        const hasRzis   = !!(filesMap.rzisData   || filesMap.rzisSchema);
+        const hasObroty = !!filesMap.obroty;
+        const hasZapisy = !!filesMap.zapisy;
+        const hasRaportM = !!filesMap.raportMiesieczny;
+        const hasGrp    = !!filesMap.raportGrupy;
+        const hasPeriodData = hasBilans || hasRzis;
         replaceCompanyData(replaceCompanyId, {
-          period: data.period, bilans: data.bilans, rzis: data.rzis,
-          obroty: data.obroty, zapisy: data.zapisy, periodLabels: data.periodLabels,
-          raportMiesieczny: data.raportMiesieczny, grpData: data.grpData,
+          ...(hasPeriodData ? { period: data.period, periodLabels: data.periodLabels } : {}),
+          ...(hasBilans  ? { bilans: data.bilans }   : {}),
+          ...(hasRzis    ? { rzis: data.rzis }        : {}),
+          ...(hasObroty  ? { obroty: data.obroty }    : {}),
+          ...(hasZapisy  ? { zapisy: data.zapisy }    : {}),
+          ...(hasRaportM ? { raportMiesieczny: data.raportMiesieczny } : {}),
+          ...(hasGrp     ? { grpData: data.grpData }  : {}),
         });
         setImportedName(replaceCompanyName ?? '');
       } else {

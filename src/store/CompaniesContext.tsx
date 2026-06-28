@@ -26,7 +26,7 @@ interface CompaniesContextValue {
   zapisyLoading: boolean;
   setActiveCompany: (id: string) => void;
   addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Company;
-  replaceCompanyData: (id: string, data: CompanyData) => void;
+  replaceCompanyData: (id: string, data: Partial<CompanyData>) => void;
   updateCompanyName: (id: string, name: string) => void;
   deleteCompany: (id: string) => void;
   clearUserData: () => void;
@@ -149,16 +149,22 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     return company;
   }, []);
 
-  const replaceCompanyData = useCallback((id: string, data: CompanyData) => {
-    sessionStorage.removeItem(zapisyKey(id));
-    zapisyLoadedRef.current.delete(id);
-    if (data.zapisy.length > 0) cacheZapisy(id, data.zapisy);
+  const replaceCompanyData = useCallback((id: string, data: Partial<CompanyData>) => {
+    if (data.zapisy !== undefined) {
+      sessionStorage.removeItem(zapisyKey(id));
+      zapisyLoadedRef.current.delete(id);
+      if (data.zapisy.length > 0) cacheZapisy(id, data.zapisy);
+    }
     setCompanies(prev => prev.map(c =>
       c.id === id
         ? {
             ...c,
-            period: data.period, bilans: data.bilans, rzis: data.rzis,
-            obroty: data.obroty, zapisy: data.zapisy, periodLabels: data.periodLabels,
+            ...(data.period !== undefined ? { period: data.period } : {}),
+            ...(data.bilans !== undefined ? { bilans: data.bilans } : {}),
+            ...(data.rzis !== undefined ? { rzis: data.rzis } : {}),
+            ...(data.obroty !== undefined ? { obroty: data.obroty } : {}),
+            ...(data.zapisy !== undefined ? { zapisy: data.zapisy } : {}),
+            ...(data.periodLabels !== undefined ? { periodLabels: data.periodLabels } : {}),
             ...(data.raportMiesieczny !== undefined ? { raportMiesieczny: data.raportMiesieczny } : {}),
             ...(data.grpData !== undefined ? { grpData: data.grpData } : {}),
           }
