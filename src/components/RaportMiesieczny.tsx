@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  Cell, ReferenceLine, PieChart, Pie, LineChart, Line, AreaChart, Area,
+  Cell, ReferenceLine, PieChart, Pie, LineChart, Line,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 import raportDataRaw from '../data/raportMiesieczny.json';
@@ -156,25 +156,23 @@ function AccountsBadge({ accounts }: { accounts?: AccountRef[] }) {
 }
 
 /** Wykres porównawczy 3 lat obrachunkowych (FY2023/2024/2025) dla danej linii raportu. */
-function HistoryComparisonChart({ history, height = 230, kind = 'area' }: { history?: YearlyHistory[]; height?: number; kind?: 'area' | 'line' }) {
+function HistoryComparisonChart({ history, height = 230, kind: _kind = 'line' }: { history?: YearlyHistory[]; height?: number; kind?: 'area' | 'line' }) {
   const { t, lang } = useLang();
   const months = MONTHS_SHORT[lang];
   const series = useMemo(() => historySeries(history, months), [history, months]);
   if (!series.length || !history) return <p className="text-xs text-slate-400 italic">{t('costs.noHistoryPosition')}</p>;
-  const Chart = kind === 'area' ? AreaChart : LineChart;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <Chart data={series} margin={{ left: -16, right: 8, top: 6, bottom: 0 }}>
+      <LineChart data={series} margin={{ left: -16, right: 8, top: 6, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => plnM(Number(v))} width={48} />
         <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('fy', '')}`]} contentStyle={TOOLTIP_STYLE} />
         <Legend formatter={(v) => `FY ${String(v).replace('fy', '')}`} wrapperStyle={{ fontSize: 10 }} />
-        {history.map(h => kind === 'area'
-          ? <Area key={h.fy} type="monotone" dataKey={`fy${h.fy}`} stroke={HISTORY_COLORS[h.fy] ?? '#94a3b8'} fill={HISTORY_COLORS[h.fy] ?? '#94a3b8'} fillOpacity={h.fy === '2025' ? 0.28 : 0.12} strokeWidth={h.fy === '2025' ? 2.5 : 1.5} />
-          : <Line key={h.fy} type="monotone" dataKey={`fy${h.fy}`} stroke={HISTORY_COLORS[h.fy] ?? '#94a3b8'} strokeWidth={h.fy === '2025' ? 2.5 : 1.5} dot={false} />
-        )}
-      </Chart>
+        {history.map(h => (
+          <Line key={h.fy} type="monotone" dataKey={`fy${h.fy}`} stroke={HISTORY_COLORS[h.fy] ?? '#94a3b8'} strokeWidth={h.fy === '2025' ? 2.5 : 1.5} dot={false} />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 }
@@ -185,9 +183,9 @@ function MiniHistorySpark({ history, color = C.amber }: { history?: YearlyHistor
   if (points.length < 2) return null;
   return (
     <ResponsiveContainer width={64} height={28}>
-      <AreaChart data={points} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
-        <Area type="monotone" dataKey="total" stroke={color} fill={color} fillOpacity={0.15} strokeWidth={1.75} dot={{ r: 2, fill: color, strokeWidth: 0 }} />
-      </AreaChart>
+      <LineChart data={points} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>
+        <Line type="monotone" dataKey="total" stroke={color} strokeWidth={1.75} dot={{ r: 2, fill: color, strokeWidth: 0 }} />
+      </LineChart>
     </ResponsiveContainer>
   );
 }
