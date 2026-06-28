@@ -3,18 +3,11 @@ import {
 } from 'react';
 import type { Company, JournalEntry, MonthlyReportData, GrpData } from '../types';
 import { useAuth } from './AuthContext';
-import defaultBilans from '../data/bilans.json';
-import defaultRzis from '../data/rzis.json';
-import defaultObroty from '../data/obroty.json';
-import defaultMeta from '../data/bilans-meta.json';
 
 // Per-user storage keys
 const companyKey  = (uid: string) => `exco_companies_${uid}`;
 const activeKey   = (uid: string) => `exco_active_${uid}`;
 const zapisyKey   = (cid: string) => `exco_zapisy_${cid}`;
-
-// True when bundled JSON files contain real data (false in GitHub/empty-placeholder mode)
-const BUNDLED_HAS_DATA = (defaultBilans as unknown[]).length > 0;
 
 export interface CompanyData {
   period: string;
@@ -40,25 +33,6 @@ interface CompaniesContextValue {
 }
 
 const CompaniesContext = createContext<CompaniesContextValue | null>(null);
-
-const DEFAULT_COMPANY_ID = 'exco-poland-default';
-
-function buildDefaultCompany(): Company {
-  return {
-    id: DEFAULT_COMPANY_ID,
-    name: 'EXCO Poland',
-    period: (defaultMeta as { periodLabels: string[] }).periodLabels[0] ?? '',
-    periodLabels: (defaultMeta as { periodLabels: string[] }).periodLabels,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    bilans: defaultBilans as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rzis: defaultRzis as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    obroty: defaultObroty as any,
-    zapisy: [],
-    createdAt: '2026-01-01',
-  };
-}
 
 function toStorable(c: Company): Company {
   return { ...c, zapisy: [] };
@@ -101,13 +75,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string>('');
   const [zapisyLoading, setZapisyLoading] = useState(false);
   const zapisyLoadedRef = useRef<Set<string>>(new Set());
-
-  // Flaga: czy dane zostały już załadowane dla bieżącego uid.
-  // Bez niej efekt zapisu odpala się z companies=[] zanim efekt ładowania
-  // zdąży wypełnić state — co nadpisuje dane w localStorage zerami.
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // ── Reload companies when user changes (login / logout / switch) ──
+  // ── Reload companies when user changes ──
   useEffect(() => {
     if (!uid) {
       setIsLoaded(false);
@@ -115,42 +85,15 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       setActiveId('');
       return;
     }
-    let loaded = loadFromStorage(uid);
-    const hasDefault = loaded.some(c => c.id === DEFAULT_COMPANY_ID);
-
-    if (BUNDLED_HAS_DATA) {
-      // Real bundled data available — always refresh default company from JSON files.
-      // Wipe stale 2-period-only data (migration guard).
-      const hasTriperiod = loaded.some(c =>
-        c.bilans.some(r => (r.values as { period3?: number }).period3 !== undefined &&
-                           (r.values as { period3?: number }).period3 !== 0)
-      );
-      if (loaded.length === 0 || !hasTriperiod) {
-        loaded = [buildDefaultCompany()];
-      } else {
-        loaded = hasDefault
-          ? loaded.map(c => c.id === DEFAULT_COMPANY_ID ? buildDefaultCompany() : c)
-          : [buildDefaultCompany(), ...loaded];
-      }
-    } else {
-      // Empty placeholders (GitHub/import-only mode) — preserve whatever user imported.
-      // Only add default company if nothing exists yet.
-      if (loaded.length === 0) {
-        loaded = [buildDefaultCompany()];
-      } else if (!hasDefault) {
-        loaded = [buildDefaultCompany(), ...loaded];
-      }
-      // else: keep localStorage companies exactly as saved (incl. user-replaced default)
-    }
+    const loaded = loadFromStorage(uid);
     const saved  = localStorage.getItem(activeKey(uid));
-    const first  = loaded[0]?.id ?? '';
     setCompanies(loaded);
-    setActiveId(saved && loaded.some(c => c.id === saved) ? saved : first);
+    setActiveId(loaded.length > 0 ? (saved && loaded.some(c => c.id === saved) ? saved : loaded[0].id) : '');
     setIsLoaded(true);
     zapisyLoadedRef.current.clear();
   }, [uid]);
 
-  // ── Persist companies on change — tylko po zakończeniu ładowania ──
+  // ── Persist companies on change ──
   useEffect(() => {
     if (uid && isLoaded) saveToStorage(uid, companies);
   }, [companies, uid, isLoaded]);
@@ -177,18 +120,19 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const url = activeCompany.zapisyUrl ?? '/bilres-analiza/data/zapisy.json';
-    setZapisyLoading(true);
-    fetch(url)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((data: JournalEntry[]) => {
-        cacheZapisy(activeCompany.id, data);
-        setCompanies(prev =>
-          prev.map(c => c.id === activeCompany.id ? { ...c, zapisy: data } : c)
-        );
-      })
-      .catch(err => console.warn('Zapisy not loaded:', err.message))
-      .finally(() => setZapisyLoading(false));
+    if (activeCompany.zapisyUrl) {
+      setZapisyLoading(true);
+      fetch(activeCompany.zapisyUrl)
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then((data: JournalEntry[]) => {
+          cacheZapisy(activeCompany.id, data);
+          setCompanies(prev =>
+            prev.map(c => c.id === activeCompany.id ? { ...c, zapisy: data } : c)
+          );
+        })
+        .catch(err => console.warn('Zapisy not loaded:', err.message))
+        .finally(() => setZapisyLoading(false));
+    }
   }, [activeCompany?.id]);
 
   const setActiveCompany = useCallback((id: string) => setActiveId(id), []);
@@ -230,17 +174,14 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(zapisyKey(id));
     setCompanies(prev => {
       const next = prev.filter(c => c.id !== id);
-      if (activeId === id && next.length > 0) setActiveId(next[0].id);
+      if (activeId === id) setActiveId(next[0]?.id ?? '');
       return next;
     });
   }, [activeId]);
 
-  // ── Clear all data for current user ──
   const clearUserData = useCallback(() => {
     if (!uid) return;
-    companies.forEach(c => {
-      sessionStorage.removeItem(zapisyKey(c.id));
-    });
+    companies.forEach(c => sessionStorage.removeItem(zapisyKey(c.id)));
     localStorage.removeItem(companyKey(uid));
     localStorage.removeItem(activeKey(uid));
     setCompanies([]);

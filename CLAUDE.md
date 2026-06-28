@@ -7,6 +7,19 @@ Online: **https://tvf80.github.io/bilres-analiza/**
 
 ---
 
+## Prywatność danych / RODO
+
+**Aplikacja nie przechowuje żadnych danych wrażliwych w kodzie źródłowym ani na serwerze.**
+
+- Pliki `src/data/*.json` to **puste placeholdery** (`[]` / `null`) — nie zawierają żadnych danych finansowych.
+- Wszystkie dane finansowe użytkownik importuje samodzielnie z plików Excel.
+- Dane po imporcie przechowywane są wyłącznie w `localStorage` i `sessionStorage` przeglądarki użytkownika.
+- Żadne dane finansowe nie są wysyłane na zewnętrzny serwer.
+- Usunięcie danych: wystarczy wyczyścić localStorage przeglądarki lub użyć przycisku „Wyczyść dane" w aplikacji.
+- Repozytorium GitHub nie zawiera żadnych danych finansowych firm.
+
+---
+
 ## Uruchomienie
 
 ```bash
@@ -165,10 +178,9 @@ Obsługa **dwóch formatów** Excel:
 | EX_OBROTY.xlsx | Obroty i salda | Salda kont |
 | EX_ZAPISY.xlsx | Zapisy księgowe | Pełny dziennik FK |
 
-### Dane wbudowane (autoseed)
-`src/data/bilans.json`, `rzis.json`, `obroty.json` — EXCO Poland 3 lata (10.2022–09.2025)
-Ładowane automatycznie przy pierwszym logowaniu (brak firm w localStorage).
-`src/data/bilans-meta.json` — period labels dla autoseed.
+### Brak danych wbudowanych
+`src/data/*.json` — puste placeholdery. Aplikacja startuje bez żadnych danych.
+Przy braku firm w localStorage wyświetlany jest ekran powitalny z przyciskiem importu.
 
 ---
 
