@@ -65,126 +65,114 @@ function MainApp() {
   const zoomOut = useCallback(() => setZoomIdx(i => Math.max(i - 1, 0)), []);
   const zoomReset = useCallback(() => setZoomIdx(2), []);
 
-  // ── Ekran powitalny gdy brak firm (renderowany warunkowo, nie early-return) ──
-  if (companies.length === 0) {
-    return (
-      <LanguageProvider lang={lang}>
-        <WelcomeScreen onImport={() => setShowImport(true)} lang={lang} onLangChange={setLang} />
-        {showImport && <ImportModal onClose={() => setShowImport(false)} />}
-      </LanguageProvider>
-    );
-  }
-
   return (
     <LanguageProvider lang={lang}>
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
-      {/* ── Mobile sidebar overlay ── */}
-      {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-        />
-      )}
+      {companies.length === 0 ? (
+        /* ── Ekran powitalny ── */
+        <WelcomeScreen onImport={() => setShowImport(true)} lang={lang} onLangChange={setLang} />
+      ) : (
+        /* ── Główna aplikacja ── */
+        <div className="flex h-screen bg-slate-100 overflow-hidden">
+          {mobileSidebarOpen && (
+            <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileSidebarOpen(false)} />
+          )}
 
-      {/* ── Sidebar ── */}
-      <div className={`
-        print:hidden fixed md:relative inset-y-0 left-0 z-40 md:z-auto
-        transition-transform duration-200 ease-in-out
-        ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(c => !c)}
-          onImport={() => { setShowImport(true); setMobileSidebarOpen(false); }}
-          onReplaceData={(id, name) => { setReplaceTarget({ id, name }); setMobileSidebarOpen(false); }}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-        />
-      </div>
+          <div className={`print:hidden fixed md:relative inset-y-0 left-0 z-40 md:z-auto transition-transform duration-200 ease-in-out ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+            <Sidebar
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(c => !c)}
+              onImport={() => { setShowImport(true); setMobileSidebarOpen(false); }}
+              onReplaceData={(id, name) => { setReplaceTarget({ id, name }); setMobileSidebarOpen(false); }}
+              onMobileClose={() => setMobileSidebarOpen(false)}
+            />
+          </div>
 
-      {/* ── Main content ── */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header
-          activeView={activeView}
-          onViewChange={handleViewChange}
-          reportType={reportType}
-          onReportChange={handleReportChange}
-          search={search}
-          onSearchChange={setSearch}
-          onMobileMenu={() => setMobileSidebarOpen(true)}
-          zoom={zoom}
-          zoomIdx={zoomIdx}
-          zoomLevels={ZOOM_LEVELS}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onZoomReset={zoomReset}
-          lang={lang}
-          onLangChange={setLang}
-        />
+          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+            <Header
+              activeView={activeView}
+              onViewChange={handleViewChange}
+              reportType={reportType}
+              onReportChange={handleReportChange}
+              search={search}
+              onSearchChange={setSearch}
+              onMobileMenu={() => setMobileSidebarOpen(true)}
+              zoom={zoom}
+              zoomIdx={zoomIdx}
+              zoomLevels={ZOOM_LEVELS}
+              onZoomIn={zoomIn}
+              onZoomOut={zoomOut}
+              onZoomReset={zoomReset}
+              lang={lang}
+              onLangChange={setLang}
+            />
 
-        <div className="flex flex-1 overflow-hidden">
-          {activeView === 'kontrola' ? (
-            <ControlSheet />
-          ) : activeView === 'analiza' ? (
-            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-              <RatioAnalysis />
-            </Suspense>
-          ) : activeView === 'raport_miesieczny' ? (
-            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-              <RaportMiesieczny />
-            </Suspense>
-          ) : activeView === 'raport_grupy' ? (
-            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-              <div className="flex-1 flex flex-col min-h-0" style={{zoom}}>
-                <RaportGrupy lang={lang} />
-              </div>
-            </Suspense>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto flex flex-col">
-                {rows.length === 0 && !search ? (
-                  <EmptyState onImport={() => setShowImport(true)} />
-                ) : (
-                  <div className="max-w-2xl mx-auto px-3 py-3 md:px-4 md:py-4 w-full">
-                    <div
-                      className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden origin-top"
-                      style={{ zoom }}
-                    >
-                      <ReportTable
-                        rows={rows}
-                        search={search}
-                        selectedRow={selectedRow}
-                        onRowClick={handleRowClick}
-                        periodLabels={activeCompany?.periodLabels}
-                      />
-                    </div>
+            <div className="flex flex-1 overflow-hidden">
+              {activeView === 'kontrola' ? (
+                <ControlSheet />
+              ) : activeView === 'analiza' ? (
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                  <RatioAnalysis />
+                </Suspense>
+              ) : activeView === 'raport_miesieczny' ? (
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                  <RaportMiesieczny />
+                </Suspense>
+              ) : activeView === 'raport_grupy' ? (
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                  <div className="flex-1 flex flex-col min-h-0" style={{zoom}}>
+                    <RaportGrupy lang={lang} />
                   </div>
-                )}
-              </div>
-
-              {selectedRow && (
+                </Suspense>
+              ) : (
                 <>
-                  <div className="hidden md:flex w-[720px] xl:w-[820px] shrink-0 border-l border-slate-200 bg-white overflow-hidden flex-col shadow-xl" style={{ zoom }}>
-                    <DrilldownPanel key={selectedRow.positionId ?? selectedRow.name} row={selectedRow} onClose={() => setSelectedRow(null)} />
+                  <div className="flex-1 overflow-y-auto flex flex-col">
+                    {rows.length === 0 && !search ? (
+                      <EmptyState onImport={() => setShowImport(true)} />
+                    ) : (
+                      <div className="px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4 w-full">
+                        <div
+                          className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden origin-top"
+                          style={{ zoom }}
+                        >
+                          <ReportTable
+                            rows={rows}
+                            search={search}
+                            selectedRow={selectedRow}
+                            onRowClick={handleRowClick}
+                            periodLabels={activeCompany?.periodLabels}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col">
-                    <DrilldownPanel key={selectedRow.positionId ?? selectedRow.name} row={selectedRow} onClose={() => setSelectedRow(null)} />
-                  </div>
+
+                  {selectedRow && (
+                    <>
+                      <div className="hidden md:flex w-[600px] lg:w-[700px] xl:w-[820px] shrink-0 border-l border-slate-200 bg-white overflow-hidden flex-col shadow-xl" style={{ zoom }}>
+                        <DrilldownPanel key={selectedRow.positionId ?? selectedRow.name} row={selectedRow} onClose={() => setSelectedRow(null)} />
+                      </div>
+                      <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col">
+                        <DrilldownPanel key={selectedRow.positionId ?? selectedRow.name} row={selectedRow} onClose={() => setSelectedRow(null)} />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
-            </>
+            </div>
+          </div>
+
+          {replaceTarget && (
+            <ImportModal
+              onClose={() => setReplaceTarget(null)}
+              replaceCompanyId={replaceTarget.id}
+              replaceCompanyName={replaceTarget.name}
+            />
           )}
         </div>
-      </div>
-
-      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
-      {replaceTarget && (
-        <ImportModal
-          onClose={() => setReplaceTarget(null)}
-          replaceCompanyId={replaceTarget.id}
-          replaceCompanyName={replaceTarget.name}
-        />
       )}
-    </div>
+
+      {/* ImportModal poza blokiem warunkowym — ta sama instancja React podczas przejścia welcome→app */}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
     </LanguageProvider>
   );
 }
