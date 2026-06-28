@@ -1,8 +1,12 @@
 import {
   createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode,
 } from 'react';
-import type { Company, JournalEntry } from '../types';
+import type { Company, JournalEntry, MonthlyReportData, GrpData } from '../types';
 import { useAuth } from './AuthContext';
+import defaultBilans from '../data/bilans.json';
+import defaultRzis from '../data/rzis.json';
+import defaultObroty from '../data/obroty.json';
+import defaultMeta from '../data/bilans-meta.json';
 
 // Per-user storage keys
 const companyKey  = (uid: string) => `exco_companies_${uid}`;
@@ -15,6 +19,9 @@ export interface CompanyData {
   rzis: Company['rzis'];
   obroty: Company['obroty'];
   zapisy: Company['zapisy'];
+  periodLabels?: Company['periodLabels'];
+  raportMiesieczny?: MonthlyReportData;
+  grpData?: GrpData;
 }
 
 interface CompaniesContextValue {
@@ -30,6 +37,25 @@ interface CompaniesContextValue {
 }
 
 const CompaniesContext = createContext<CompaniesContextValue | null>(null);
+
+const DEFAULT_COMPANY_ID = 'exco-poland-default';
+
+function buildDefaultCompany(): Company {
+  return {
+    id: DEFAULT_COMPANY_ID,
+    name: 'EXCO Poland',
+    period: (defaultMeta as { periodLabels: string[] }).periodLabels[0] ?? '',
+    periodLabels: (defaultMeta as { periodLabels: string[] }).periodLabels,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    bilans: defaultBilans as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rzis: defaultRzis as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    obroty: defaultObroty as any,
+    zapisy: [],
+    createdAt: '2026-01-01',
+  };
+}
 
 function toStorable(c: Company): Company {
   return { ...c, zapisy: [] };
@@ -86,7 +112,22 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       setActiveId('');
       return;
     }
-    const loaded = loadFromStorage(uid);
+    let loaded = loadFromStorage(uid);
+    // Check if stored data has 3-period data (period3 in at least one bilans row)
+    const hasTriperiod = loaded.some(c =>
+      c.bilans.some(r => (r.values as { period3?: number }).period3 !== undefined &&
+                         (r.values as { period3?: number }).period3 !== 0)
+    );
+    if (loaded.length === 0 || !hasTriperiod) {
+      // No data or stale 2-period data — reset to fresh bundled JSON
+      loaded = [buildDefaultCompany()];
+    } else {
+      // Refresh default company with latest bundled data; keep other imported companies
+      const hasDefault = loaded.some(c => c.id === DEFAULT_COMPANY_ID);
+      loaded = hasDefault
+        ? loaded.map(c => c.id === DEFAULT_COMPANY_ID ? buildDefaultCompany() : c)
+        : [buildDefaultCompany(), ...loaded];
+    }
     const saved  = localStorage.getItem(activeKey(uid));
     const first  = loaded[0]?.id ?? '';
     setCompanies(loaded);
@@ -156,7 +197,13 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (data.zapisy.length > 0) cacheZapisy(id, data.zapisy);
     setCompanies(prev => prev.map(c =>
       c.id === id
-        ? { ...c, period: data.period, bilans: data.bilans, rzis: data.rzis, obroty: data.obroty, zapisy: data.zapisy }
+        ? {
+            ...c,
+            period: data.period, bilans: data.bilans, rzis: data.rzis,
+            obroty: data.obroty, zapisy: data.zapisy, periodLabels: data.periodLabels,
+            ...(data.raportMiesieczny !== undefined ? { raportMiesieczny: data.raportMiesieczny } : {}),
+            ...(data.grpData !== undefined ? { grpData: data.grpData } : {}),
+          }
         : c
     ));
   }, []);

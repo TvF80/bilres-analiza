@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useAuth, type AppUser } from '../store/AuthContext';
+import { useLang } from '../i18n/LanguageContext';
 
 export default function LoginScreen() {
   const { users, pendingUser, selectUser, clearSelection, addUser } = useAuth();
+  const { t } = useLang();
   const [showAddUser, setShowAddUser] = useState(false);
 
   // No users yet — first run
@@ -10,13 +12,13 @@ export default function LoginScreen() {
     return (
       <Shell>
         <div className="text-center mb-6">
-          <p className="text-slate-500 text-sm">Brak zarejestrowanych użytkowników.</p>
+          <p className="text-slate-500 text-sm">{t('login.noUsers')}</p>
         </div>
         <button
           onClick={() => setShowAddUser(true)}
           className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
         >
-          Utwórz konto
+          {t('login.createAccount')}
         </button>
       </Shell>
     );
@@ -63,6 +65,7 @@ export default function LoginScreen() {
 // ---------------------------------------------------------------------------
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const { t } = useLang();
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-6">
       <div className="mb-8 text-center">
@@ -70,7 +73,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <span className="text-white font-bold text-xl">EX</span>
         </div>
         <h1 className="text-white text-2xl font-bold tracking-tight">BilRes</h1>
-        <p className="text-slate-400 text-sm mt-1">Sprawozdania finansowe</p>
+        <p className="text-slate-400 text-sm mt-1">{t('login.subtitle')}</p>
       </div>
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
         {children}
@@ -88,9 +91,10 @@ function UserPicker({ users, onSelect, onAddUser }: {
   onSelect: (id: string) => void;
   onAddUser: () => void;
 }) {
+  const { t } = useLang();
   return (
     <div>
-      <h2 className="text-base font-semibold text-slate-700 mb-4 text-center">Wybierz użytkownika</h2>
+      <h2 className="text-base font-semibold text-slate-700 mb-4 text-center">{t('login.selectUser')}</h2>
       <div className={`grid gap-3 mb-5 ${users.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
         {users.map(user => (
           <UserTile key={user.id} user={user} onClick={() => onSelect(user.id)} />
@@ -101,7 +105,7 @@ function UserPicker({ users, onSelect, onAddUser }: {
           onClick={onAddUser}
           className="w-full py-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 text-sm font-medium transition-colors"
         >
-          + Dodaj użytkownika
+          {t('login.addUser')}
         </button>
       </div>
     </div>
@@ -140,6 +144,7 @@ function UserTile({ user, onClick }: { user: AppUser; onClick: () => void }) {
 
 function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
   const { login, resetPassword } = useAuth();
+  const { t } = useLang();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -158,15 +163,15 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
     setLoading(false);
     if (!ok) {
       setAttempts(a => a + 1);
-      setError('Nieprawidłowe hasło.');
+      setError(t('login.wrongPassword'));
       setPassword('');
     }
   }
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
-    if (newPass.length < 4) { setError('Hasło musi mieć co najmniej 4 znaki.'); return; }
-    if (newPass !== newPassConfirm) { setError('Hasła się nie zgadzają.'); return; }
+    if (newPass.length < 4) { setError(t('login.minChars')); return; }
+    if (newPass !== newPassConfirm) { setError(t('login.noMatch')); return; }
     setLoading(true);
     await resetPassword(user.id, newPass);
     setLoading(false);
@@ -187,7 +192,7 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
         </div>
         <p className="text-sm font-semibold text-slate-800">{user.name}</p>
         <button onClick={onBack} className="text-xs text-blue-500 hover:text-blue-700 mt-1">
-          ← Zmień użytkownika
+          {t('login.changeUser')}
         </button>
       </div>
 
@@ -198,7 +203,7 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Hasło"
+              placeholder={t('login.password')}
               autoFocus
               required
               className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-center focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
@@ -212,7 +217,7 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
             disabled={loading}
             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm transition-colors"
           >
-            {loading ? 'Sprawdzanie…' : 'Zaloguj'}
+            {loading ? t('login.checking') : t('login.login')}
           </button>
           {attempts >= 2 && (
             <button
@@ -220,7 +225,7 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
               onClick={() => { setMode('recovery'); setError(''); }}
               className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1"
             >
-              Zapomniałem hasła
+              {t('login.forgotPassword')}
             </button>
           )}
         </form>
@@ -228,14 +233,14 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
         <form onSubmit={handleReset} className="space-y-3">
           {user.hint && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-              <span className="font-semibold">Podpowiedź:</span> {user.hint}
+              <span className="font-semibold">{t('login.hint')}</span> {user.hint}
             </div>
           )}
           <input
             type="password"
             value={newPass}
             onChange={e => setNewPass(e.target.value)}
-            placeholder="Nowe hasło"
+            placeholder={t('login.newPassword')}
             autoFocus
             required
             className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
@@ -244,7 +249,7 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
             type="password"
             value={newPassConfirm}
             onChange={e => setNewPassConfirm(e.target.value)}
-            placeholder="Powtórz nowe hasło"
+            placeholder={t('login.repeatNewPassword')}
             required
             className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
           />
@@ -254,10 +259,10 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
             disabled={loading}
             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm transition-colors"
           >
-            {loading ? '…' : 'Ustaw nowe hasło'}
+            {loading ? '…' : t('login.setNewPassword')}
           </button>
           <button type="button" onClick={() => setMode('login')} className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1">
-            ← Powrót
+            {t('login.back')}
           </button>
         </form>
       )}
@@ -279,13 +284,14 @@ function AddUserForm({ onAdd, onCancel }: {
   const [hint, setHint] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { t } = useLang();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!name.trim()) { setError('Podaj imię lub nazwę.'); return; }
-    if (pass.length < 4) { setError('Hasło musi mieć co najmniej 4 znaki.'); return; }
-    if (pass !== confirm) { setError('Hasła się nie zgadzają.'); return; }
+    if (!name.trim()) { setError(t('login.enterName')); return; }
+    if (pass.length < 4) { setError(t('login.minChars')); return; }
+    if (pass !== confirm) { setError(t('login.noMatch')); return; }
     setLoading(true);
     await onAdd(name, pass, hint);
     setLoading(false);
@@ -293,12 +299,12 @@ function AddUserForm({ onAdd, onCancel }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <h2 className="text-base font-semibold text-slate-800 mb-1">Nowy użytkownik</h2>
+      <h2 className="text-base font-semibold text-slate-800 mb-1">{t('login.newUser')}</h2>
       <input
         type="text"
         value={name}
         onChange={e => setName(e.target.value)}
-        placeholder="Imię i nazwisko"
+        placeholder={t('login.fullName')}
         autoFocus
         required
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
@@ -307,7 +313,7 @@ function AddUserForm({ onAdd, onCancel }: {
         type="password"
         value={pass}
         onChange={e => setPass(e.target.value)}
-        placeholder="Hasło (min. 4 znaki)"
+        placeholder={t('login.passwordMin')}
         required
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
       />
@@ -315,7 +321,7 @@ function AddUserForm({ onAdd, onCancel }: {
         type="password"
         value={confirm}
         onChange={e => setConfirm(e.target.value)}
-        placeholder="Powtórz hasło"
+        placeholder={t('login.repeatPassword')}
         required
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
       />
@@ -323,14 +329,14 @@ function AddUserForm({ onAdd, onCancel }: {
         type="text"
         value={hint}
         onChange={e => setHint(e.target.value)}
-        placeholder="Podpowiedź do hasła (opcjonalna)"
+        placeholder={t('login.passwordHint')}
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
       />
       {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex gap-2 pt-1">
         {onCancel && (
           <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-            Anuluj
+            {t('sidebar.cancel')}
           </button>
         )}
         <button
@@ -338,7 +344,7 @@ function AddUserForm({ onAdd, onCancel }: {
           disabled={loading}
           className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm transition-colors"
         >
-          {loading ? 'Tworzenie…' : 'Utwórz'}
+          {loading ? t('login.creating') : t('login.create')}
         </button>
       </div>
     </form>

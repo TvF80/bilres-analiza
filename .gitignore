@@ -5,9 +5,10 @@ node_modules/
 dist/
 dist-ssr/
 
-# Generated financial data — run: node scripts/convert-xlsx.mjs <path-to-xlsx-files>
-src/data/*.json
+# public/data/ zawiera zapisy.json (42 MB) — zawsze ignorowany
 public/data/
+# src/data/*.json — puste placeholdery są commitowane (GitHub build)
+# Przed pushem z prawdziwymi danymi: node scripts/prepare-github.mjs
 
 # Dev / logs
 *.log

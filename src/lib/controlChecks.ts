@@ -409,3 +409,250 @@ export function computeStats(
     sumMa,
   };
 }
+
+// ── Beneish M-score (1999) ────────────────────────────────────────────────────
+
+export interface BeneishInputRow {
+  label: string;
+  rowName: string;
+  source: 'bilans' | 'rzis';
+  t: number;
+  t1: number;
+}
+
+export interface BeneishStep {
+  label: string;
+  t: string;
+  t1: string;
+}
+
+export interface BeneishDetail {
+  fullName: string;
+  formula: string;
+  inputs: BeneishInputRow[];
+  steps: BeneishStep[];
+}
+
+export interface BeneishIndex {
+  key: string;
+  value: number;
+  weight: number;
+  contribution: number;
+  detail: BeneishDetail;
+}
+
+export interface BeneishResult {
+  indices: BeneishIndex[];
+  mscore: number;
+  highRisk: boolean;
+  topDrivers: string[];
+}
+
+export function computeBeneish(bilans: ReportRow[], rzis: ReportRow[]): BeneishResult | null {
+  if (bilans.length === 0 || rzis.length === 0) return null;
+
+  const lo = (r: ReportRow) => r.name.toLowerCase();
+  const val = (r: ReportRow | undefined, p: 1 | 2) =>
+    !r ? 0 : p === 1 ? r.values.period1 : r.values.period2;
+  const find = (rows: ReportRow[], pred: (r: ReportRow) => boolean) => rows.find(pred);
+  const safe = (n: number, d: number) => (d !== 0 ? n / d : 0);
+  const pct = (v: number) => `${(v * 100).toFixed(2)}%`;
+  const r4 = (v: number) => v.toFixed(4);
+  const fmtK = (v: number) => {
+    const abs = Math.abs(v);
+    if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(2)} M`;
+    if (abs >= 1_000) return `${(v / 1_000).toFixed(0)} k`;
+    return v.toFixed(0);
+  };
+
+  // Bilans — wiersze
+  const rowCA   = find(bilans, r => r.level === 1 && lo(r).includes('aktyw') && lo(r).includes('obrotow'));
+  const rowPPE  = find(bilans, r => r.level === 1 && lo(r).includes('aktyw') && lo(r).includes('trwał'));
+  const rowTA   = bilans.filter(r => r.level === 0).find(r => lo(r).includes('aktyw'));
+  const rowRec  = find(bilans, r => lo(r).includes('należności krótkoterminow'))
+               ?? find(bilans, r => lo(r).includes('należności'));
+  const rowCash = find(bilans, r => lo(r).includes('środki pieniężne'));
+  const rowCL   = find(bilans, r => lo(r).includes('zobowiązania krótkoterminow'));
+  const rowLTD  = find(bilans, r => lo(r).includes('zobowiązania długoterminow'));
+
+  // RZiS — wiersze
+  const rowRev   = find(rzis, r => r.level <= 2 && lo(r).includes('przychody netto ze sprzedaży'));
+  const rowCosts = find(rzis, r => lo(r).includes('koszty działalności operacyjnej'));
+  const rowDep   = find(rzis, r => lo(r).includes('amortyzacja'));
+
+  const n = (r: ReportRow | undefined) => r?.name ?? '—';
+
+  // Wartości dla t (period1) i t-1 (period2)
+  const CA_t = val(rowCA, 1),    CA_1  = val(rowCA, 2);
+  const PPE_t = val(rowPPE, 1),  PPE_1 = val(rowPPE, 2);
+  const TA_t  = val(rowTA, 1),   TA_1  = val(rowTA, 2);
+  const Rec_t = val(rowRec, 1),  Rec_1 = val(rowRec, 2);
+  const Cash_t = val(rowCash, 1), Cash_1 = val(rowCash, 2);
+  const CL_t  = val(rowCL, 1),   CL_1  = val(rowCL, 2);
+  const LTD_t = val(rowLTD, 1),  LTD_1 = val(rowLTD, 2);
+  const Rev_t   = val(rowRev, 1),   Rev_1   = val(rowRev, 2);
+  const Costs_t = val(rowCosts, 1), Costs_1 = val(rowCosts, 2);
+  const Dep_t   = val(rowDep, 1),   Dep_1   = val(rowDep, 2);
+
+  if (TA_t === 0 || Rev_t === 0 || TA_1 === 0 || Rev_1 === 0) return null;
+
+  // ── Obliczenia ──────────────────────────────────────────────────────────────
+
+  const DSRI = safe(safe(Rec_t, Rev_t), safe(Rec_1, Rev_1));
+
+  const GM_t = safe(Rev_t - Costs_t, Rev_t);
+  const GM_1 = safe(Rev_1 - Costs_1, Rev_1);
+  const GMI  = safe(GM_1, GM_t);
+
+  const AQI_t = 1 - safe(CA_t + PPE_t, TA_t);
+  const AQI_1 = 1 - safe(CA_1 + PPE_1, TA_1);
+  const AQI   = safe(AQI_t, AQI_1);
+
+  const SGI = safe(Rev_t, Rev_1);
+
+  const DEPI_1 = safe(Dep_1, PPE_1 + Dep_1);
+  const DEPI_t = safe(Dep_t, PPE_t + Dep_t);
+  const DEPI   = safe(DEPI_1, DEPI_t);
+
+  const SGAI = safe(safe(Costs_t, Rev_t), safe(Costs_1, Rev_1));
+
+  const LVGI_t = safe(LTD_t + CL_t, TA_t);
+  const LVGI_1 = safe(LTD_1 + CL_1, TA_1);
+  const LVGI   = safe(LVGI_t, LVGI_1);
+
+  const TATA = safe((CA_t - CA_1 - (Cash_t - Cash_1)) - (CL_t - CL_1) - Dep_t, TA_t);
+
+  // ── Szczegóły dla każdego wskaźnika ────────────────────────────────────────
+
+  const details: Record<string, BeneishDetail> = {
+    DSRI: {
+      fullName: 'Days Sales Receivable Index',
+      formula: '(Nal_t / Prz_t) ÷ (Nal_{t-1} / Prz_{t-1})',
+      inputs: [
+        { label: 'Należności', rowName: n(rowRec), source: 'bilans', t: Rec_t, t1: Rec_1 },
+        { label: 'Przychody', rowName: n(rowRev), source: 'rzis', t: Rev_t, t1: Rev_1 },
+      ],
+      steps: [
+        { label: 'Nal / Prz (t)', t: pct(safe(Rec_t, Rev_t)), t1: pct(safe(Rec_1, Rev_1)) },
+        { label: 'DSRI', t: r4(DSRI), t1: '(norma ≈ 1,0)' },
+      ],
+    },
+    GMI: {
+      fullName: 'Gross Margin Index',
+      formula: 'MB_{t-1}/MB_t  gdzie  MB = (Prz - Koszty) / Prz',
+      inputs: [
+        { label: 'Przychody', rowName: n(rowRev), source: 'rzis', t: Rev_t, t1: Rev_1 },
+        { label: 'Koszty oper.', rowName: n(rowCosts), source: 'rzis', t: Costs_t, t1: Costs_1 },
+      ],
+      steps: [
+        { label: 'Marża brutto', t: pct(GM_t), t1: pct(GM_1) },
+        { label: 'GMI', t: r4(GMI), t1: '(norma ≤ 1,0)' },
+      ],
+    },
+    AQI: {
+      fullName: 'Asset Quality Index',
+      formula: '(1 − (CA_t+PPE_t)/TA_t) ÷ (1 − (CA_{t-1}+PPE_{t-1})/TA_{t-1})',
+      inputs: [
+        { label: 'Aktywa obrotowe', rowName: n(rowCA), source: 'bilans', t: CA_t, t1: CA_1 },
+        { label: 'Aktywa trwałe', rowName: n(rowPPE), source: 'bilans', t: PPE_t, t1: PPE_1 },
+        { label: 'Aktywa razem', rowName: n(rowTA), source: 'bilans', t: TA_t, t1: TA_1 },
+      ],
+      steps: [
+        { label: '(CA+PPE)/TA', t: pct(safe(CA_t + PPE_t, TA_t)), t1: pct(safe(CA_1 + PPE_1, TA_1)) },
+        { label: '1 − (CA+PPE)/TA', t: r4(AQI_t), t1: r4(AQI_1) },
+        { label: 'AQI', t: r4(AQI), t1: '(norma ≤ 1,0)' },
+      ],
+    },
+    SGI: {
+      fullName: 'Sales Growth Index',
+      formula: 'Prz_t / Prz_{t-1}',
+      inputs: [
+        { label: 'Przychody', rowName: n(rowRev), source: 'rzis', t: Rev_t, t1: Rev_1 },
+      ],
+      steps: [
+        { label: 'SGI', t: r4(SGI), t1: `(wzrost: ${pct(SGI - 1)})` },
+      ],
+    },
+    DEPI: {
+      fullName: 'Depreciation Index',
+      formula: '[Dep_{t-1}/(PPE_{t-1}+Dep_{t-1})] ÷ [Dep_t/(PPE_t+Dep_t)]',
+      inputs: [
+        { label: 'Amortyzacja', rowName: n(rowDep), source: 'rzis', t: Dep_t, t1: Dep_1 },
+        { label: 'Aktywa trwałe', rowName: n(rowPPE), source: 'bilans', t: PPE_t, t1: PPE_1 },
+      ],
+      steps: [
+        { label: 'Dep/(PPE+Dep)', t: pct(DEPI_t), t1: pct(DEPI_1) },
+        { label: 'DEPI', t: r4(DEPI), t1: '(norma ≤ 1,0)' },
+      ],
+    },
+    SGAI: {
+      fullName: 'SGA Expense Index',
+      formula: '(Koszty_t/Prz_t) ÷ (Koszty_{t-1}/Prz_{t-1})',
+      inputs: [
+        { label: 'Koszty oper.', rowName: n(rowCosts), source: 'rzis', t: Costs_t, t1: Costs_1 },
+        { label: 'Przychody', rowName: n(rowRev), source: 'rzis', t: Rev_t, t1: Rev_1 },
+      ],
+      steps: [
+        { label: 'Koszty/Prz', t: pct(safe(Costs_t, Rev_t)), t1: pct(safe(Costs_1, Rev_1)) },
+        { label: 'SGAI', t: r4(SGAI), t1: '(norma ≤ 1,0)' },
+      ],
+    },
+    LVGI: {
+      fullName: 'Leverage Index',
+      formula: '(ZDT_t+ZKT_t)/TA_t ÷ (ZDT_{t-1}+ZKT_{t-1})/TA_{t-1}',
+      inputs: [
+        { label: 'Zob. długoterm.', rowName: n(rowLTD), source: 'bilans', t: LTD_t, t1: LTD_1 },
+        { label: 'Zob. krótkot.', rowName: n(rowCL), source: 'bilans', t: CL_t, t1: CL_1 },
+        { label: 'Aktywa razem', rowName: n(rowTA), source: 'bilans', t: TA_t, t1: TA_1 },
+      ],
+      steps: [
+        { label: 'ZDT+ZKT', t: fmtK(LTD_t + CL_t), t1: fmtK(LTD_1 + CL_1) },
+        { label: '(ZDT+ZKT)/TA', t: pct(LVGI_t), t1: pct(LVGI_1) },
+        { label: 'LVGI', t: r4(LVGI), t1: '(norma ≤ 1,0)' },
+      ],
+    },
+    TATA: {
+      fullName: 'Total Accruals to Total Assets',
+      formula: '[(ΔCA − ΔCash) − ΔCL − Dep_t] / TA_t',
+      inputs: [
+        { label: 'Aktywa obrotowe', rowName: n(rowCA), source: 'bilans', t: CA_t, t1: CA_1 },
+        { label: 'Środki pieniężne', rowName: n(rowCash), source: 'bilans', t: Cash_t, t1: Cash_1 },
+        { label: 'Zob. krótkot.', rowName: n(rowCL), source: 'bilans', t: CL_t, t1: CL_1 },
+        { label: 'Amortyzacja', rowName: n(rowDep), source: 'rzis', t: Dep_t, t1: Dep_1 },
+        { label: 'Aktywa razem', rowName: n(rowTA), source: 'bilans', t: TA_t, t1: TA_1 },
+      ],
+      steps: [
+        { label: 'ΔCA − ΔCash', t: fmtK(CA_t - CA_1 - (Cash_t - Cash_1)), t1: '' },
+        { label: 'ΔCL', t: fmtK(CL_t - CL_1), t1: '' },
+        { label: 'Licznik', t: fmtK((CA_t - CA_1 - (Cash_t - Cash_1)) - (CL_t - CL_1) - Dep_t), t1: '' },
+        { label: 'TATA', t: r4(TATA), t1: '(norma ≤ 0,031)' },
+      ],
+    },
+  };
+
+  const WEIGHTS: Record<string, number> = {
+    DSRI: 0.920, GMI: 0.528, AQI: 0.404, SGI: 0.892,
+    DEPI: 0.115, SGAI: -0.172, LVGI: -0.327, TATA: 4.679,
+  };
+
+  const vals: Record<string, number> = { DSRI, GMI, AQI, SGI, DEPI, SGAI, LVGI, TATA };
+
+  const indices: BeneishIndex[] = Object.entries(WEIGHTS).map(([key, weight]) => ({
+    key,
+    value: vals[key],
+    weight,
+    contribution: weight * vals[key],
+    detail: details[key],
+  }));
+
+  const mscore = -4.84 + indices.reduce((s, i) => s + i.contribution, 0);
+  const highRisk = mscore > -1.78;
+
+  const topDrivers = [...indices]
+    .sort((a, b) => b.contribution - a.contribution)
+    .slice(0, 3)
+    .filter(i => i.contribution > 0.05)
+    .map(i => i.key);
+
+  return { indices, mscore, highRisk, topDrivers };
+}

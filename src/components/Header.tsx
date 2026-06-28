@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ReportType, ViewType } from '../types';
 import { useCompanies } from '../store/CompaniesContext';
+import type { Lang } from '../i18n';
+import { LANG_FLAGS } from '../i18n';
+import { useLang } from '../i18n/LanguageContext';
 
 interface HeaderProps {
   activeView: ViewType;
@@ -16,13 +19,17 @@ interface HeaderProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  lang: Lang;
+  onLangChange: (l: Lang) => void;
 }
 
 export default function Header({
   activeView, onViewChange,
   reportType: _reportType, onReportChange, search, onSearchChange,
   onMobileMenu, zoom, zoomIdx, zoomLevels, onZoomIn, onZoomOut, onZoomReset,
+  lang, onLangChange,
 }: HeaderProps) {
+  const { t: tr } = useLang();
   const { activeCompany, updateCompanyName } = useCompanies();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -73,7 +80,7 @@ export default function Header({
         ) : (
           <button
             onClick={startEdit}
-            title="Kliknij aby edytować nazwę"
+            title={tr('header.editName')}
             className="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-colors flex items-center gap-1 group min-w-0"
           >
             <span className="truncate max-w-[120px] md:max-w-[180px]">{activeCompany?.name ?? '—'}</span>
@@ -97,7 +104,7 @@ export default function Header({
               activeView === t ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            {t === 'bilans' ? 'Bilans' : 'RZiS'}
+            {t === 'bilans' ? tr('tab.bilans') : tr('tab.rzis')}
           </button>
         ))}
         <div className="w-px h-5 bg-slate-200 mx-0.5" />
@@ -107,7 +114,7 @@ export default function Header({
             activeView === 'kontrola' ? 'bg-violet-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          Kontrola
+          {tr('tab.kontrola')}
         </button>
         <button
           onClick={() => onViewChange('analiza')}
@@ -115,7 +122,23 @@ export default function Header({
             activeView === 'analiza' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          Analiza
+          {tr('tab.analiza')}
+        </button>
+        <button
+          onClick={() => onViewChange('raport_miesieczny')}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            activeView === 'raport_miesieczny' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          {tr('tab.raportMies')}
+        </button>
+        <button
+          onClick={() => onViewChange('raport_grupy')}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            activeView === 'raport_grupy' ? 'bg-orange-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          {tr('tab.grupyPracy')}
         </button>
       </div>
 
@@ -126,12 +149,12 @@ export default function Header({
         <button
           onClick={onZoomOut}
           disabled={!canZoomOut}
-          title="Pomniejsz"
+          title={tr('header.zoomOut')}
           className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-base font-bold"
         >−</button>
         <button
           onClick={onZoomReset}
-          title="Resetuj zoom (100%)"
+          title={tr('header.zoomReset')}
           className={`h-7 px-2 flex items-center justify-center rounded-md text-xs font-mono transition-all ${
             zoom === 1 ? 'text-slate-400' : 'text-blue-600 font-semibold hover:bg-white hover:shadow-sm'
           }`}
@@ -141,9 +164,20 @@ export default function Header({
         <button
           onClick={onZoomIn}
           disabled={!canZoomIn}
-          title="Powiększ"
+          title={tr('header.zoomIn')}
           className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-base font-bold"
         >+</button>
+      </div>
+
+      {/* Language switcher */}
+      <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 shrink-0">
+        {(['pl','fr','en'] as const).map(l=>(
+          <button key={l} onClick={()=>onLangChange(l)} title={l==='pl'?'Polski':l==='fr'?'Français':'English'}
+            className={`h-7 px-2 flex items-center gap-1 rounded-md text-xs font-semibold transition-all ${lang===l?'bg-white shadow-sm text-slate-800':'text-slate-500 hover:text-slate-700'}`}>
+            <span>{LANG_FLAGS[l]}</span>
+            <span className="hidden sm:inline">{l.toUpperCase()}</span>
+          </button>
+        ))}
       </div>
 
       {/* Search */}
@@ -151,14 +185,14 @@ export default function Header({
         type="search"
         value={search}
         onChange={e => onSearchChange(e.target.value)}
-        placeholder="Szukaj…"
+        placeholder={tr('header.search')}
         className="w-36 md:w-52 px-3 py-1.5 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors shrink-0"
       />
 
       {/* Print to PDF */}
       <button
         onClick={handlePrint}
-        title="Drukuj / Zapisz jako PDF"
+        title={tr('header.print')}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition-colors shrink-0"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

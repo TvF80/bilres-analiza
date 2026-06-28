@@ -1,5 +1,29 @@
 import type { ReportRow } from '../types';
 
+export const FIELD_LABELS: Record<string, string> = {
+  aktywaTrwale:       'Aktywa trwałe',
+  aktywaObrotowe:     'Aktywa obrotowe',
+  zapasy:             'Zapasy',
+  naleznosci:         'Należności',
+  srodkiPieniezne:    'Środki pieniężne',
+  aktywaRazem:        'Aktywa razem',
+  kapitalWlasny:      'Kapitał własny',
+  zobowiazaniaDlugo:  'Zobowiązania długoterminowe',
+  zobowiazaniaKrotko: 'Zobowiązania krótkoterminowe',
+  pasywaBilans:       'Pasywa razem',
+  kredytDlugo:        'Kredyty / pożyczki długoterminowe',
+  kredytKrotko:       'Kredyty / pożyczki krótkoterminowe',
+  przychody:          'Przychody ze sprzedaży',
+  kosztyOper:         'Koszty działalności operacyjnej',
+  amortyzacja:        'Amortyzacja',
+  cogs:               'Wartość sprzedanych towarów (COGS)',
+  zyskZeSprz:         'Zysk ze sprzedaży',
+  ebit:               'EBIT (zysk operacyjny)',
+  odsetki:            'Odsetki / koszty finansowe',
+  zyskBrutto:         'Zysk brutto',
+  zyskNetto:          'Zysk netto',
+};
+
 export interface FieldMap {
   // BIL – Aktywa
   aktywaTrwale: number;
@@ -29,9 +53,11 @@ export interface FieldMap {
   sources: Record<string, { found: boolean; name: string }>;
 }
 
-function n(row: ReportRow | undefined, period: 1 | 2): number {
+function n(row: ReportRow | undefined, period: 1 | 2 | 3): number {
   if (!row) return 0;
-  return period === 1 ? row.values.period1 : row.values.period2;
+  if (period === 1) return row.values.period1;
+  if (period === 2) return row.values.period2;
+  return row.values.period3 ?? 0;
 }
 
 function lo(row: ReportRow): string {
@@ -48,7 +74,7 @@ function find(
 export function mapFields(
   bilans: ReportRow[],
   rzis: ReportRow[],
-  period: 1 | 2,
+  period: 1 | 2 | 3,
 ): FieldMap {
   // ── BILANS rows ──────────────────────────────────────────────────────────
 
@@ -82,13 +108,11 @@ export function mapFields(
     level0rows.find(r => lo(r).includes('aktyw')) ??
     level0rows[0];
 
-  const rowKapitalWlasny = find(
-    bilans,
-    r =>
-      r.level === 1 &&
-      lo(r).includes('kapitał') &&
-      (lo(r).includes('własn') || lo(r).includes('fundusz')),
-  );
+  // Require 'własn' to avoid "Należne wpłaty na kapitał (fundusz) podstawowy" (no 'własn')
+  const rowKapitalWlasny = find(bilans, r => {
+    const s = lo(r);
+    return s.includes('własn') && (s.includes('kapitał') || s.includes('fundusz'));
+  });
 
   const rowZobowiazaniaDlugo = find(bilans, r =>
     lo(r).includes('zobowiązania długoterminow'),
@@ -102,21 +126,20 @@ export function mapFields(
     level0rows.find(r => lo(r).includes('pasyw')) ??
     level0rows[1];
 
+  // Bug fix: row names are "z tytułu kredytów i pożyczek" (no long/short qualifier)
+  // → use 1st and 2nd occurrence of 'kredyt' (bilans lists ZD before ZK)
   const rowKredytDlugo = find(bilans, r => {
     const s = lo(r);
-    return (
-      (s.includes('kredyt') || s.includes('pożyczk')) &&
-      (s.includes('długoterminow') || s.includes('długookres'))
-    );
+    return s.includes('kredyt') || s.includes('pożyczk');
   });
-
-  const rowKredytKrotko = find(bilans, r => {
-    const s = lo(r);
-    return (
-      (s.includes('kredyt') || s.includes('pożyczk')) &&
-      s.includes('krótkoterminow')
-    );
-  });
+  const kredytDlugoIdx = rowKredytDlugo ? bilans.indexOf(rowKredytDlugo) : -1;
+  const rowKredytKrotko =
+    kredytDlugoIdx >= 0
+      ? bilans.slice(kredytDlugoIdx + 1).find(r => {
+          const s = lo(r);
+          return s.includes('kredyt') || s.includes('pożyczk');
+        })
+      : undefined;
 
   // ── RZiS rows ────────────────────────────────────────────────────────────
 
@@ -146,6 +169,15 @@ export function mapFields(
     return s.includes('zysk') && s.includes('sprzedaży') && !s.includes('operacyjnej');
   });
 
+  // Bug fix: Polish UoR RZiS has no "Zysk operacyjny" row → compute as C + D - E
+  const rowPozostPrzychOper = find(rzis, r => {
+    const s = lo(r);
+    return s.includes('pozostałe') && s.includes('przychody') && s.includes('operacyjne');
+  });
+  const rowPozostKosztyOper = find(rzis, r => {
+    const s = lo(r);
+    return s.includes('pozostałe') && s.includes('koszty') && s.includes('operacyjne');
+  });
   const rowEbit = find(rzis, r => {
     const s = lo(r);
     return (
@@ -154,10 +186,20 @@ export function mapFields(
       !s.includes('sprzedaży')
     );
   });
+  // EBIT: direct row if exists, else C + D - E
+  const ebitForPeriod = rowEbit
+    ? n(rowEbit, period)
+    : n(rowZyskZeSprz, period) + n(rowPozostPrzychOper, period) - n(rowPozostKosztyOper, period);
 
+  // Bug fix: first 'odsetki' match is F.II (income) — prefer odsetki AFTER koszty finansowe (G)
+  const rowKosztyFinansowe = find(rzis, r =>
+    lo(r).includes('koszty finansowe') && r.level <= 2,
+  );
+  const kfIdx = rowKosztyFinansowe ? rzis.indexOf(rowKosztyFinansowe) : -1;
   const rowOdsetki =
-    find(rzis, r => lo(r).includes('odsetki')) ??
-    find(rzis, r => lo(r).includes('koszty finansowe') && r.level <= 2);
+    (kfIdx >= 0 ? rzis.slice(kfIdx + 1).find(r => lo(r).includes('odsetki')) : undefined) ??
+    rowKosztyFinansowe ??
+    find(rzis, r => lo(r).includes('odsetki'));
 
   const rowZyskBrutto = find(rzis, r => {
     const s = lo(r);
@@ -189,7 +231,7 @@ export function mapFields(
     amortyzacja:        { found: !!rowAmortyzacja,       name: rowAmortyzacja?.name       ?? '—' },
     cogs:               { found: !!rowCogs,              name: rowCogs?.name              ?? '—' },
     zyskZeSprz:         { found: !!rowZyskZeSprz,        name: rowZyskZeSprz?.name        ?? '—' },
-    ebit:               { found: !!rowEbit,              name: rowEbit?.name              ?? '—' },
+    ebit:               { found: !!(rowEbit ?? rowZyskZeSprz), name: rowEbit?.name ?? (rowZyskZeSprz ? 'C+D-E (wyliczone)' : '—') },
     odsetki:            { found: !!rowOdsetki,           name: rowOdsetki?.name           ?? '—' },
     zyskBrutto:         { found: !!rowZyskBrutto,        name: rowZyskBrutto?.name        ?? '—' },
     zyskNetto:          { found: !!rowZyskNetto,         name: rowZyskNetto?.name         ?? '—' },
@@ -213,7 +255,7 @@ export function mapFields(
     amortyzacja:        n(rowAmortyzacja,       period),
     cogs:               n(rowCogs,              period),
     zyskZeSprz:         n(rowZyskZeSprz,        period),
-    ebit:               n(rowEbit,              period),
+    ebit:               ebitForPeriod,
     odsetki:            n(rowOdsetki,           period),
     zyskBrutto:         n(rowZyskBrutto,        period),
     zyskNetto:          n(rowZyskNetto,         period),

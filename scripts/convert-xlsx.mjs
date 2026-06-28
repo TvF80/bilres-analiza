@@ -7,7 +7,7 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const XLSX = require('xlsx');
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -218,11 +218,137 @@ function convertZapisy() {
   console.log(`public/data/zapisy.json — ${rows.length} zapisów`);
 }
 
+// --- Nowy format: jeden plik BIL/RZIS z 3 kolumnami danych ---
+
+/** Wczytuje definicje (formuły FK) z pliku schemat → Map<nazwaWiersza, {definition, positionId}> */
+function loadSchemaDefinitions(schemaPath) {
+  try {
+    const wb = XLSX.readFile(schemaPath);
+    const sheetName = wb.SheetNames.find(n => n.includes('Pozycje')) ?? wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
+    const map = new Map();
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const name = String(r[1] || '').trim();
+      const def  = String(r[2] || '').trim() || null;
+      const pid  = String(r[3] || '').trim() || null;
+      if (name) map.set(name, { definition: def, positionId: pid });
+    }
+    console.log(`  Schemat: ${schemaPath} → ${map.size} definicji`);
+    return map;
+  } catch (e) {
+    console.warn(`  Schemat niedostępny: ${e.message}`);
+    return new Map();
+  }
+}
+
+function convertCombined(excelFile, outFile, schemaFile) {
+  const wb = XLSX.readFile(excelFile);
+  const sheet = wb.Sheets['Wyniki zestawienia księgowego']
+    ?? wb.Sheets[wb.SheetNames[0]];
+  const dataRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+  const header = dataRows[0] || [];
+  const periodLabels = [
+    String(header[2] || '').trim(),
+    String(header[3] || '').trim(),
+    String(header[4] || '').trim(),
+  ].filter(Boolean);
+
+  // Wczytaj definicje ze schema file (dla drilldown)
+  const schemaMap = schemaFile ? loadSchemaDefinitions(schemaFile) : new Map();
+
+  const rows = [];
+  for (let i = 1; i < dataRows.length; i++) {
+    const d = dataRows[i];
+    const segment = String(d[0] || '').trim();
+    const name    = String(d[1] || '').trim();
+    if (!name) continue;
+
+    // Merguj definition z pliku schemat (match po nazwie wiersza)
+    const schemaDef = schemaMap.get(name);
+    const definition = schemaDef?.definition ?? null;
+    const positionId = schemaDef?.positionId ?? null;
+
+    rows.push({
+      segment,
+      name,
+      level: getLevel(segment),
+      values: {
+        period1: parsePolishNumber(d[2]),
+        period2: parsePolishNumber(d[3]),
+        period3: parsePolishNumber(d[4]),
+      },
+      definition,
+      positionId,
+      drilldownAccounts: extractAccounts(definition),
+    });
+  }
+
+  writeFileSync(join(SRC_DIR, outFile), JSON.stringify(rows, null, 2));
+  // Zapisz też metadane okresów
+  const metaFile = outFile.replace('.json', '-meta.json');
+  writeFileSync(join(SRC_DIR, metaFile), JSON.stringify({ periodLabels }, null, 2));
+  const withDrilldown = rows.filter(r => r.drilldownAccounts.length > 0).length;
+  console.log(`${outFile} — ${rows.length} wierszy (${withDrilldown} z drilldownem), okresy: ${periodLabels.join(' | ')}`);
+  return rows.length;
+}
+
+// --- auto-detect format ---
+
+function findFile(keyword, excludeKeyword) {
+  try {
+    const files = readdirSync(DATA_DIR);
+    return files.find(f => {
+      const u = f.toUpperCase();
+      return u.includes(keyword.toUpperCase()) && (!excludeKeyword || !u.includes(excludeKeyword.toUpperCase()));
+    }) ?? null;
+  } catch { return null; }
+}
+
+function findSchemaFile(keyword) {
+  try {
+    const files = readdirSync(DATA_DIR);
+    return files.find(f => {
+      const u = f.toUpperCase();
+      return u.includes(keyword.toUpperCase()) && u.includes('SCHEMAT');
+    }) ?? null;
+  } catch { return null; }
+}
+
+// Nowy format: plik ma 3 okresy w nazwie (np. "09.25-09.24-09.23")
+function isCombinedFormat(filename) {
+  if (!filename) return false;
+  const matches = filename.match(/\d{2}\.\d{2,4}/g) ?? [];
+  return matches.length >= 3;
+}
+
 // --- run ---
 
 try {
-  convertBilans();
-  convertRzis();
+  const bilFile      = findFile('BIL', 'SCHEMAT');
+  const rzisFile     = findFile('RZIS', 'SCHEMAT');
+  const bilSchema    = findSchemaFile('BIL');
+  const rzisSchema   = findSchemaFile('RZIS');
+
+  if (bilFile && isCombinedFormat(bilFile)) {
+    convertCombined(
+      join(DATA_DIR, bilFile), 'bilans.json',
+      bilSchema ? join(DATA_DIR, bilSchema) : null,
+    );
+  } else {
+    convertBilans();
+  }
+
+  if (rzisFile && isCombinedFormat(rzisFile)) {
+    convertCombined(
+      join(DATA_DIR, rzisFile), 'rzis.json',
+      rzisSchema ? join(DATA_DIR, rzisSchema) : null,
+    );
+  } else {
+    convertRzis();
+  }
+
   convertObroty();
   convertZapisy();
   console.log('\nKonwersja zakończona. Pliki w src/data/');

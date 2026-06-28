@@ -3,6 +3,8 @@ import type { ReportRow, AccountRow } from '../types';
 import { useAccountsForRow, useAccountsByPrefix, useJournalEntries } from '../hooks/useReportData';
 import { useCompanies } from '../store/CompaniesContext';
 import { formatPLN } from '../hooks/useFormatNumber';
+import { useLang } from '../i18n/LanguageContext';
+import { ROW_TR } from '../i18n';
 
 interface DrilldownPanelProps {
   row: ReportRow;
@@ -10,13 +12,15 @@ interface DrilldownPanelProps {
 }
 
 export default function DrilldownPanel({ row, onClose }: DrilldownPanelProps) {
+  const { lang } = useLang();
   const [selectedAccount, setSelectedAccount] = useState<AccountRow | null>(null);
   const accounts = useAccountsForRow(row.drilldownAccounts);
+  const rowDisplayName = lang !== 'pl' ? (ROW_TR[row.name]?.[lang as 'fr' | 'en'] ?? row.name) : row.name;
 
   if (selectedAccount) {
     return (
       <JournalView
-        positionName={row.name}
+        positionName={rowDisplayName}
         account={selectedAccount}
         onBack={() => setSelectedAccount(null)}
         onClose={onClose}
@@ -30,6 +34,7 @@ export default function DrilldownPanel({ row, onClose }: DrilldownPanelProps) {
       accounts={accounts}
       onAccountSelect={setSelectedAccount}
       onClose={onClose}
+      displayName={rowDisplayName}
     />
   );
 }
@@ -38,17 +43,19 @@ export default function DrilldownPanel({ row, onClose }: DrilldownPanelProps) {
 // Poziom 1 — Konta z Obrotów
 // ---------------------------------------------------------------------------
 
-function AccountsView({ row, accounts, onAccountSelect, onClose }: {
+function AccountsView({ row, accounts, onAccountSelect, onClose, displayName }: {
   row: ReportRow;
   accounts: AccountRow[];
   onAccountSelect: (acc: AccountRow) => void;
   onClose: () => void;
+  displayName: string;
 }) {
+  const { t } = useLang();
   return (
     <div className="h-full flex flex-col">
       <PanelHeader
         breadcrumb={null}
-        title={row.name}
+        title={displayName}
         subtitle={row.positionId ?? undefined}
         onClose={onClose}
       />
@@ -57,26 +64,26 @@ function AccountsView({ row, accounts, onAccountSelect, onClose }: {
       {/* Nagłówek sekcji */}
       <div className="px-4 py-2 flex items-center justify-between border-b border-slate-100 bg-white">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-          Konta ({accounts.length})
+          {t('drill.accounts')} ({accounts.length})
         </span>
-        <span className="text-xs text-slate-400">Kliknij konto → zapisy</span>
+        <span className="text-xs text-slate-400">{t('drill.clickAccount')}</span>
       </div>
 
       {accounts.length === 0 ? (
         <div className="p-6 text-sm text-slate-400 text-center">
           <div className="text-2xl mb-2">📋</div>
-          Brak kont w obrotach dla tej pozycji.
+          {t('drill.noAccounts')}
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 bg-slate-50 z-10">
               <tr className="border-b border-slate-200">
-                <th className="text-left py-2 px-3 font-semibold text-slate-500">Konto</th>
-                <th className="text-left py-2 px-3 font-semibold text-slate-500">Nazwa konta</th>
-                <th className="text-right py-2 px-3 font-semibold text-slate-500 whitespace-nowrap">Saldo Wn</th>
-                <th className="text-right py-2 px-3 font-semibold text-slate-500 whitespace-nowrap">Saldo Ma</th>
-                <th className="text-right py-2 px-3 font-semibold text-slate-500 bg-slate-100">Persaldo</th>
+                <th className="text-left py-2 px-3 font-semibold text-slate-500">{t('drill.account')}</th>
+                <th className="text-left py-2 px-3 font-semibold text-slate-500">{t('drill.accountName')}</th>
+                <th className="text-right py-2 px-3 font-semibold text-slate-500 whitespace-nowrap">{t('drill.saldoWn')}</th>
+                <th className="text-right py-2 px-3 font-semibold text-slate-500 whitespace-nowrap">{t('drill.saldoMa')}</th>
+                <th className="text-right py-2 px-3 font-semibold text-slate-500 bg-slate-100">{t('drill.persaldo')}</th>
                 <th className="w-6" />
               </tr>
             </thead>
@@ -135,6 +142,7 @@ function JournalView({ positionName, account, onBack, onClose }: {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onClose: () => void;
 }) {
+  const { t } = useLang();
   const { zapisyLoading } = useCompanies();
   const entries = useJournalEntries(account.numer);
   const sorted = [...entries].sort((a, b) => a.dataKsiegowania.localeCompare(b.dataKsiegowania));
@@ -153,13 +161,13 @@ function JournalView({ positionName, account, onBack, onClose }: {
       {/* Podsumowanie konta */}
       <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
         <div className="grid grid-cols-3 gap-3">
-          <StatBox label="Saldo Wn" value={account.saldoWn} />
-          <StatBox label="Saldo Ma" value={account.saldoMa} />
-          <StatBox label="Persaldo" value={account.persaldo} highlight />
+          <StatBox label={t('drill.saldoWn')} value={account.saldoWn} />
+          <StatBox label={t('drill.saldoMa')} value={account.saldoMa} />
+          <StatBox label={t('drill.persaldo')} value={account.persaldo} highlight />
         </div>
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <StatBox label="Obroty Wn" value={account.obrotyWn} small />
-          <StatBox label="Obroty Ma" value={account.obrotyMa} small />
+          <StatBox label={t('drill.obrotyWn')} value={account.obrotyWn} small />
+          <StatBox label={t('drill.obrotyMa')} value={account.obrotyMa} small />
         </div>
       </div>
 
@@ -171,7 +179,7 @@ function JournalView({ positionName, account, onBack, onClose }: {
       {/* Nagłówek sekcji zapisów */}
       <div className="px-4 py-2 flex items-center justify-between border-b border-slate-100 bg-white">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-          Zapisy ({sorted.length})
+          {t('drill.entries')} ({sorted.length})
         </span>
         {sorted.length > 0 && (
           <span className="text-xs text-slate-400">
@@ -185,26 +193,26 @@ function JournalView({ positionName, account, onBack, onClose }: {
           <div className="flex justify-center mb-3">
             <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
           </div>
-          Ładowanie dziennika FK ({'>'}98 000 wierszy)…
+          {t('drill.loadingJournal')}
         </div>
       ) : sorted.length === 0 ? (
         <div className="p-6 text-sm text-slate-400 text-center">
           <div className="text-2xl mb-2">📭</div>
-          Brak zapisów dla konta {account.numer}.
+          {t('drill.noEntries', { account: account.numer })}
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
           <table className="w-full border-collapse" style={{ minWidth: 760, fontSize: '10px' }}>
             <thead className="sticky top-0 bg-slate-50 z-10">
               <tr className="border-b border-slate-200">
-                <th className="text-left py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">Data</th>
-                <th className="text-left py-2 px-2 font-semibold text-slate-500">Dokument</th>
-                <th className="text-left py-2 px-2 font-semibold text-slate-500">Podmiot</th>
+                <th className="text-left py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">{t('drill.date')}</th>
+                <th className="text-left py-2 px-2 font-semibold text-slate-500">{t('drill.document')}</th>
+                <th className="text-left py-2 px-2 font-semibold text-slate-500">{t('drill.entity')}</th>
                 <th className="text-left py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">Konto</th>
-                <th className="text-left py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">K. przeciw.</th>
-                <th className="text-right py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">Kwota Wn</th>
-                <th className="text-right py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">Kwota Ma</th>
-                <th className="text-left py-2 px-2 font-semibold text-slate-500">Opis</th>
+                <th className="text-left py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">{t('drill.contraAccount')}</th>
+                <th className="text-right py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">{t('drill.amountWn')}</th>
+                <th className="text-right py-2 px-2 font-semibold text-slate-500 whitespace-nowrap">{t('drill.amountMa')}</th>
+                <th className="text-left py-2 px-2 font-semibold text-slate-500">{t('drill.description')}</th>
               </tr>
             </thead>
             <tbody>
@@ -236,7 +244,7 @@ function JournalView({ positionName, account, onBack, onClose }: {
             {/* Suma kontrolna */}
             <tfoot className="sticky bottom-0 bg-white border-t-2 border-slate-200">
               <tr>
-                <td colSpan={5} className="py-1.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Suma</td>
+                <td colSpan={5} className="py-1.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('drill.total')}</td>
                 <td className="py-1.5 px-2 text-right font-mono font-bold tabular-nums text-slate-800 whitespace-nowrap">
                   {formatPLN(sorted.reduce((s, z) => s + z.kwotaWn, 0))}
                 </td>
@@ -307,13 +315,14 @@ function StatBox({ label, value, highlight, small }: {
 }
 
 function SubAccountInfo({ accounts, selectedNumer }: { accounts: AccountRow[]; selectedNumer: string }) {
+  const { t } = useLang();
   if (accounts.length <= 1) return null;
   const hasParent = accounts.some(a => a.numer === selectedNumer && !a.numer.includes('-'));
   if (hasParent) return null;
   return (
     <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
-      Widok dla konta <strong className="font-mono">{selectedNumer}</strong>
-      {' '}— konto posiada {accounts.length - 1} podkont.
+      {t('drill.subAccountView')} <strong className="font-mono">{selectedNumer}</strong>
+      {' '}{t('drill.subAccounts', { count: accounts.length - 1 })}
     </div>
   );
 }

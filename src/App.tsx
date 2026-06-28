@@ -1,6 +1,9 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import type { ReportType, ViewType, ReportRow } from './types';
+import type { Lang } from './i18n';
+import { LanguageProvider } from './i18n/LanguageContext';
 import { useReportData } from './hooks/useReportData';
+import { useCompanies } from './store/CompaniesContext';
 import { useAuth } from './store/AuthContext';
 import LoginScreen from './components/LoginScreen';
 import Sidebar from './components/Sidebar';
@@ -11,6 +14,8 @@ import ImportModal from './components/ImportModal';
 import EmptyState from './components/EmptyState';
 import ControlSheet from './components/ControlSheet';
 const RatioAnalysis = lazy(() => import('./components/RatioAnalysis'));
+const RaportMiesieczny = lazy(() => import('./components/RaportMiesieczny'));
+const RaportGrupy = lazy(() => import('./components/RaportGrupy'));
 
 const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25, 1.5];
 
@@ -30,9 +35,11 @@ function MainApp() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [zoomIdx, setZoomIdx] = useState(2); // default: 1.0
+  const [lang, setLang] = useState<Lang>('pl');
 
   const zoom = ZOOM_LEVELS[zoomIdx];
   const rows = useReportData(reportType);
+  const { activeCompany } = useCompanies();
 
   const handleRowClick = useCallback((row: ReportRow) => {
     setSelectedRow(prev => prev === row ? null : row);
@@ -40,7 +47,7 @@ function MainApp() {
 
   const handleViewChange = useCallback((v: ViewType) => {
     setActiveView(v);
-    if (v !== 'kontrola' && v !== 'analiza') {
+    if (v !== 'kontrola' && v !== 'analiza' && v !== 'raport_miesieczny') {
       setReportType(v as ReportType);
       setSelectedRow(null);
       setSearch('');
@@ -58,6 +65,7 @@ function MainApp() {
   const zoomReset = useCallback(() => setZoomIdx(2), []);
 
   return (
+    <LanguageProvider lang={lang}>
     <div className="flex h-screen bg-slate-100 overflow-hidden">
       {/* ── Mobile sidebar overlay ── */}
       {mobileSidebarOpen && (
@@ -98,14 +106,26 @@ function MainApp() {
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onZoomReset={zoomReset}
+          lang={lang}
+          onLangChange={setLang}
         />
 
         <div className="flex flex-1 overflow-hidden">
           {activeView === 'kontrola' ? (
             <ControlSheet />
           ) : activeView === 'analiza' ? (
-            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Ładowanie…</div>}>
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
               <RatioAnalysis />
+            </Suspense>
+          ) : activeView === 'raport_miesieczny' ? (
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+              <RaportMiesieczny />
+            </Suspense>
+          ) : activeView === 'raport_grupy' ? (
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+              <div className="flex-1 flex flex-col min-h-0" style={{zoom}}>
+                <RaportGrupy lang={lang} />
+              </div>
             </Suspense>
           ) : (
             <>
@@ -124,6 +144,7 @@ function MainApp() {
                         search={search}
                         selectedRow={selectedRow}
                         onRowClick={handleRowClick}
+                        periodLabels={activeCompany?.periodLabels}
                       />
                     </div>
                   </div>
@@ -155,5 +176,6 @@ function MainApp() {
         />
       )}
     </div>
+    </LanguageProvider>
   );
 }
