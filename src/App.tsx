@@ -155,7 +155,7 @@ function MainApp() {
               ) : activeView === 'raport_grupy' ? (
                 <ErrorBoundary>
                   <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-                    <div className="flex-1 flex flex-col min-h-0" style={{zoom}}>
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{zoom}}>
                       <RaportGrupy lang={lang} />
                     </div>
                   </Suspense>

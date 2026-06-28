@@ -1017,23 +1017,24 @@ function costIntensityColor(p: number): string {
 }
 
 function CustomFunnel({ data, onStageClick }: { data: FunnelStage[]; onStageClick: (i: number) => void }) {
-  const maxVal = Math.max(Math.abs(data[0]?.value ?? 0), 1);
+  const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 1);
   return (
-    <div className="flex flex-col gap-1.5 py-2">
+    <div className="flex flex-col gap-1 py-2 px-2">
       {data.map((stage, i) => {
-        const widthPct = Math.max(22, (Math.abs(stage.value) / maxVal) * 88 + 12);
+        // szerokość paska: 10% min → 94% max, liniowo względem wartości bezwzględnej
+        const widthPct = Math.round(10 + (Math.abs(stage.value) / maxVal) * 84);
+        const isNeg = stage.value < 0;
         return (
           <div
             key={i}
-            className="w-full flex flex-col items-center cursor-pointer hover:opacity-85 transition-opacity"
-            style={{ paddingLeft: `${(100 - widthPct) / 2}%`, paddingRight: `${(100 - widthPct) / 2}%` }}
+            className="w-full flex flex-col items-center cursor-pointer group"
             onClick={() => onStageClick(i)}
           >
             <div
-              className="w-full rounded-lg h-9 flex items-center justify-center text-white text-[10px] font-bold shadow-sm"
-              style={{ backgroundColor: stage.fill }}
+              className="rounded-md h-10 flex items-center justify-center text-white text-[10px] font-bold shadow-sm overflow-hidden group-hover:brightness-95 transition-all"
+              style={{ width: `${widthPct}%`, backgroundColor: isNeg ? '#f87171' : stage.fill }}
             >
-              <span className="truncate px-3">{stage.name} — {pct(stage.pctOfRevenue)}</span>
+              <span className="truncate px-2">{stage.name} — {pct(stage.pctOfRevenue)}</span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-slate-400">
               <span className="font-mono">{plnM(stage.value)}</span>
