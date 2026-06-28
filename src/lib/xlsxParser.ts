@@ -544,28 +544,68 @@ export interface FilesMap {
   raportGrupy?: File;
 }
 
+/** Uzupełnia wiersze z parseCombinedSheet o definition/positionId/drilldownAccounts z pliku schematu. */
+function enrichWithSchema(rows: ReportRow[], schemaWb: XLSX.WorkBook): ReportRow[] {
+  const schemaRows = XLSX.utils.sheet_to_json(
+    getSheet(schemaWb, 'Pozycje zestawienia'), { header: 1 }
+  ) as unknown[][];
+
+  // Buduj mapę: indeks wiersza → definicja
+  const byIdx = new Map<number, { definition: string | null; positionId: string | null; drilldownAccounts: string[] }>();
+  for (let i = 1; i < schemaRows.length; i++) {
+    const s = schemaRows[i];
+    const name = String(s[1] ?? '').trim();
+    if (!name) continue;
+    const def = String(s[2] ?? '').trim() || null;
+    byIdx.set(i, {
+      definition: def,
+      positionId: String(s[3] ?? '').trim() || null,
+      drilldownAccounts: extractAccounts(def),
+    });
+  }
+
+  return rows.map((r, i) => {
+    const meta = byIdx.get(i + 1);
+    return meta ? { ...r, ...meta } : r;
+  });
+}
+
 export async function importFiles(files: FilesMap): Promise<ImportedCompanyData> {
   const results: Partial<ImportedCompanyData> = {};
   let periodLabels: string[] | undefined;
 
-  if (files.bilansSchema && files.bilansData) {
-    const schemaWb = await fileToWorkbook(files.bilansSchema);
+  if (files.bilansData) {
     const dataWb = await fileToWorkbook(files.bilansData);
-    results.bilans = parseBilans(schemaWb, dataWb);
-  } else if (files.bilansData) {
-    const wb = await fileToWorkbook(files.bilansData);
-    const parsed = parseCombinedSheet(wb);
+    const parsed = parseCombinedSheet(dataWb);
+    periodLabels = parsed.periodLabels;
+    if (files.bilansSchema) {
+      // Wzbogać o definicje/drilldown z pliku schematu
+      const schemaWb = await fileToWorkbook(files.bilansSchema);
+      results.bilans = enrichWithSchema(parsed.rows, schemaWb);
+    } else {
+      results.bilans = parsed.rows;
+    }
+  } else if (files.bilansSchema) {
+    // Tylko schemat bez danych — parsuj 2-okr. (schema=dane w jednym pliku)
+    const schemaWb = await fileToWorkbook(files.bilansSchema);
+    const parsed = parseCombinedSheet(schemaWb);
     results.bilans = parsed.rows;
     periodLabels = parsed.periodLabels;
   }
 
-  if (files.rzisSchema && files.rzisData) {
-    const schemaWb = await fileToWorkbook(files.rzisSchema);
+  if (files.rzisData) {
     const dataWb = await fileToWorkbook(files.rzisData);
-    results.rzis = parseRzis(schemaWb, dataWb);
-  } else if (files.rzisData) {
-    const wb = await fileToWorkbook(files.rzisData);
-    const parsed = parseCombinedSheet(wb);
+    const parsed = parseCombinedSheet(dataWb);
+    if (!periodLabels) periodLabels = parsed.periodLabels;
+    if (files.rzisSchema) {
+      const schemaWb = await fileToWorkbook(files.rzisSchema);
+      results.rzis = enrichWithSchema(parsed.rows, schemaWb);
+    } else {
+      results.rzis = parsed.rows;
+    }
+  } else if (files.rzisSchema) {
+    const schemaWb = await fileToWorkbook(files.rzisSchema);
+    const parsed = parseCombinedSheet(schemaWb);
     results.rzis = parsed.rows;
     if (!periodLabels) periodLabels = parsed.periodLabels;
   }
