@@ -1,6 +1,31 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense, Component } from 'react';
+import type { ReactNode } from 'react';
 import type { ReportType, ViewType, ReportRow } from './types';
 import type { Lang } from './i18n';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(e: Error) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-500 p-8 text-center">
+          <span className="text-2xl">⚠️</span>
+          <p className="text-sm font-medium">Błąd ładowania modułu</p>
+          <p className="text-xs text-slate-400 font-mono break-all max-w-md">{this.state.error.message}</p>
+          <button
+            className="mt-2 text-xs text-blue-500 underline"
+            onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+          >Odśwież stronę</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { LanguageProvider } from './i18n/LanguageContext';
 import { useReportData } from './hooks/useReportData';
 import { useCompanies } from './store/CompaniesContext';
@@ -110,19 +135,25 @@ function MainApp() {
               {activeView === 'kontrola' ? (
                 <ControlSheet />
               ) : activeView === 'analiza' ? (
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-                  <RatioAnalysis />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                    <RatioAnalysis />
+                  </Suspense>
+                </ErrorBoundary>
               ) : activeView === 'raport_miesieczny' ? (
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-                  <RaportMiesieczny />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                    <RaportMiesieczny />
+                  </Suspense>
+                </ErrorBoundary>
               ) : activeView === 'raport_grupy' ? (
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
-                  <div className="flex-1 flex flex-col min-h-0" style={{zoom}}>
-                    <RaportGrupy lang={lang} />
-                  </div>
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                    <div className="flex-1 flex flex-col min-h-0" style={{zoom}}>
+                      <RaportGrupy lang={lang} />
+                    </div>
+                  </Suspense>
+                </ErrorBoundary>
               ) : (
                 <>
                   <div className="flex-1 overflow-y-auto flex flex-col">
