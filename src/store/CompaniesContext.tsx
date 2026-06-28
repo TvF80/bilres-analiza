@@ -13,6 +13,9 @@ const companyKey  = (uid: string) => `exco_companies_${uid}`;
 const activeKey   = (uid: string) => `exco_active_${uid}`;
 const zapisyKey   = (cid: string) => `exco_zapisy_${cid}`;
 
+// True when bundled JSON files contain real data (false in GitHub/empty-placeholder mode)
+const BUNDLED_HAS_DATA = (defaultBilans as unknown[]).length > 0;
+
 export interface CompanyData {
   period: string;
   bilans: Company['bilans'];
@@ -113,20 +116,31 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       return;
     }
     let loaded = loadFromStorage(uid);
-    // Check if stored data has 3-period data (period3 in at least one bilans row)
-    const hasTriperiod = loaded.some(c =>
-      c.bilans.some(r => (r.values as { period3?: number }).period3 !== undefined &&
-                         (r.values as { period3?: number }).period3 !== 0)
-    );
-    if (loaded.length === 0 || !hasTriperiod) {
-      // No data or stale 2-period data — reset to fresh bundled JSON
-      loaded = [buildDefaultCompany()];
+    const hasDefault = loaded.some(c => c.id === DEFAULT_COMPANY_ID);
+
+    if (BUNDLED_HAS_DATA) {
+      // Real bundled data available — always refresh default company from JSON files.
+      // Wipe stale 2-period-only data (migration guard).
+      const hasTriperiod = loaded.some(c =>
+        c.bilans.some(r => (r.values as { period3?: number }).period3 !== undefined &&
+                           (r.values as { period3?: number }).period3 !== 0)
+      );
+      if (loaded.length === 0 || !hasTriperiod) {
+        loaded = [buildDefaultCompany()];
+      } else {
+        loaded = hasDefault
+          ? loaded.map(c => c.id === DEFAULT_COMPANY_ID ? buildDefaultCompany() : c)
+          : [buildDefaultCompany(), ...loaded];
+      }
     } else {
-      // Refresh default company with latest bundled data; keep other imported companies
-      const hasDefault = loaded.some(c => c.id === DEFAULT_COMPANY_ID);
-      loaded = hasDefault
-        ? loaded.map(c => c.id === DEFAULT_COMPANY_ID ? buildDefaultCompany() : c)
-        : [buildDefaultCompany(), ...loaded];
+      // Empty placeholders (GitHub/import-only mode) — preserve whatever user imported.
+      // Only add default company if nothing exists yet.
+      if (loaded.length === 0) {
+        loaded = [buildDefaultCompany()];
+      } else if (!hasDefault) {
+        loaded = [buildDefaultCompany(), ...loaded];
+      }
+      // else: keep localStorage companies exactly as saved (incl. user-replaced default)
     }
     const saved  = localStorage.getItem(activeKey(uid));
     const first  = loaded[0]?.id ?? '';
