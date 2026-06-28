@@ -10,6 +10,13 @@ public/data/
 # src/data/*.json — puste placeholdery są commitowane (GitHub build)
 # Przed pushem z prawdziwymi danymi: node scripts/prepare-github.mjs
 
+# Skrypty debugowe / output Excel (mogą zawierać dane wrażliwe)
+read_excel*.js
+read_excel*.mjs
+excel_output*.txt
+debug_*.txt
+*.xlsx.output.txt
+
 # Dev / logs
 *.log
 npm-debug.log*
