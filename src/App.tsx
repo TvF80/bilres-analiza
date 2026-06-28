@@ -37,19 +37,10 @@ function MainApp() {
   const [zoomIdx, setZoomIdx] = useState(2); // default: 1.0
   const [lang, setLang] = useState<Lang>('pl');
 
+  // ── Wszystkie hooki muszą być przed jakimkolwiek return ──
   const zoom = ZOOM_LEVELS[zoomIdx];
   const rows = useReportData(reportType);
   const { activeCompany, companies } = useCompanies();
-
-  // Brak firm — ekran powitalny
-  if (companies.length === 0) {
-    return (
-      <LanguageProvider lang={lang}>
-        <WelcomeScreen onImport={() => setShowImport(true)} lang={lang} onLangChange={setLang} />
-        {showImport && <ImportModal onClose={() => setShowImport(false)} />}
-      </LanguageProvider>
-    );
-  }
 
   const handleRowClick = useCallback((row: ReportRow) => {
     setSelectedRow(prev => prev === row ? null : row);
@@ -73,6 +64,16 @@ function MainApp() {
   const zoomIn  = useCallback(() => setZoomIdx(i => Math.min(i + 1, ZOOM_LEVELS.length - 1)), []);
   const zoomOut = useCallback(() => setZoomIdx(i => Math.max(i - 1, 0)), []);
   const zoomReset = useCallback(() => setZoomIdx(2), []);
+
+  // ── Ekran powitalny gdy brak firm (renderowany warunkowo, nie early-return) ──
+  if (companies.length === 0) {
+    return (
+      <LanguageProvider lang={lang}>
+        <WelcomeScreen onImport={() => setShowImport(true)} lang={lang} onLangChange={setLang} />
+        {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+      </LanguageProvider>
+    );
+  }
 
   return (
     <LanguageProvider lang={lang}>
@@ -139,7 +140,6 @@ function MainApp() {
             </Suspense>
           ) : (
             <>
-              {/* Report table or empty state */}
               <div className="flex-1 overflow-y-auto flex flex-col">
                 {rows.length === 0 && !search ? (
                   <EmptyState onImport={() => setShowImport(true)} />
@@ -161,7 +161,6 @@ function MainApp() {
                 )}
               </div>
 
-              {/* Drilldown panel — right side on desktop, bottom sheet on mobile */}
               {selectedRow && (
                 <>
                   <div className="hidden md:flex w-[720px] xl:w-[820px] shrink-0 border-l border-slate-200 bg-white overflow-hidden flex-col shadow-xl" style={{ zoom }}>
