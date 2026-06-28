@@ -2525,8 +2525,9 @@ export default function RatioAnalysis() {
           </div>
         </div>
 
-        {/* Sub-tabs */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 flex flex-wrap gap-1 items-center">
+        {/* Sub-tabs — horizontal scroll on mobile, wrap on sm+ */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+          <div className="p-2 flex gap-1 items-center min-w-max sm:min-w-0 sm:flex-wrap">
           {groupNames.map((group, gi) => (
             <div key={group} className="flex items-center gap-1">
               {gi > 0 && <div className="w-px h-5 bg-slate-200 mx-1" />}
@@ -2542,7 +2543,7 @@ export default function RatioAnalysis() {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                       active ? colorOn : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
@@ -2552,6 +2553,7 @@ export default function RatioAnalysis() {
               })}
             </div>
           ))}
+          </div>
         </div>
 
         {/* Content */}

@@ -28,15 +28,15 @@ export default function ReportTable({ rows, search, selectedRow, onRowClick, per
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse min-w-[480px]">
+      <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b-2 border-slate-200">
             <th className="text-left py-2.5 px-2 sm:px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide w-8 sm:w-12 hidden sm:table-cell">{t('chart.seg')}</th>
             <th className="text-left py-2.5 px-2 sm:px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">{t('chart.position')}</th>
-            <th className="text-right py-2.5 px-3 sm:px-4 font-semibold text-blue-600 text-xs whitespace-nowrap w-28 sm:w-32">{label1}</th>
-            {hasPeriod2 && <th className="text-right py-2.5 px-3 sm:px-4 font-semibold text-slate-400 text-xs whitespace-nowrap w-28 sm:w-32 hidden sm:table-cell">{label2}</th>}
-            {hasPeriod3 && <th className="text-right py-2.5 px-3 sm:px-4 font-semibold text-slate-300 text-xs whitespace-nowrap w-28 sm:w-32 hidden md:table-cell">{label3}</th>}
-            <th className="w-6" />
+            <th className="text-right py-2.5 px-2 sm:px-4 font-semibold text-blue-600 text-xs whitespace-nowrap w-24 sm:w-32">{label1}</th>
+            {hasPeriod2 && <th className="text-right py-2.5 px-2 sm:px-4 font-semibold text-slate-400 text-xs whitespace-nowrap w-24 sm:w-32 hidden sm:table-cell">{label2}</th>}
+            {hasPeriod3 && <th className="text-right py-2.5 px-2 sm:px-4 font-semibold text-slate-300 text-xs whitespace-nowrap w-24 sm:w-32 hidden md:table-cell">{label3}</th>}
+            <th className="w-5" />
           </tr>
         </thead>
         <tbody>
@@ -72,6 +72,10 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
   const v2 = row.values.period2;
   const v3 = row.values.period3;
   const delta = (v1 !== 0 && v2 !== 0) ? ((v1 / v2) - 1) * 100 : null;
+  const deltaStr = delta !== null
+    ? `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`
+    : null;
+  const deltaColor = delta === null ? '' : delta > 5 ? 'text-emerald-500' : delta < -5 ? 'text-red-500' : 'text-slate-400';
 
   const isZeroRow = !isSection && v1 === 0 && (v2 === 0 || v2 === undefined) && (!hasPeriod3 || (v3 ?? 0) === 0);
 
@@ -86,14 +90,16 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
     isSection ? 'font-bold text-slate-800 text-sm' : row.level === 1 ? 'font-semibold text-slate-700' : 'text-slate-600',
   ].join(' ');
 
+  const rowName = lang !== 'pl' ? (ROW_TR[row.name]?.[lang as 'fr' | 'en'] ?? row.name) : row.name;
+
   if (isZeroRow) {
     return (
       <tr className="border-b border-slate-100 opacity-45 select-none">
         <td className="py-1.5 px-2 sm:px-3 text-xs text-slate-300 font-mono hidden sm:table-cell">{row.segment}</td>
-        <td className={`py-1.5 px-2 sm:px-3 text-xs text-slate-400 ${indent}`}>{lang !== 'pl' ? (ROW_TR[row.name]?.[lang as 'fr' | 'en'] ?? row.name) : row.name}</td>
-        <td className="py-1.5 px-3 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums">—</td>
-        {hasPeriod2 && <td className="py-1.5 px-3 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums hidden sm:table-cell">—</td>}
-        {hasPeriod3 && <td className="py-1.5 px-3 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums hidden md:table-cell">—</td>}
+        <td className={`py-1.5 px-2 sm:px-3 text-xs text-slate-400 ${indent}`}>{rowName}</td>
+        <td className="py-1.5 px-2 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums">—</td>
+        {hasPeriod2 && <td className="py-1.5 px-2 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums hidden sm:table-cell">—</td>}
+        {hasPeriod3 && <td className="py-1.5 px-2 sm:px-4 text-right text-xs text-slate-300 font-mono tabular-nums hidden md:table-cell">—</td>}
         <td />
       </tr>
     );
@@ -106,42 +112,46 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
     >
       <td className="py-2 px-2 sm:px-3 text-slate-400 text-xs font-mono hidden sm:table-cell">{row.segment}</td>
 
-      <td className={`py-2 px-2 sm:px-3 ${nameClass}`}>
-        <span>{lang !== 'pl' ? (ROW_TR[row.name]?.[lang as 'fr' | 'en'] ?? row.name) : row.name}</span>
+      <td className={`py-2 px-2 sm:px-3 max-w-0 ${nameClass}`}>
+        <span className="block truncate">{rowName}</span>
         {hasDetail && !isSection && (
           <span className="ml-1 text-blue-400 opacity-50 text-xs">↗</span>
         )}
       </td>
 
-      <td className={`py-2 px-2 sm:px-4 text-right ${isSection ? 'font-bold' : ''}`}>
-        <div className={`font-mono tabular-nums text-sm ${v1 < 0 ? 'text-red-600' : v1 === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
+      {/* P1 — on mobile also shows P2 + delta stacked below */}
+      <td className={`py-1.5 px-2 sm:px-4 text-right align-top ${isSection ? 'font-bold' : ''}`}>
+        <div className={`font-mono tabular-nums text-sm leading-snug ${v1 < 0 ? 'text-red-600' : v1 === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
           {v1 !== 0 ? formatPLN(v1) : '—'}
         </div>
+        {/* P2 + delta — visible on mobile only (desktop has separate P2 column) */}
         {hasPeriod2 && v2 !== 0 && (
           <div className="sm:hidden flex items-center justify-end gap-1 mt-0.5">
             <span className={`font-mono text-[10px] ${v2 < 0 ? 'text-red-400' : 'text-slate-400'}`}>{formatPLN(v2)}</span>
-            {delta !== null && (
-              <span className={`text-[10px] font-semibold ${delta > 5 ? 'text-emerald-500' : delta < -5 ? 'text-red-500' : 'text-slate-400'}`}>
-                {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
-              </span>
-            )}
+            {deltaStr && <span className={`text-[10px] font-semibold ${deltaColor}`}>{deltaStr}</span>}
           </div>
         )}
       </td>
 
+      {/* P2 + delta — desktop only */}
       {hasPeriod2 && (
-        <td className={`py-2 px-3 sm:px-4 text-right font-mono tabular-nums text-xs text-slate-400 hidden sm:table-cell ${v2 < 0 ? 'text-red-400' : ''}`}>
-          {v2 !== 0 ? formatPLN(v2) : '—'}
+        <td className="py-1.5 px-2 sm:px-4 text-right hidden sm:table-cell align-top">
+          <div className={`font-mono tabular-nums text-xs leading-snug ${v2 < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+            {v2 !== 0 ? formatPLN(v2) : '—'}
+          </div>
+          {deltaStr && v1 !== 0 && v2 !== 0 && (
+            <div className={`text-[10px] font-semibold mt-0.5 ${deltaColor}`}>{deltaStr}</div>
+          )}
         </td>
       )}
 
       {hasPeriod3 && (
-        <td className={`py-2 px-3 sm:px-4 text-right font-mono tabular-nums text-[11px] hidden md:table-cell ${v3 && v3 < 0 ? 'text-red-300' : 'text-slate-300'}`}>
+        <td className={`py-2 px-2 sm:px-4 text-right font-mono tabular-nums text-[11px] hidden md:table-cell ${v3 && v3 < 0 ? 'text-red-300' : 'text-slate-300'}`}>
           {v3 && v3 !== 0 ? formatPLN(v3) : '—'}
         </td>
       )}
 
-      <td className="px-1 sm:px-2 text-center">
+      <td className="px-1 text-center">
         {hasDetail && !isSection && (
           <span className={`text-slate-300 transition-transform inline-block text-base ${isSelected ? 'text-blue-400 rotate-90' : ''}`}>›</span>
         )}

@@ -460,30 +460,38 @@ function CitySection({miasto,groups,onGroup,activeGroup}:{miasto:string;groups:G
           <span className="text-slate-400 text-xs">{open?'▲':'▼'}</span>
         </div>
       </button>
-      {open&&(<div className="border-t border-slate-100"><table className="w-full text-xs border-collapse">
+      {open&&(<div className="border-t border-slate-100 overflow-x-auto"><table className="w-full text-xs border-collapse min-w-[320px]">
         <thead><tr className="bg-slate-50/80 border-b border-slate-100">
-          {[tr('colLider'),tr('colDept'),'B/K',tr('colRevenue'),tr('colCost'),tr('colMargin'),tr('colMB'),tr('colTrend')].map((h,hi)=><th key={h+hi} className={`px-3 py-1.5 font-semibold text-slate-400 text-[10px] ${hi>=3&&hi<=6?'text-right':'text-left'}`}>{h}</th>)}
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-left">{tr('colLider')}</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-left hidden sm:table-cell">{tr('colDept')}</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-left hidden sm:table-cell">B/K</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-right">{tr('colRevenue')}</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-right hidden sm:table-cell">{tr('colCost')}</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-right hidden sm:table-cell">{tr('colMargin')}</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-right">{tr('colMB')}</th>
+          <th className="px-3 py-1.5 font-semibold text-slate-400 text-[10px] text-left hidden sm:table-cell">{tr('colTrend')}</th>
         </tr></thead>
         <tbody>
           {groups.map((g,idx)=>{const m2=mbp(g);const isSel=activeGroup?.lider===g.lider;return(
             <tr key={g.lider} onClick={()=>onGroup(g)} className={`border-b border-slate-100 cursor-pointer transition-colors ${isSel?'bg-orange-50 border-l-2 border-l-orange-500':idx%2===0?'hover:bg-slate-50':'bg-slate-50/30 hover:bg-slate-50'}`}>
               <td className="px-3 py-1.5 font-semibold text-slate-800">{g.lider}</td>
-              <td className="px-3 py-1.5"><span className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded text-[10px]">{DZIALY_LABEL[g.dzial]??g.dzial}</span></td>
-              <td className="px-3 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[10px] ${g.bk==='K_'?'bg-slate-100 text-slate-600':'bg-amber-50 text-amber-700'}`}>{g.bk==='K_'?'K':'B'}</span></td>
+              <td className="px-3 py-1.5 hidden sm:table-cell"><span className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded text-[10px]">{DZIALY_LABEL[g.dzial]??g.dzial}</span></td>
+              <td className="px-3 py-1.5 hidden sm:table-cell"><span className={`px-1.5 py-0.5 rounded text-[10px] ${g.bk==='K_'?'bg-slate-100 text-slate-600':'bg-amber-50 text-amber-700'}`}>{g.bk==='K_'?'K':'B'}</span></td>
               <td className="px-3 py-1.5 text-right font-medium text-slate-700">{fmtM(g.total.przychod)}</td>
-              <td className="px-3 py-1.5 text-right text-slate-500">{fmtM(g.total.koszt)}</td>
-              <td className={`px-3 py-1.5 text-right font-semibold ${mbColor(m2)}`}>{fmtM(g.total.mb)}</td>
+              <td className="px-3 py-1.5 text-right text-slate-500 hidden sm:table-cell">{fmtM(g.total.koszt)}</td>
+              <td className={`px-3 py-1.5 text-right font-semibold hidden sm:table-cell ${mbColor(m2)}`}>{fmtM(g.total.mb)}</td>
               <td className="px-3 py-1.5 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(m2)}`}>{fmtPct(m2)}</span></td>
-              <td className="px-3 py-1.5"><Sparkline values={g.monthly.mb} color={mbFill(m2)}/></td>
+              <td className="px-3 py-1.5 hidden sm:table-cell"><Sparkline values={g.monthly.mb} color={mbFill(m2)}/></td>
             </tr>
           );})}
           <tr className="bg-slate-50 border-t border-slate-200 font-semibold text-[10px]">
-            <td className="px-3 py-1.5 text-slate-500" colSpan={3}>{tr('sumCity')} {MIASTO_LABEL[miasto]}</td>
+            <td className="px-3 py-1.5 text-slate-500">{tr('sumCity')} {MIASTO_LABEL[miasto]}</td>
+            <td className="hidden sm:table-cell"/><td className="hidden sm:table-cell"/>
             <td className="px-3 py-1.5 text-right text-slate-700">{fmtM(p)}</td>
-            <td className="px-3 py-1.5 text-right text-slate-500">{fmtM(k)}</td>
-            <td className={`px-3 py-1.5 text-right ${mbColor(pct)}`}>{fmtM(m)}</td>
+            <td className="px-3 py-1.5 text-right text-slate-500 hidden sm:table-cell">{fmtM(k)}</td>
+            <td className={`px-3 py-1.5 text-right hidden sm:table-cell ${mbColor(pct)}`}>{fmtM(m)}</td>
             <td className="px-3 py-1.5 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(pct)}`}>{fmtPct(pct)}</span></td>
-            <td/>
+            <td className="hidden sm:table-cell"/>
           </tr>
         </tbody>
       </table></div>)}
@@ -842,21 +850,21 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
                 <table className="w-full text-[11px] border-collapse">
                   <thead><tr className="bg-slate-50 border-b border-slate-200">
                     <th className="text-left px-3 py-2 font-semibold text-slate-500">{tr('colCity')}</th>
-                    <th className="text-center px-2 py-2 font-semibold text-slate-500">{tr('colGroups')}</th>
+                    <th className="text-center px-2 py-2 font-semibold text-slate-500 hidden sm:table-cell">{tr('colGroups')}</th>
                     <th className="text-right px-3 py-2 font-semibold text-slate-500">{tr('colRevenue')}</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-500">{tr('colMargin')}</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-500 hidden sm:table-cell">{tr('colMargin')}</th>
                     <th className="text-right px-3 py-2 font-semibold text-slate-500">{tr('colMB')}</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-500">{tr('colShare')} %</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-500 hidden sm:table-cell">{tr('colShare')} %</th>
                   </tr></thead>
                   <tbody>
                     {(()=>{const totalP=byCity.reduce((s,[,gs2])=>s+aggGroups(gs2).p,0);return byCity.map(([miasto,gs2],i)=>{const{p,m,pct}=aggGroups(gs2);const share=totalP>0?p/totalP:0;const isSel=dCity===miasto;return(
                       <tr key={miasto} onClick={()=>isSel?closeAll():openCity(miasto)} className={`border-b border-slate-100 cursor-pointer transition-colors ${isSel?'bg-orange-50 border-l-2 border-l-orange-500':'hover:bg-slate-50'} ${i%2===0?'':'bg-slate-50/30'}`}>
                         <td className="px-3 py-2"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/><span className="font-semibold text-slate-800">{MIASTO_LABEL[miasto]??miasto}</span></div></td>
-                        <td className="px-2 py-2 text-center"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-medium">{gs2.length}</span></td>
+                        <td className="px-2 py-2 text-center hidden sm:table-cell"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-medium">{gs2.length}</span></td>
                         <td className="px-3 py-2 text-right font-medium text-slate-700">{fmtM(p)}</td>
-                        <td className={`px-3 py-2 text-right font-semibold ${mbColor(pct)}`}>{fmtM(m)}</td>
+                        <td className={`px-3 py-2 text-right font-semibold hidden sm:table-cell ${mbColor(pct)}`}>{fmtM(m)}</td>
                         <td className="px-3 py-2 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(pct)}`}>{fmtPct(pct)}</span></td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-right hidden sm:table-cell">
                           <div className="flex items-center justify-end gap-1.5">
                             <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden"><div className="h-full rounded-full" style={{width:`${share*100}%`,backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/></div>
                             <span className="text-[10px] text-slate-500 w-7 text-right">{(share*100).toFixed(0)}%</span>
@@ -866,11 +874,11 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
                     );})})()}
                     <tr className="bg-orange-50 border-t border-orange-200 font-semibold text-[10px]">
                       <td className="px-3 py-2 text-slate-700 uppercase tracking-wide">{tr('sum')}</td>
-                      <td className="px-2 py-2 text-center text-slate-600">{filtered.length}</td>
+                      <td className="px-2 py-2 text-center text-slate-600 hidden sm:table-cell">{filtered.length}</td>
                       <td className="px-3 py-2 text-right text-slate-800">{fmtM(kpi.p)}</td>
-                      <td className={`px-3 py-2 text-right font-bold ${mbColor(kpi.pct)}`}>{fmtM(kpi.m)}</td>
+                      <td className={`px-3 py-2 text-right font-bold hidden sm:table-cell ${mbColor(kpi.pct)}`}>{fmtM(kpi.m)}</td>
                       <td className="px-3 py-2 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(kpi.pct)}`}>{fmtPct(kpi.pct)}</span></td>
-                      <td className="px-3 py-2 text-right text-slate-500">100%</td>
+                      <td className="px-3 py-2 text-right text-slate-500 hidden sm:table-cell">100%</td>
                     </tr>
                   </tbody>
                 </table>
