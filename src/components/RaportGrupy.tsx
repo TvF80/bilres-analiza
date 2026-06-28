@@ -201,7 +201,7 @@ const mbColor=(v:number)=>v>0.3?'text-emerald-600':v>0.1?'text-amber-600':v>0?'t
 const mbBadge=(v:number)=>v>0.3?'bg-emerald-100 text-emerald-700':v>0.1?'bg-amber-100 text-amber-700':v>0?'bg-orange-100 text-orange-700':'bg-red-100 text-red-700';
 const mbFill=(v:number)=>v>0.3?C.pos:v>0.1?C.amber:v>0?C.orange:C.neg;
 function aggGroups(gs:GroupRow[]){const p=gs.reduce((s,g)=>s+g.total.przychod,0);const k=gs.reduce((s,g)=>s+g.total.koszt,0);const m=gs.reduce((s,g)=>s+g.total.mb,0);return{p,k,m,pct:p>0?m/p:0};}
-const hier=(d:GrpData,l:string)=>(d as any).hierarchyMap?.[l]??null;
+const hier=(d:GrpData,l:string)=>d.hierarchyMap?.[l]??null;
 
 // ── Drawer ────────────────────────────────────────────────────────────────────
 function Drawer({title,subtitle,onClose,children,w=580}:{title:string;subtitle?:string;onClose:()=>void;children:ReactNode;w?:number}){

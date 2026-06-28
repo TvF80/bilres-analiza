@@ -13,5 +13,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => { if (id.includes('recharts')) return 'recharts'; },
+      },
+    },
   },
 })

@@ -243,9 +243,9 @@ function MacroTable() {
   const rest        = MACRO_DATA.filter(s => !s.highlight);
 
   function row(s: MacroSeries, idx: number) {
-    const v24 = (s.values as any)[2024] as number | undefined;
-    const v25 = (s.values as any)[2025] as number | undefined;
-    const v26 = (s.values as any)[2026] as number | undefined;
+    const v24 = s.values[2024];
+    const v25 = s.values[2025];
+    const v26 = s.values[2026];
 
     // Trend arrow: compare latest two available values
     const latest = v26 ?? v25;
@@ -260,7 +260,7 @@ function MacroTable() {
         <td className="px-3 py-2 text-xs text-slate-700 font-medium">{t(s.key)}</td>
         <td className="px-2 py-2 text-xs text-slate-500 text-right">{s.unit}</td>
         {MACRO_YEARS.map(y => {
-          const val = (s.values as any)[y] as number | undefined;
+          const val = s.values[y];
           const isPeriod = PERIOD_YEARS.includes(y);
           return (
             <td key={y} className={`px-2 py-2 text-xs text-right tabular-nums ${isPeriod ? 'font-semibold text-slate-800 bg-blue-50/50' : 'text-slate-600'}`}>

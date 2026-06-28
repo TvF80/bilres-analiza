@@ -49,7 +49,7 @@ src/
     LoginScreen.tsx      Siatka avatarów → hasło (i18n)
     Sidebar.tsx          Nawigacja lewa — zwijana, podmień/usuń firmę (i18n)
     Header.tsx           Bilans | RZiS | Kontrola | Analiza + zoom + szukaj + lang switcher (i18n)
-    ImportModal.tsx      Import 6 xlsx (tryb nowy + tryb podmiana danych) (i18n)
+    ImportModal.tsx      Import 6 xlsx (tryb nowy + tryb podmiana danych), selektywna podmiana komponentów (Partial<CompanyData>) (i18n)
     ReportTable.tsx      Tabela raportu z hierarchią (i18n)
     DrilldownPanel.tsx   Konta (obroty) → Zapisy FK (i18n)
     ControlSheet.tsx     Arkusz kontrolny: integralność, wskaźniki, makro (i18n)
@@ -151,7 +151,7 @@ Sekcje (level=0) nigdy nie są wygaszane.
 ## Zarządzanie firmami
 
 - Import: 6 plików xlsx → auto-wykrycie po nazwie
-- **Podmiana danych** (⟳ na kafelku): zastępuje bilans/RZiS/obroty bez zmiany ID firmy
+- **Podmiana danych** (⟳ na kafelku): selektywna podmiana — można podmienić tylko wybrane komponenty (np. tylko raportMiesieczny bez bilans/rzis)
 - Firmy persystowane w `localStorage` per użytkownik (bez zapisów — za duże)
 - **Bug fix**: `isLoaded` guard w CompaniesContext zapobiega nadpisaniu danych zerami przy logowaniu
 - Zapisy FK: `fetch('/data/zapisy.json')` async przy pierwszym drilldownie
@@ -187,6 +187,8 @@ Przy braku firm w localStorage wyświetlany jest ekran powitalny z przyciskiem i
 ## Wydajność
 
 - Recharts (`RatioAnalysis`) lazy-loaded — oddzielny chunk 117 KB gzip
+- `RaportMiesieczny` lazy-loaded — 53 KB gzip
+- `RaportGrupy` lazy-loaded — 70 KB gzip
 - Main bundle: ~194 KB gzip
 - `zapisy.json` (~42 MB) ładowany przez `fetch()` — nie blokuje startu
 - `CompaniesContext` nie serializuje zapisów do localStorage
@@ -227,3 +229,30 @@ CHOOSE(a,b,c)    — reguła warunkowa
 ```
 
 Regex: `/@(?:Saldo(?:Wn|Ma)|obroty(?:Wn|Ma))\(([^)]+)\)/gi`
+
+---
+
+## Znane problemy i rozwiązania
+
+### Recharts 3.8.1 — tree-shaking w produkcji (Rolldown/Vite 6)
+Komponenty recharts które są wrapperami React.memo/forwardRef (typeof = 'object')
+są błędnie eliminowane przez Rolldown w buildzie produkcyjnym → stają się `undefined`
+w runtime → crash "n is not a function".
+
+**Bezpieczne komponenty** (typeof = 'function', działają w produkcji):
+`BarChart, Bar, LineChart, Line, PieChart, Pie, ResponsiveContainer, XAxis, YAxis,
+CartesianGrid, Tooltip, Legend, Cell, ReferenceLine`
+
+**Zastąpione komponenty** (były problematyczne):
+- `FunnelChart, Funnel` → `CustomFunnel` (CSS, w RaportMiesieczny.tsx)
+- `AreaChart, Area` → `LineChart, Line`
+- `RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis` → `BarChart` grouped
+- `ScatterChart, Scatter` → `CssScatter` (CSS absolute positioning, w RaportGrupy.tsx)
+
+### App.tsx — wrapper zakładek wymaga `overflow-hidden`
+Każda zakładka w `App.tsx` (linie ~134-165) musi mieć wrapper z klasą `overflow-hidden`:
+```tsx
+<div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{zoom}}>
+```
+Brak `overflow-hidden` powoduje że poziomy overflow ucieka do body → na mobile
+widoczna jest tylko prawa część ekranu.

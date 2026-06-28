@@ -164,6 +164,7 @@ export interface GrpData {
   employees: GrpEmployee[];
   kosztPrac: GroupKosztPrac[];
   sumaKosztPrac: { monthly: number[]; razem: number } | null;
+  hierarchyMap?: Record<string, { rootParent: string; directParent: string } | null>;
 }
 
 export interface Company {
