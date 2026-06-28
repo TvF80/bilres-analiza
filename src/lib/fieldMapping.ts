@@ -90,13 +90,16 @@ export function mapFields(
 
   const rowZapasy = find(bilans, r => lo(r).includes('zapas'));
 
-  const rowNaleznosci = find(bilans, r => {
+  // Należności krótkoterminowe (w aktywach obrotowych)
+  const rowNaleznosciKrotko = find(bilans, r => {
     const s = lo(r);
     if (s.includes('należności krótkoterminow')) return true;
     if (s.includes('należności') && s.includes('odbiorcó')) return true;
-    if (s.includes('należności') && r.level >= 2) return true;
     return false;
-  }) ?? find(bilans, r => lo(r).includes('należności'));
+  }) ?? find(bilans, r => lo(r).includes('należności') && !lo(r).includes('długoterminow'));
+
+  // Należności długoterminowe (w aktywach trwałych)
+  const rowNaleznosciDlugo = find(bilans, r => lo(r).includes('należności długoterminow'));
 
   const rowSrodkiPieniezne = find(bilans, r =>
     lo(r).includes('środki pieniężne'),
@@ -217,7 +220,7 @@ export function mapFields(
     aktywaTrwale:       { found: !!rowAktywaTrwale,      name: rowAktywaTrwale?.name      ?? '—' },
     aktywaObrotowe:     { found: !!rowAktywaObrotowe,    name: rowAktywaObrotowe?.name    ?? '—' },
     zapasy:             { found: !!rowZapasy,            name: rowZapasy?.name            ?? '—' },
-    naleznosci:         { found: !!rowNaleznosci,        name: rowNaleznosci?.name        ?? '—' },
+    naleznosci:         { found: !!(rowNaleznosciKrotko ?? rowNaleznosciDlugo), name: [rowNaleznosciDlugo?.name, rowNaleznosciKrotko?.name].filter(Boolean).join(' + ') || '—' },
     srodkiPieniezne:    { found: !!rowSrodkiPieniezne,   name: rowSrodkiPieniezne?.name   ?? '—' },
     aktywaRazem:        { found: !!rowAktywaRazem,       name: rowAktywaRazem?.name       ?? '—' },
     kapitalWlasny:      { found: !!rowKapitalWlasny,     name: rowKapitalWlasny?.name     ?? '—' },
@@ -241,7 +244,7 @@ export function mapFields(
     aktywaTrwale:       n(rowAktywaTrwale,      period),
     aktywaObrotowe:     n(rowAktywaObrotowe,    period),
     zapasy:             n(rowZapasy,            period),
-    naleznosci:         n(rowNaleznosci,        period),
+    naleznosci:         n(rowNaleznosciKrotko, period) + n(rowNaleznosciDlugo, period),
     srodkiPieniezne:    n(rowSrodkiPieniezne,   period),
     aktywaRazem:        n(rowAktywaRazem,       period),
     kapitalWlasny:      n(rowKapitalWlasny,     period),

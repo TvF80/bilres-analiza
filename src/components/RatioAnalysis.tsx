@@ -404,7 +404,7 @@ function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap
 
   const rows: Indicator[] = useMemo(() => {
     const rotNal = (f: FieldMap) => f.przychody !== 0 ? (f.naleznosci / f.przychody) * 360 : null;
-    const rotZap = (f: FieldMap) => { const c = f.cogs !== 0 ? f.cogs : f.kosztyOper; return c !== 0 ? (f.zapasy / c) * 360 : null; };
+    const rotZap = (f: FieldMap) => { if (f.zapasy === 0) return null; const c = f.cogs !== 0 ? f.cogs : f.kosztyOper; return c !== 0 ? (f.zapasy / c) * 360 : null; };
     const rotZob = (f: FieldMap) => { const c = f.cogs !== 0 ? f.cogs : f.kosztyOper; return c !== 0 ? (f.zobowiazaniaKrotko / c) * 360 : null; };
     const ccc = (f: FieldMap) => { const n = rotNal(f); const z = rotZap(f); const zo = rotZob(f); return n !== null && z !== null && zo !== null ? n + z - zo : null; };
     const cccGrade = (v: number | null): Grade => v === null ? 'BRAK' : v < 60 ? 'DOBRY' : v < 90 ? 'UWAGA' : 'SŁABY';
@@ -1752,6 +1752,140 @@ function BeneishTab({ result }: { result: BeneishResult | null }) {
   );
 }
 
+// ── Narracja auto-analityczna ─────────────────────────────────────────────────
+
+function NarrativeBlock({
+  companyName, p1,
+  overall, gLiqd, gDebt, gProf,
+  cr1, cr2, da1, icr1,
+  roe1, roe2, ros1, roa1, ebitdaM1, dso1,
+  f1, f2,
+  keyModels, beneish, fmtP,
+}: {
+  companyName: string; p1: string;
+  overall: Grade; gLiqd: Grade; gDebt: Grade; gProf: Grade;
+  cr1: number | null; cr2: number | null; da1: number | null; icr1: number | null;
+  roe1: number | null; roe2: number | null; ros1: number | null; roa1: number | null;
+  ebitdaM1: number | null; dso1: number | null;
+  f1: FieldMap; f2: FieldMap;
+  keyModels: { def: ModelDef; score: number | null; zone: ZoneDef | null }[];
+  beneish: BeneishResult | null;
+  fmtP: (v: number | null, d?: number) => string | null;
+}) {
+  const paragraphs: string[] = [];
+  const fPct = (v: number | null) => { const s = fmtP(v !== null ? v * 100 : null); return s ? `${s}%` : null; };
+  const fRat = (v: number | null) => { const s = fmtP(v); return s ? `${s}x` : null; };
+  const fDni = (v: number | null) => { const s = fmtP(v, 0); return s ? `${s} dni` : null; };
+
+  // Akapit 1: ocena ogólna + trend
+  const overallMap: Record<Grade, string> = { DOBRY: 'dobrą', UWAGA: 'umiarkowaną', SŁABY: 'słabą', BRAK: 'nieokreśloną' };
+  const overallVerb: Record<Grade, string> = {
+    DOBRY: 'Spółka spełnia główne kryteria zdrowia finansowego.',
+    UWAGA: 'Część wskaźników wymaga monitorowania i podjęcia działań korygujących.',
+    SŁABY: 'Wyniki wskaźnikowe sygnalizują istotne ryzyka wymagające natychmiastowej reakcji.',
+    BRAK: 'Brak wystarczających danych do pełnej oceny.',
+  };
+  paragraphs.push(
+    `${companyName} prezentuje ${overallMap[overall]} kondycję finansową za okres ${p1}. ${overallVerb[overall]}`
+  );
+
+  // Akapit 2: rentowność
+  if (gProf !== 'BRAK') {
+    const desc = gProf === 'DOBRY' ? 'zadowalająca' : gProf === 'UWAGA' ? 'umiarkowana — wyniki poniżej benchmarku' : 'niska lub ujemna — spółka wymaga restrukturyzacji przychodów';
+    const vals = [
+      roe1 !== null && `ROE ${fPct(roe1)}`,
+      roa1 !== null && `ROA ${fPct(roa1)}`,
+      ros1 !== null && `marża netto ${fPct(ros1)}`,
+      ebitdaM1 !== null && `EBITDA% ${fPct(ebitdaM1)}`,
+    ].filter(Boolean).join(', ');
+    const trend = roe1 !== null && roe2 !== null
+      ? roe1 > roe2 * 1.05 ? ' Rentowność poprawiła się rok do roku.'
+      : roe1 < roe2 * 0.95 ? ' Rentowność pogorszyła się rok do roku.'
+      : ' Rentowność pozostaje na stabilnym poziomie.'
+      : '';
+    paragraphs.push(`Rentowność jest ${desc}${vals ? ` (${vals})` : ''}.${trend}`);
+  }
+
+  // Akapit 3: płynność
+  if (gLiqd !== 'BRAK') {
+    const desc = gLiqd === 'DOBRY' ? 'dobra — spółka posiada wystarczające zasoby płynne' : gLiqd === 'UWAGA' ? 'umiarkowana — zalecane monitorowanie pozycji gotówkowej' : 'niewystarczająca — spółka może mieć trudności z regulowaniem zobowiązań bieżących';
+    const vals = [
+      cr1 !== null && `CR ${fRat(cr1)}`,
+      dso1 !== null && `DSO ${fDni(dso1)}`,
+    ].filter(Boolean).join(', ');
+    const crTrend = cr1 !== null && cr2 !== null
+      ? cr1 > cr2 ? ' Wskaźnik bieżący wzrósł względem poprzedniego okresu.' : cr1 < cr2 ? ' Wskaźnik bieżący obniżył się względem poprzedniego okresu.' : ''
+      : '';
+    paragraphs.push(`Płynność finansowa jest ${desc}${vals ? ` (${vals})` : ''}.${crTrend}`);
+  }
+
+  // Akapit 4: zadłużenie
+  if (gDebt !== 'BRAK') {
+    const desc = gDebt === 'DOBRY' ? 'bezpieczny — poziom dźwigni finansowej nie generuje istotnego ryzyka' : gDebt === 'UWAGA' ? 'podwyższony — spółka korzysta ze znaczącego finansowania zewnętrznego' : 'wysoki — poziom zadłużenia może zagrażać zdolności do obsługi zobowiązań';
+    const da = da1 !== null ? ` D/A = ${fRat(da1)}` : '';
+    const icr = icr1 !== null ? `, ICR = ${fRat(icr1)} (${icr1 >= 3 ? 'zdolność do obsługi odsetek dobra' : 'obsługa odsetek wymaga uwagi'})` : '';
+    const strKW = f1.kapitalWlasny > 0
+      ? ` Udział kapitału własnego w finansowaniu aktywów: ${fPct(f1.kapitalWlasny / f1.aktywaRazem)}.`
+      : '';
+    paragraphs.push(`Poziom zadłużenia jest ${desc}${da}${icr}).${strKW}`);
+  }
+
+  // Akapit 5: struktura bilansu i RZiS
+  const udzAO = f1.aktywaRazem > 0 ? f1.aktywaObrotowe / f1.aktywaRazem : null;
+  const udzAT = f1.aktywaRazem > 0 ? f1.aktywaTrwale / f1.aktywaRazem : null;
+  if (udzAO !== null && udzAT !== null) {
+    const typ = udzAO > 0.6 ? 'obrotowy (handlowy/usługowy)' : udzAT > 0.6 ? 'środkowotrwały (produkcyjny/infrastrukturalny)' : 'zrównoważony';
+    paragraphs.push(
+      `Profil bilansu ma charakter ${typ}: aktywa obrotowe stanowią ${fPct(udzAO)} aktywów ogółem, trwałe — ${fPct(udzAT)}.` +
+      (f1.przychody > 0 && f2.przychody > 0
+        ? ` Przychody zmienily się z ${Math.round(f2.przychody / 1000)} tys. PLN do ${Math.round(f1.przychody / 1000)} tys. PLN (${f1.przychody >= f2.przychody ? '+' : ''}${fmtP((f1.przychody - f2.przychody) / Math.abs(f2.przychody))}%).`
+        : '')
+    );
+  }
+
+  // Akapit 6: modele dyskryminacyjne
+  if (keyModels.length > 0) {
+    const withZone = keyModels.filter(m => m.zone);
+    const good = withZone.filter(m => m.zone?.grade === 'DOBRY').length;
+    const bad  = withZone.filter(m => m.zone?.grade === 'SŁABY').length;
+    const warn = withZone.filter(m => m.zone?.grade === 'UWAGA').length;
+    const total = withZone.length;
+    if (total > 0) {
+      const names = keyModels.slice(0, 3).map(m => m.def.shortName).join(', ');
+      const verdict = bad === total ? 'jednomyślnie sygnalizują zagrożenie upadłością'
+        : good === total ? `klasyfikują spółkę w strefie bezpieczeństwa`
+        : `dają niejednoznaczne sygnały (bezpiecznie: ${good}, uwaga: ${warn}, zagrożenie: ${bad} z ${total})`;
+      paragraphs.push(`Modele dyskryminacyjne (${names}) ${verdict}.`);
+    }
+  }
+
+  // Akapit 7: Beneish
+  if (beneish) {
+    paragraphs.push(
+      beneish.highRisk
+        ? `⚠ Test Beneisha (M = ${beneish.mscore.toFixed(2)}) przekracza próg ostrzegawczy −1,78, co sygnalizuje statystyczne ryzyko manipulacji sprawozdaniem finansowym. Główne czynniki ryzyka: ${beneish.topDrivers.slice(0, 3).join(', ')}.`
+        : `Test Beneisha (M = ${beneish.mscore.toFixed(2)}) nie wykazuje sygnałów manipulacji wynikami finansowymi — spółka mieści się poniżej progu ostrzegawczego −1,78.`
+    );
+  }
+
+  const borderColor = overall === 'DOBRY' ? 'border-emerald-200' : overall === 'UWAGA' ? 'border-amber-200' : overall === 'SŁABY' ? 'border-red-200' : 'border-slate-200';
+
+  return (
+    <div className={`bg-white rounded-xl border shadow-sm p-5 ${borderColor}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-base">📝</span>
+        <h3 className="text-sm font-bold text-slate-800">Podsumowanie analityczne</h3>
+        <span className="ml-auto text-[10px] text-slate-400">generowane automatycznie z danych</span>
+      </div>
+      <div className="space-y-2.5">
+        {paragraphs.map((p, i) => (
+          <p key={i} className="text-sm text-slate-600 leading-relaxed">{p}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Podsumowanie analizy ──────────────────────────────────────────────────────
 
 function PodsumowanieTab({
@@ -1818,6 +1952,8 @@ function PodsumowanieTab({
   const gDebt  = aggGrade([gDA, gICR]);
   const gProf  = aggGrade([gROE, gROA, gROS]);
   const overall = aggGrade([gLiqd, gEff, gDebt, gProf]);
+
+  const fmtP = (v: number | null, d = 1) => v !== null ? v.toFixed(d) : null;
 
   const keyModelIds = ['holda', 'altman_em', 'prusak_bn', 'gajdka'];
   const keyModels = useMemo(() =>
@@ -2009,6 +2145,19 @@ function PodsumowanieTab({
           );
         })}
       </div>
+
+      {/* ── Narracja analityczna ── */}
+      <NarrativeBlock
+        companyName={companyName} p1={p1}
+        overall={overall} gLiqd={gLiqd} gDebt={gDebt} gProf={gProf}
+        cr1={cr1} cr2={cr2} da1={da1} icr1={icr1}
+        roe1={roe1} roe2={roe2} ros1={ros1} roa1={roa1} ebitdaM1={ebitdaM1}
+        dso1={dso1}
+        f1={f1} f2={f2}
+        keyModels={keyModels}
+        beneish={beneish}
+        fmtP={fmtP}
+      />
 
       {/* ── Modele dyskryminacyjne ── */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
