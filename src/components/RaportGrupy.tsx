@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  LineChart, Line, Legend, ReferenceLine, Cell, ScatterChart, Scatter,
+  LineChart, Line, Legend, ReferenceLine, Cell,
 } from 'recharts';
 import grpRaw from '../data/grpData.json';
 import type { GrpData, GroupRow, GroupKosztPrac } from '../types';
@@ -705,6 +705,45 @@ function PolandMap({groups,onCity}:{groups:GroupRow[];onCity:(m:string)=>void}){
 // ── Aggregacja ────────────────────────────────────────────────────────────────
 function agg(gs:GroupRow[]){const p=Array(12).fill(0),k=Array(12).fill(0),m=Array(12).fill(0);for(const g of gs)for(let i=0;i<12;i++){p[i]+=g.monthly.przychod[i];k[i]+=g.monthly.koszt[i];m[i]+=g.monthly.mb[i];}return{p,k,m};}
 
+// ── CSS Scatter (replaces recharts ScatterChart — tree-shaking safe) ──────────
+function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: GroupRow) => void; tr: (k: string) => string }) {
+  if (!groups.length) return <div className="h-48 flex items-center justify-center text-xs text-slate-400">—</div>;
+  const xs = groups.map(g => g.total.przychod);
+  const ys = groups.map(g => g.total.przychod > 0 ? g.total.mb / g.total.przychod : 0);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 0.01;
+  const PAD = 10;
+  const zero0 = minY < 0 && maxY > 0
+    ? 100 - PAD - ((-minY) / rangeY) * (100 - 2 * PAD)
+    : null;
+  return (
+    <div className="relative bg-slate-50 rounded-lg border border-slate-100" style={{ height: 220 }}>
+      {zero0 !== null && (
+        <div className="absolute left-0 right-0 border-t border-dashed border-rose-300 opacity-50 pointer-events-none" style={{ top: `${zero0}%` }} />
+      )}
+      {groups.map((g, i) => {
+        const px = ((g.total.przychod - minX) / rangeX) * (100 - 2 * PAD) + PAD;
+        const mbPct = g.total.przychod > 0 ? g.total.mb / g.total.przychod : 0;
+        const py = 100 - PAD - ((mbPct - minY) / rangeY) * (100 - 2 * PAD);
+        const color = (CITY_COLORS as Record<string, string>)[g.miasto] ?? '#64748b';
+        return (
+          <div
+            key={i}
+            className="absolute w-3 h-3 rounded-full cursor-pointer hover:scale-150 transition-transform border-2 border-white shadow"
+            style={{ left: `${px}%`, top: `${py}%`, backgroundColor: color, transform: 'translate(-50%,-50%)' }}
+            title={`${g.lider} · ${(mbPct * 100).toFixed(1)}% MB`}
+            onClick={() => onGroup(g)}
+          />
+        );
+      })}
+      <div className="absolute bottom-1 left-0 right-0 text-center text-[8px] text-slate-400 pointer-events-none">{tr('revenue')} →</div>
+      <div className="absolute top-1 left-1 text-[8px] text-slate-400 pointer-events-none">MB%↑</div>
+    </div>
+  );
+}
+
 // ── GŁÓWNY KOMPONENT ──────────────────────────────────────────────────────────
 export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
   const { activeCompany } = useCompanies();
@@ -798,7 +837,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
   ] as const;
 
   return(
-    <div className="flex-1 overflow-y-auto bg-slate-50">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50">
       <div className="max-w-[1400px] mx-auto px-4 py-4 space-y-4">
 
         {/* Filtry */}
@@ -942,22 +981,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{tr('chartBubble')}</p>
                 <p className="text-[10px] text-slate-400 mb-2">{tr('chartBubbleSub')}</p>
-                <ResponsiveContainer width="100%" height={235}>
-                  <ScatterChart margin={{top:4,right:10,left:-10,bottom:4}}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
-                    <XAxis dataKey="przychod" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}} label={{value:tr('revenue'),position:'insideBottom',offset:-2,fontSize:9,fill:'#94a3b8'}}/>
-                    <YAxis dataKey="mbPct" tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:9}}/>
-                    <ReferenceLine y={0} stroke="#f43f5e" strokeDasharray="3 3"/>
-                    <Tooltip contentStyle={TT} content={({payload})=>{
-                      if(!payload?.length)return null;const d=payload[0]?.payload as any;
-                      return(<div className="bg-white rounded-lg shadow-lg border border-slate-200 px-3 py-2 text-[11px]"><p className="font-bold">{d.lider} <span style={{color:CITY_COLORS[d.miasto]??'#64748b'}}>{MIASTO_LABEL[d.miasto]??d.miasto}</span></p><p className="text-slate-500">{fmtM(d.przychod)} · {DZIALY_LABEL[d.dzial]??d.dzial}</p><p className={mbColor(d.mbPct)}>{fmtPct(d.mbPct)} MB</p></div>);
-                    }}/>
-                    <Legend verticalAlign="bottom" wrapperStyle={{fontSize:9,paddingTop:6}} iconSize={7}/>
-                    {Object.keys(CITY_SVG).map(miasto=>{const gs2=filtered.filter(g=>g.miasto===miasto);if(!gs2.length)return null;return(
-                      <Scatter key={miasto} name={MIASTO_LABEL[miasto]??miasto} data={gs2.map(g=>({przychod:g.total.przychod,mbPct:mbp(g),lider:g.lider,miasto:g.miasto,dzial:g.dzial}))} fill={CITY_COLORS[miasto]??'#64748b'} fillOpacity={0.78} onClick={(d:any)=>{const g=filtered.find(x=>x.lider===d.lider);if(g)openGroup(g);}} cursor="pointer"/>
-                    );})}
-                  </ScatterChart>
-                </ResponsiveContainer>
+                <CssScatter groups={filtered} onGroup={openGroup} tr={tr} />
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100"><p className="text-sm font-semibold text-slate-700">{tr('chartDept')}</p><p className="text-[10px] text-slate-400 mt-0.5">{tr('chartDeptSub')}</p></div>

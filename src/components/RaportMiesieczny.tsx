@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   Cell, ReferenceLine, PieChart, Pie, LineChart, Line,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 import raportDataRaw from '../data/raportMiesieczny.json';
 import type {
@@ -1412,16 +1411,16 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
           subtitle={t('comp.radarSubtitle')}
           height={320}
         >
-          <RadarChart data={marginRadar} outerRadius="75%">
-            <PolarGrid stroke="#e2e8f0" />
-            <PolarAngleAxis dataKey="dept" tick={{ fontSize: 9, fill: '#64748b' }} />
-            <PolarRadiusAxis tick={{ fontSize: 8, fill: '#cbd5e1' }} tickFormatter={v => plnM(Number(v))} />
+          <BarChart data={marginRadar} margin={{ left: 4, right: 4, top: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="dept" tick={{ fontSize: 8, fill: '#64748b' }} interval={0} />
+            <YAxis tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={v => plnM(Number(v))} width={44} />
             <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('y', '')}`]} contentStyle={TOOLTIP_STYLE} />
             <Legend formatter={(v) => `FY ${String(v).replace('y', '')}`} wrapperStyle={{ fontSize: 10 }} />
-            <Radar name="2023" dataKey="y2023" stroke={HISTORY_COLORS['2023']} fill={HISTORY_COLORS['2023']} fillOpacity={0.12} strokeWidth={1.5} />
-            <Radar name="2024" dataKey="y2024" stroke={HISTORY_COLORS['2024']} fill={HISTORY_COLORS['2024']} fillOpacity={0.12} strokeWidth={1.5} />
-            <Radar name="2025" dataKey="y2025" stroke={HISTORY_COLORS['2025']} fill={HISTORY_COLORS['2025']} fillOpacity={0.22} strokeWidth={2} />
-          </RadarChart>
+            <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} />
+            <Bar dataKey="y2024" name="2024" fill={HISTORY_COLORS['2024']} radius={[3, 3, 0, 0]} maxBarSize={14} />
+            <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} />
+          </BarChart>
         </ChartCard>
 
         <ChartCard
