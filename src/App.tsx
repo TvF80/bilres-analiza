@@ -235,12 +235,12 @@ function WelcomeScreen({ onImport, lang, onLangChange }: { onImport: () => void;
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">{c.files}</p>
           <div className="space-y-1.5">
             {[
-              ['📋', 'EX_BIL …schemat.xlsx', '/ EX_BIL …09.25-09.24-09.23.xlsx'],
-              ['📊', 'EX_RZIS …schemat.xlsx', '/ EX_RZIS …09.25-09.24-09.23.xlsx'],
-              ['🔢', 'EX_OBROTY …xlsx', ''],
-              ['📝', 'EX_ZAPISY …xlsx', ''],
-              ['📅', 'ex_rap miesieczny …xlsx', '(opcjonalnie)'],
-              ['👥', 'B_RAP_GP …xlsx', '(opcjonalnie)'],
+              ['📋', 'BIL schemat.xlsx', '/ BIL 3okresy.xlsx'],
+              ['📊', 'RZIS schemat.xlsx', '/ RZIS 3 okresy.xlsx'],
+              ['🔢', 'OBROTY aktualne.xlsx', ''],
+              ['📝', 'ZAPISY aktualne.xlsx', ''],
+              ['📅', 'RAP_MENS aktualny.xlsx', '/ RAP_MENS_COMP …xlsx (opcjonalnie)'],
+              ['👥', 'RAP_GP_aktualny.xlsx', '(opcjonalnie)'],
             ].map(([icon, name, hint]) => (
               <div key={name} className="flex items-start gap-2 text-xs">
                 <span className="shrink-0 mt-0.5">{icon}</span>

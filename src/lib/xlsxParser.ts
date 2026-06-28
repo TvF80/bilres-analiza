@@ -212,11 +212,11 @@ export type FileRole =
 export function detectRole(filename: string): FileRole | null {
   const u = filename.toUpperCase();
   // raport grupy pracy
-  if (u.includes('B_RAP_GP') || (u.includes('GRP') && u.includes('RAP'))) return 'raportGrupy';
+  if (u.includes('B_RAP_GP') || u.includes('RAP_GP') || (u.includes('GRP') && u.includes('RAP'))) return 'raportGrupy';
   // raport miesięczny comp (porównanie) — sprawdź COMP przed ogólnym RAP MIES
   if ((u.includes('RAP') || u.includes('RES')) && u.includes('COMP')) return 'raportMiesiecznyComp';
   // raport miesięczny główny
-  if (u.includes('RAP') && (u.includes('MIES') || u.includes('MIESIECZNY') || u.includes('RES ANA'))) return 'raportMiesieczny';
+  if (u.includes('RAP') && (u.includes('MIES') || u.includes('MIESIECZNY') || u.includes('MENS') || u.includes('RES ANA'))) return 'raportMiesieczny';
   if (u.includes('ZAPISY')) return 'zapisy';
   if (u.includes('OBROTY')) return 'obroty';
   if (u.includes('BIL') && u.includes('SCHEMAT')) return 'bilansSchema';
