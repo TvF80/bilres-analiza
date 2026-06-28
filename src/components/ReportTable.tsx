@@ -71,11 +71,16 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
   const v1 = row.values.period1;
   const v2 = row.values.period2;
   const v3 = row.values.period3;
-  const delta = (v1 !== 0 && v2 !== 0) ? ((v1 / v2) - 1) * 100 : null;
-  const deltaStr = delta !== null
-    ? `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`
-    : null;
-  const deltaColor = delta === null ? '' : delta > 5 ? 'text-emerald-500' : delta < -5 ? 'text-red-500' : 'text-slate-400';
+
+  // delta P1/P2 — główne porównanie (nowy vs stary)
+  const delta12 = (v1 !== 0 && v2 !== 0) ? ((v1 / v2) - 1) * 100 : null;
+  const delta12Str = delta12 !== null ? `${delta12 > 0 ? '+' : ''}${delta12.toFixed(0)}%` : null;
+  const delta12Color = delta12 === null ? '' : delta12 > 5 ? 'text-emerald-500' : delta12 < -5 ? 'text-red-500' : 'text-slate-400';
+
+  // delta P2/P3 — dodatkowe porównanie starszych danych (mniej wyraziste)
+  const delta23 = (v2 !== 0 && v3 !== undefined && v3 !== 0) ? ((v2 / v3) - 1) * 100 : null;
+  const delta23Str = delta23 !== null ? `${delta23 > 0 ? '+' : ''}${delta23.toFixed(0)}%` : null;
+  const delta23Color = delta23 === null ? '' : delta23 > 5 ? 'text-emerald-400' : delta23 < -5 ? 'text-red-400' : 'text-slate-300';
 
   const isZeroRow = !isSection && v1 === 0 && (v2 === 0 || v2 === undefined) && (!hasPeriod3 || (v3 ?? 0) === 0);
 
@@ -112,39 +117,52 @@ function Row({ row, lang, isSelected, onClick, hasPeriod2, hasPeriod3 }: {
     >
       <td className="py-2 px-2 sm:px-3 text-slate-400 text-xs font-mono hidden sm:table-cell">{row.segment}</td>
 
+      {/* Nazwa — zawijanie tekstu zamiast obcinania */}
       <td className={`py-2 px-2 sm:px-3 max-w-0 ${nameClass}`}>
-        <span className="block truncate">{rowName}</span>
+        <span className="block leading-tight">{rowName}</span>
         {hasDetail && !isSection && (
-          <span className="ml-1 text-blue-400 opacity-50 text-xs">↗</span>
+          <span className="text-blue-400 opacity-50 text-xs">↗</span>
         )}
       </td>
 
-      {/* P1 — on mobile also shows P2 + delta stacked below */}
+      {/* P1 kolumna:
+          - Desktop: P1 wartość + delta12% poniżej (pod nową wartością)
+          - Mobile: P1+delta12 w jednej linii, poniżej P2+delta23 (mniejsze) */}
       <td className={`py-1.5 px-2 sm:px-4 text-right align-top ${isSection ? 'font-bold' : ''}`}>
+        {/* P1 wartość — na mobile: inline z delta12, na desktop: sam */}
         <div className={`font-mono tabular-nums text-sm leading-snug ${v1 < 0 ? 'text-red-600' : v1 === 0 ? 'text-slate-400' : 'text-slate-800'}`}>
-          {v1 !== 0 ? formatPLN(v1) : '—'}
+          <span>{v1 !== 0 ? formatPLN(v1) : '—'}</span>
+          {/* delta12 inline po P1 — tylko mobile */}
+          {delta12Str && v1 !== 0 && v2 !== 0 && (
+            <span className={`sm:hidden text-[10px] font-semibold ml-1.5 ${delta12Color}`}>{delta12Str}</span>
+          )}
         </div>
-        {/* P2 + delta — visible on mobile only (desktop has separate P2 column) */}
+        {/* delta12 pod P1 — tylko desktop */}
+        {delta12Str && v1 !== 0 && v2 !== 0 && (
+          <div className={`hidden sm:block text-[10px] font-semibold mt-0.5 ${delta12Color}`}>{delta12Str}</div>
+        )}
+        {/* P2 + delta23 pod P1 — tylko mobile */}
         {hasPeriod2 && v2 !== 0 && (
           <div className="sm:hidden flex items-center justify-end gap-1 mt-0.5">
             <span className={`font-mono text-[10px] ${v2 < 0 ? 'text-red-400' : 'text-slate-400'}`}>{formatPLN(v2)}</span>
-            {deltaStr && <span className={`text-[10px] font-semibold ${deltaColor}`}>{deltaStr}</span>}
+            {delta23Str && <span className={`text-[9px] ${delta23Color}`}>{delta23Str}</span>}
           </div>
         )}
       </td>
 
-      {/* P2 + delta — desktop only */}
+      {/* P2 kolumna — desktop: P2 wartość + delta23% poniżej (mniej wyraziste) */}
       {hasPeriod2 && (
         <td className="py-1.5 px-2 sm:px-4 text-right hidden sm:table-cell align-top">
           <div className={`font-mono tabular-nums text-xs leading-snug ${v2 < 0 ? 'text-red-400' : 'text-slate-400'}`}>
             {v2 !== 0 ? formatPLN(v2) : '—'}
           </div>
-          {deltaStr && v1 !== 0 && v2 !== 0 && (
-            <div className={`text-[10px] font-semibold mt-0.5 ${deltaColor}`}>{deltaStr}</div>
+          {delta23Str && v2 !== 0 && v3 !== undefined && v3 !== 0 && (
+            <div className={`text-[9px] mt-0.5 ${delta23Color}`}>{delta23Str}</div>
           )}
         </td>
       )}
 
+      {/* P3 kolumna — desktop (md+): tylko wartość */}
       {hasPeriod3 && (
         <td className={`py-2 px-2 sm:px-4 text-right font-mono tabular-nums text-[11px] hidden md:table-cell ${v3 && v3 < 0 ? 'text-red-300' : 'text-slate-300'}`}>
           {v3 && v3 !== 0 ? formatPLN(v3) : '—'}

@@ -961,9 +961,9 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100"><p className="text-sm font-semibold text-slate-700">{tr('chartDept')}</p><p className="text-[10px] text-slate-400 mt-0.5">{tr('chartDeptSub')}</p></div>
-                <table className="w-full text-xs border-collapse"><thead><tr className="bg-slate-50 border-b border-slate-200">{[tr('colDept'),'×',tr('colRevenue'),tr('colMB')].map(h=><th key={h} className={`px-3 py-2 font-semibold text-slate-500 ${h===tr('colDept')?'text-left':'text-right'}`}>{h}</th>)}</tr></thead>
+                <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead><tr className="bg-slate-50 border-b border-slate-200">{[tr('colDept'),'×',tr('colRevenue'),tr('colMB')].map(h=><th key={h} className={`px-3 py-2 font-semibold text-slate-500 ${h===tr('colDept')?'text-left':'text-right'}`}>{h}</th>)}</tr></thead>
                   <tbody>{(()=>{const bd:{[k:string]:{p:number;mb:number;n:number}}={};for(const g of filtered){if(!bd[g.dzial])bd[g.dzial]={p:0,mb:0,n:0};bd[g.dzial].p+=g.total.przychod;bd[g.dzial].mb+=g.total.mb;bd[g.dzial].n++;}return Object.entries(bd).sort(([,a],[,b])=>b.mb-a.mb).map(([dz,a])=>{const mp2=a.p>0?a.mb/a.p:0;const isSel=dDept===dz;return(<tr key={dz} onClick={()=>isSel?closeAll():openDept(dz)} className={`border-b border-slate-100 cursor-pointer transition-colors ${isSel?'bg-orange-50 border-l-2 border-l-orange-500':'hover:bg-slate-50'}`}><td className="px-3 py-2"><span className="bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded text-[10px] font-medium mr-1.5">{dz}</span>{DZIALY_LABEL[dz]??dz}</td><td className="px-3 py-2 text-right text-slate-400">{a.n}</td><td className="px-3 py-2 text-right text-slate-700">{fmtM(a.p)}</td><td className="px-3 py-2 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(mp2)}`}>{fmtPct(mp2)}</span></td></tr>);})})()}</tbody>
-                </table>
+                </table></div>
               </div>
             </div>
 

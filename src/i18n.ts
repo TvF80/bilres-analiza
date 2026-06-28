@@ -7,7 +7,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'tab.rzis': 'RZiS',
     'tab.kontrola': 'Kontrola',
     'tab.analiza': 'Analiza',
-    'tab.raportMies': 'Raport mies.',
+    'tab.raportMies': 'Raport Miesięczny',
     'tab.grupyPracy': 'Grupy pracy',
 
     // Header

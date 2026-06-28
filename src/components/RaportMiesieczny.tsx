@@ -3,7 +3,6 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   Cell, ReferenceLine, PieChart, Pie, LineChart, Line, AreaChart, Area,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  FunnelChart, Funnel, LabelList,
 } from 'recharts';
 import raportDataRaw from '../data/raportMiesieczny.json';
 import type {
@@ -1014,23 +1013,44 @@ const FUNNEL_STAGE_IDS = [
 
 interface FunnelStage { name: string; value: number; fill: string; pctOfRevenue: number; pctOfPrev: number | null }
 
-function FunnelTooltip({ active, payload }: { active?: boolean; payload?: { payload: FunnelStage }[] }) {
-  const { t } = useLang();
-  if (!active || !payload?.[0]) return null;
-  const s = payload[0].payload;
-  return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-xs space-y-0.5">
-      <p className="font-semibold text-slate-700">{s.name}</p>
-      <p className="font-mono text-slate-600">{formatPLN(s.value)} PLN</p>
-      <p className="text-slate-400">{pct(s.pctOfRevenue)} {t('funnel.ofRevenue')}</p>
-      {s.pctOfPrev != null && <p className={diffClass(s.pctOfPrev - 1)}>{((s.pctOfPrev - 1) * 100).toFixed(1)}% vs poprzedni etap</p>}
-    </div>
-  );
-}
 
 function costIntensityColor(p: number): string {
   const t = Math.max(0, Math.min(1, p / 0.3)); // 0% → zieleń, 30%+ → czerwień
   return `hsl(${Math.round(120 - t * 120)}, 58%, 83%)`;
+}
+
+function CustomFunnel({ data, onStageClick }: { data: FunnelStage[]; onStageClick: (i: number) => void }) {
+  const maxVal = Math.max(data[0]?.value ?? 0, 1);
+  return (
+    <div className="flex flex-col gap-1.5 py-2">
+      {data.map((stage, i) => {
+        const widthPct = Math.max(22, (stage.value / maxVal) * 88 + 12);
+        return (
+          <div
+            key={i}
+            className="w-full flex flex-col items-center cursor-pointer hover:opacity-85 transition-opacity"
+            style={{ paddingLeft: `${(100 - widthPct) / 2}%`, paddingRight: `${(100 - widthPct) / 2}%` }}
+            onClick={() => onStageClick(i)}
+          >
+            <div
+              className="w-full rounded-lg h-9 flex items-center justify-center text-white text-[10px] font-bold shadow-sm"
+              style={{ backgroundColor: stage.fill }}
+            >
+              <span className="truncate px-3">{stage.name} — {pct(stage.pctOfRevenue)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-slate-400">
+              <span className="font-mono">{plnM(stage.value)}</span>
+              {stage.pctOfPrev != null && (
+                <span className={diffClass(stage.pctOfPrev - 1)}>
+                  {((stage.pctOfPrev - 1) * 100).toFixed(1)}%
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function WynikTab({ result, totals, periodLabels, costCategories }: { result: MonthlyReportLine[]; totals: MonthlyReportTotals; periodLabels: string[]; costCategories: CostCategory[] }) {
@@ -1083,21 +1103,10 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4" style={{ minHeight: 320 }}>
           <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('funnel.title')}</p>
           <p className="text-[10px] text-slate-400 mt-0.5 mb-1">{t('funnel.description')}</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <FunnelChart>
-              <Tooltip content={<FunnelTooltip />} />
-              <Funnel dataKey="value" data={funnelData} isAnimationActive nameKey="name">
-                {funnelData.map((d, i) => (
-                  <Cell
-                    key={i} fill={d.fill} cursor="pointer"
-                    onClick={() => { const line = stages[i]; if (line) setSelected({ label: d.name, line }); }}
-                  />
-                ))}
-                <LabelList dataKey="name" position="right" fill="#475569" fontSize={10} fontWeight={600} offset={10} />
-                <LabelList dataKey="value" position="left" fill="#94a3b8" fontSize={9} formatter={(v: unknown) => plnM(Number(v))} offset={10} />
-              </Funnel>
-            </FunnelChart>
-          </ResponsiveContainer>
+          <CustomFunnel
+            data={funnelData}
+            onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}
+          />
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
             {funnelData.map(s => (
               <span key={s.name} className="inline-flex items-center gap-1 text-[9px] text-slate-400">
