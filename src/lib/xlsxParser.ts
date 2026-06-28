@@ -162,9 +162,9 @@ export function parseObroty(wb: XLSX.WorkBook): AccountRow[] {
 }
 
 export function parseZapisy(wb: XLSX.WorkBook): JournalEntry[] {
-  const raw: unknown[][] = XLSX.utils.sheet_to_json(
-    getSheet(wb, 'Zapisy księgowe'), { header: 1 }
-  );
+  const SHEET_NAMES = ['Zapisy księgowe', 'Zapisy', 'ZK', 'Dziennik', 'Journal', 'Arkusz1', 'Sheet1'];
+  const sheet = SHEET_NAMES.map(n => wb.Sheets[n]).find(Boolean) ?? wb.Sheets[wb.SheetNames[0]];
+  const raw: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
   const rows: JournalEntry[] = [];
   for (let i = 1; i < raw.length; i++) {
     const r = raw[i] as unknown[];

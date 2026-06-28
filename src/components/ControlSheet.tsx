@@ -178,7 +178,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
 function CheckRow({ c }: { c: CheckResult }) {
   const { t } = useLang();
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-slate-100 last:border-0">
+    <div className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-100 last:border-0">
       <div className="pt-0.5">{statusDot(c.status)}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">

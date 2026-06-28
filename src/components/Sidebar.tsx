@@ -46,7 +46,7 @@ export default function Sidebar({ collapsed, onToggle, onImport, onReplaceData, 
             <span className="text-base">🧮</span>
           </div>
           {!collapsed && (
-            <span className="text-white text-sm font-semibold tracking-tight truncate">FinScope</span>
+            <span className="text-white text-sm font-semibold tracking-tight truncate">FinScopePL</span>
           )}
         </div>
         <button

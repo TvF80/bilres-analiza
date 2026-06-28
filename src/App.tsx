@@ -207,7 +207,7 @@ function WelcomeScreen({ onImport, lang, onLangChange }: { onImport: () => void;
           <span className="text-3xl">🧮</span>
         </div>
 
-        <h1 className="text-3xl font-black text-white mb-3 tracking-tight">FinScope</h1>
+        <h1 className="text-3xl font-black text-white mb-3 tracking-tight">FinScopePL</h1>
         <h2 className="text-lg font-semibold text-slate-300 mb-3">{c.title}</h2>
         <p className="text-sm text-slate-400 mb-8 leading-relaxed">{c.sub}</p>
 

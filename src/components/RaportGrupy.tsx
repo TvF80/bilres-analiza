@@ -707,7 +707,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
   const [selDzialy,setSelDzialy]=useState<Set<string>>(new Set());
   const [selBK,setSelBK]=useState<'all'|'B_'|'K_'>('all');
   const [search,setSearch]=useState('');
-  const [activeTab,setActiveTab]=useState<'grupy'|'trend'|'koszty'|'mapa'>('grupy');
+  const [activeTab,setActiveTab]=useState<'grupy'|'trend'|'koszty'|'mapa'>('trend');
 
   if (!data) {
     return (
@@ -785,7 +785,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
   },[kosztData,filtered]);
 
   const TABS=[
-    {id:'grupy',l:tr('grupy')},{id:'trend',l:tr('trend')},
+    {id:'trend',l:tr('trend')},{id:'grupy',l:tr('grupy')},
     {id:'koszty',l:tr('koszty')},{id:'mapa',l:tr('mapa')},
   ] as const;
 

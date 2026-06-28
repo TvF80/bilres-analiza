@@ -2,6 +2,31 @@ import { useState } from 'react';
 import { useAuth, type AppUser } from '../store/AuthContext';
 import { useLang } from '../i18n/LanguageContext';
 
+function SecurityInfo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        <span className="text-green-500 text-sm">🔒</span>
+        <span className="text-xs font-medium text-slate-600 flex-1">Bezpieczeństwo danych finansowych</span>
+        <span className="text-slate-400 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="px-4 py-3 bg-white space-y-2 text-[11px] text-slate-500 leading-relaxed">
+          <p><strong className="text-slate-700">🛡 Lokalne przechowywanie</strong> — wszystkie dane finansowe są przechowywane wyłącznie w localStorage i sessionStorage Twojej przeglądarki. Nigdy nie są wysyłane na serwer.</p>
+          <p><strong className="text-slate-700">🔑 Hasła</strong> — hasła są hashowane algorytmem SHA-256 w Twojej przeglądarce (Web Crypto API). Aplikacja nie przechowuje haseł w postaci jawnej.</p>
+          <p><strong className="text-slate-700">📂 Import danych</strong> — pliki Excel są parsowane lokalnie (SheetJS), żaden plik nie jest wysyłany poza Twoją przeglądarkę.</p>
+          <p><strong className="text-slate-700">🗑 Usuwanie danych</strong> — użyj przycisku "Wyczyść dane" w sidebarze lub wyczyść localStorage w ustawieniach przeglądarki. Odinstalowanie aplikacji usuwa wszystkie dane.</p>
+          <p><strong className="text-slate-700">📋 RODO/GDPR</strong> — aplikacja nie zbiera żadnych danych osobowych ani finansowych poza urządzeniem użytkownika. Nie ma kont online, cookies analitycznych ani zewnętrznych usług śledzenia.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LoginScreen() {
   const { users, pendingUser, selectUser, clearSelection, addUser } = useAuth();
   const { t } = useLang();
@@ -70,13 +95,14 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-6">
       <div className="mb-8 text-center">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 mb-4 shadow-lg">
-          <span className="text-white font-bold text-xl">EX</span>
+          <span className="text-2xl">🧮</span>
         </div>
-        <h1 className="text-white text-2xl font-bold tracking-tight">BilRes</h1>
+        <h1 className="text-white text-2xl font-bold tracking-tight">FinScopePL</h1>
         <p className="text-slate-400 text-sm mt-1">{t('login.subtitle')}</p>
       </div>
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
         {children}
+        <SecurityInfo />
       </div>
     </div>
   );

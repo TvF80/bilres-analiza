@@ -1889,12 +1889,13 @@ function NarrativeBlock({
 // ── Podsumowanie analizy ──────────────────────────────────────────────────────
 
 function PodsumowanieTab({
-  f1, f2, f3, beneish, periodLabels, companyName,
+  f1, f2, f3, beneish, periodLabels, companyName, onNavigate,
 }: {
   f1: FieldMap; f2: FieldMap; f3: FieldMap | null;
   beneish: BeneishResult | null;
   periodLabels?: string[];
   companyName: string;
+  onNavigate: (tab: SubTab) => void;
 }) {
   const [drawerInd, setDrawerInd] = useState<Indicator | null>(null);
   const p1 = periodLabels?.[0] ?? 'Okres bieżący';
@@ -2033,6 +2034,8 @@ function PodsumowanieTab({
   };
 
   // KPI metric definitions for the dashboard grid
+  const TAB_MAP: Record<string, SubTab> = { liqd: 'plynnosc', eff: 'sprawnosc', debt: 'zadluzenie', prof: 'rentownosc' };
+
   const kpiGroups = [
     {
       key: 'liqd', label: 'Płynność', g: gLiqd, ind: crIndicator,
@@ -2088,10 +2091,10 @@ function PodsumowanieTab({
 
         {/* ── Klikalne kafelki kategorii ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {kpiGroups.map(({ key, label, g, ind, metrics }) => (
+          {kpiGroups.map(({ key, label, g, ind: _ind, metrics }) => (
             <button
               key={key}
-              onClick={() => setDrawerInd(ind)}
+              onClick={() => onNavigate(TAB_MAP[key])}
               className={`text-left rounded-xl px-3 py-3 border transition-all shadow-sm hover:shadow-md active:scale-[0.98] ${catCardBg(g)}`}
             >
               <div className="flex items-center justify-between mb-2">
@@ -2109,7 +2112,7 @@ function PodsumowanieTab({
                   </div>
                 ))}
               </div>
-              <div className="mt-2 text-[9px] text-slate-400">kliknij → szczegóły</div>
+              <div className="mt-2 text-[9px] text-slate-400">kliknij → zakładka</div>
             </button>
           ))}
         </div>
@@ -2223,7 +2226,7 @@ function PodsumowanieTab({
 export default function RatioAnalysis() {
   const { activeCompany } = useCompanies();
   const { t } = useLang();
-  const [activeTab, setActiveTab] = useState<SubTab>('plynnosc');
+  const [activeTab, setActiveTab] = useState<SubTab>('podsumowanie');
 
   const subTabs: { key: SubTab; label: string; group: string }[] = useMemo(() => [
     { key: 'plynnosc',         label: t('analysis.liquidity'),      group: t('ratio.indicators') },
@@ -2348,7 +2351,7 @@ export default function RatioAnalysis() {
         {activeTab === 'rentownosc'      && <RentownoscTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
         {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
         {activeTab === 'beneish'         && <BeneishTab           result={beneish} />}
-        {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} />}
+        {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} />}
         {activeTab === 'bilans_str'      && <BilansStruktura      bilans={activeCompany.bilans} f1={f1} f2={f2} f3={f3} />}
         {activeTab === 'rzis_str'        && <RZiSStruktura        rzis={activeCompany.rzis}    f1={f1} f2={f2} f3={f3} />}
       </div>
