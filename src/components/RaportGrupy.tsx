@@ -213,7 +213,7 @@ function Drawer({title,subtitle,onClose,children,w=580}:{title:string;subtitle?:
           <div><p className="text-sm font-bold text-slate-800">{title}</p>{subtitle&&<p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>}</div>
           <button onClick={onClose} className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors text-lg">×</button>
         </div>
-        <div className="p-5 space-y-5 flex-1">{children}</div>
+        <div className="p-3 sm:p-5 space-y-5 flex-1">{children}</div>
       </div>
     </div>
   );
@@ -419,10 +419,10 @@ function KosztMonthDrawer({idx,kosztData,trendData,onClose,onGroup,filtered}:{id
       </div></div>
       <div><SL>{tr('waterfallMonthly')}</SL>
         <ResponsiveContainer width="100%" height={120}>
-          <BarChart data={barData} layout="vertical" margin={{top:4,right:50,left:60,bottom:0}}>
+          <BarChart data={barData} layout="vertical" margin={{top:4,right:8,left:4,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false}/>
             <XAxis type="number" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}}/>
-            <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={70}/>
+            <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={60}/>
             <Tooltip contentStyle={TT} formatter={((v:number)=>[fmtM(v)]) as any}/>
             <Bar dataKey="v" radius={[0,4,4,0]}><Cell fill={C.blue}/><Cell fill={C.slate}/></Bar>
           </BarChart>
@@ -449,7 +449,7 @@ function CitySection({miasto,groups,onGroup,activeGroup}:{miasto:string;groups:G
   const tr = (k: string) => T[lang][k] ?? T.pl[k] ?? k;
   const [open,setOpen]=useState(true);const{p,k,m,pct}=aggGroups(groups);const color=CITY_COLORS[miasto]??'#64748b';
   return(
-    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+    <div className="border border-slate-200 rounded-xl bg-white">
       <button onClick={()=>setOpen(o=>!o)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
         <div className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:color}}/>
         <span className="text-sm font-bold text-slate-800">{MIASTO_LABEL[miasto]??miasto}</span>
@@ -513,7 +513,7 @@ function CityCostSection({miasto,kosztItems,filtered,onGroup}:{miasto:string;kos
     return{kp,g,mb:g?mbp(g):0,przychod:g?.total.przychod??0,koszt:g?.total.koszt??0};
   }).sort((a,b)=>b.przychod-a.przychod);
   return(
-    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+    <div className="border border-slate-200 rounded-xl bg-white">
       <button onClick={()=>setOpen(o=>!o)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
         <div className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:color}}/>
         <span className="text-sm font-bold text-slate-800">{MIASTO_LABEL[miasto]??miasto}</span>
@@ -530,7 +530,7 @@ function CityCostSection({miasto,kosztItems,filtered,onGroup}:{miasto:string;kos
           <thead><tr className="bg-slate-50/80 border-b border-slate-100">
             <th className="text-left px-3 py-1.5 font-semibold text-slate-400 text-[10px]">{tr('colLider')}</th>
             <th className="text-left px-3 py-1.5 font-semibold text-slate-400 text-[10px]">{tr('colLaborShare')}</th>
-            <th className="text-left px-2 py-1.5 font-semibold text-slate-400 text-[10px]">{tr('trendKP')}</th>
+            <th className="text-left px-2 py-1.5 font-semibold text-slate-400 text-[10px] hidden sm:table-cell">{tr('trendKP')}</th>
             <th className="text-right px-3 py-1.5 font-semibold text-slate-400 text-[10px]">{tr('colRevenue')}</th>
             <th className="text-right px-3 py-1.5 font-semibold text-slate-400 text-[10px]">{tr('colMB')}</th>
             <th className="text-right px-3 py-1.5 font-semibold text-slate-400 text-[10px]">{tr('colLaborCost')}</th>
@@ -547,7 +547,7 @@ function CityCostSection({miasto,kosztItems,filtered,onGroup}:{miasto:string;kos
                       <span className="text-[10px] text-slate-500">{fmtPct(kpPct)}</span>
                     </div>
                   </td>
-                  <td className="px-2 py-1.5"><Sparkline values={kp.monthly} color={C.blue}/></td>
+                  <td className="px-2 py-1.5 hidden sm:table-cell"><Sparkline values={kp.monthly} color={C.blue}/></td>
                   <td className="px-3 py-1.5 text-right text-slate-700">{przychod>0?fmtM(przychod):'—'}</td>
                   <td className="px-3 py-1.5 text-right">{g?<span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(mb)}`}>{fmtPct(mb)}</span>:'—'}</td>
                   <td className="px-3 py-1.5 text-right font-bold text-blue-700">{fmtM(kp.razem)}</td>
@@ -584,7 +584,7 @@ function Heatmap({groups,tr}:{groups:GroupRow[];tr:(k:string)=>string}){
         <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-auto">{open?tr('collapseBtn'):tr('expandBtn')}</span>
       </button>
       {open&&(<div className="px-3 py-3 overflow-x-auto">
-        <table className="text-[11px] border-collapse w-full min-w-[560px]">
+        <table className="text-[11px] border-collapse w-full min-w-[400px]">
           <thead><tr>
             <th className="text-left px-3 py-2 font-semibold text-slate-500 border-b border-slate-200">{tr('colCity')}</th>
             {months.map((m,i)=><th key={m+i} className="text-center px-1 py-2 font-semibold text-slate-400 border-b border-slate-200 text-[10px]">{m}<br/><span className="font-normal text-slate-300">{i<3?'\'24':'\'25'}</span></th>)}
@@ -596,10 +596,10 @@ function Heatmap({groups,tr}:{groups:GroupRow[];tr:(k:string)=>string}){
               return(<tr key={miasto} className="border-b border-slate-100 hover:bg-slate-50/50">
                 <td className="px-3 py-1.5 font-semibold text-slate-700 whitespace-nowrap"><div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/>{MIASTO_LABEL[miasto]??miasto}</div></td>
                 {monthly.map((d,i)=>(<td key={i} className="px-0.5 py-1 text-center">
-                  {d.p>0?(<div className="rounded mx-auto w-10 h-7 flex items-center justify-center text-[10px] font-bold hover:scale-110 transition-transform cursor-default"
+                  {d.p>0?(<div className="rounded mx-auto w-7 h-6 flex items-center justify-center text-[10px] font-bold hover:scale-110 transition-transform cursor-default"
                     style={{backgroundColor:d.pct>0.3?'#d1fae5':d.pct>0.2?'#fef3c7':d.pct>0.1?'#fed7aa':d.pct>0?'#fee2e2':'#f1f5f9',color:d.pct>0.3?'#065f46':d.pct>0.2?'#92400e':d.pct>0.1?'#c2410c':d.pct>0?'#991b1b':'#94a3b8'}}
                     title={`${MIASTO_LABEL[miasto]} · ${months[i]} · ${fmtPct(d.pct)}`}>{(d.pct*100).toFixed(0)}%</div>
-                  ):<div className="w-10 h-7 mx-auto rounded bg-slate-50 flex items-center justify-center text-slate-300 text-[9px]">—</div>}
+                  ):<div className="w-7 h-6 mx-auto rounded bg-slate-50 flex items-center justify-center text-slate-300 text-[9px]">—</div>}
                 </td>))}
                 <td className="px-3 py-1.5 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(avg)}`}>{fmtPct(avg)}</span></td>
               </tr>);
@@ -962,10 +962,10 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{tr('chartTop15')}</p>
               <p className="text-[10px] text-slate-400 mb-3">{tr('chartClickGroup')}</p>
               <ResponsiveContainer width="100%" height={310}>
-                <BarChart data={top15} layout="vertical" margin={{top:0,right:55,left:4,bottom:0}}>
+                <BarChart data={top15} layout="vertical" margin={{top:0,right:32,left:0,bottom:0}}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false}/>
                   <XAxis type="number" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}}/>
-                  <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#475569'}} width={38} interval={0}/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#475569'}} width={56} interval={0}/>
                   <Tooltip contentStyle={TT} formatter={((v:number)=>[fmtM(v),'MB']) as any}/>
                   <ReferenceLine x={0} stroke="#94a3b8"/>
                   <Bar dataKey="MB" radius={[0,4,4,0]} cursor="pointer" label={{position:'right',formatter:((v:number)=>fmtM(v)) as any,fontSize:9,fill:'#64748b'}}

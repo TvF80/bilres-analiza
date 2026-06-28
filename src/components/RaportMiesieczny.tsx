@@ -881,7 +881,7 @@ function KosztyTab({ costCategories, totals, period }: { costCategories: CostCat
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <ChartCard title={t('costs.structureTitle')} height={230}>
           <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
+            <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={75} paddingAngle={2} label={({ percent }) => percent != null ? `${(percent * 100).toFixed(0)}%` : ''} labelLine={false}>
               {pieData.map((d, i) => <Cell key={i} fill={d.fill} />)}
             </Pie>
             <Tooltip
@@ -892,7 +892,7 @@ function KosztyTab({ costCategories, totals, period }: { costCategories: CostCat
               }}
               contentStyle={TOOLTIP_STYLE}
             />
-            <Legend wrapperStyle={{ fontSize: 10 }} layout="vertical" align="right" verticalAlign="middle" />
+            <Legend wrapperStyle={{ fontSize: 10 }} layout="horizontal" verticalAlign="bottom" />
           </PieChart>
         </ChartCard>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -1017,11 +1017,11 @@ function costIntensityColor(p: number): string {
 }
 
 function CustomFunnel({ data, onStageClick }: { data: FunnelStage[]; onStageClick: (i: number) => void }) {
-  const maxVal = Math.max(data[0]?.value ?? 0, 1);
+  const maxVal = Math.max(Math.abs(data[0]?.value ?? 0), 1);
   return (
     <div className="flex flex-col gap-1.5 py-2">
       {data.map((stage, i) => {
-        const widthPct = Math.max(22, (stage.value / maxVal) * 88 + 12);
+        const widthPct = Math.max(22, (Math.abs(stage.value) / maxVal) * 88 + 12);
         return (
           <div
             key={i}
@@ -1064,7 +1064,7 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
     const prevValue = i > 0 ? (stages[i - 1]?.total ?? 0) : null;
     return {
       name: t(s.tKey),
-      value: Math.max(value, 0),
+      value,
       fill: s.color,
       pctOfRevenue: totals.revenue.total !== 0 ? value / totals.revenue.total : 0,
       pctOfPrev: prevValue != null && prevValue !== 0 ? value / prevValue : null,
