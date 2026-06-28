@@ -109,6 +109,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'role.rzisData': 'RZiS — dane (wartości)',
     'role.obroty': 'Obroty i salda kont',
     'role.zapisy': 'Zapisy księgowe',
+    'role.raportMiesieczny': 'Raport miesięczny',
+    'role.raportMiesiecznyComp': 'Raport miesięczny Comp 3 lata',
+    'role.raportGrupy': 'Raport grupy pracy',
 
     // Drilldown
     'drill.accounts': 'Konta',
@@ -682,6 +685,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'role.rzisData': 'CdR — données (valeurs)',
     'role.obroty': 'Balances et soldes des comptes',
     'role.zapisy': 'Écritures comptables',
+    'role.raportMiesieczny': 'Rapport mensuel',
+    'role.raportMiesiecznyComp': 'Rapport mensuel Comp 3 ans',
+    'role.raportGrupy': 'Rapport groupe de travail',
 
     'drill.accounts': 'Comptes',
     'drill.clickAccount': 'Cliquez sur le compte → écritures',
@@ -1228,6 +1234,9 @@ const translations: Record<Lang, Record<string, string>> = {
     'role.rzisData': 'P&L — data (values)',
     'role.obroty': 'Trial balance',
     'role.zapisy': 'Journal entries',
+    'role.raportMiesieczny': 'Monthly report',
+    'role.raportMiesiecznyComp': 'Monthly report Comp 3 years',
+    'role.raportGrupy': 'Work group report',
 
     'drill.accounts': 'Accounts',
     'drill.clickAccount': 'Click account → entries',

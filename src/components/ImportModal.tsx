@@ -128,7 +128,7 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
               </div>
             )}
 
-            {/* Drag & drop zone */}
+            {/* Drag & drop zone + przycisk katalogu */}
             <div
               onDrop={handleDrop}
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -143,6 +143,24 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
               {assignedCount > 0 && (
                 <p className="text-xs text-green-600 mt-2 font-medium">{t('import.recognized', { count: assignedCount })}</p>
               )}
+              <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg cursor-pointer transition-colors shadow-sm">
+                <span>📁</span> Wybierz katalog
+                <input
+                  type="file"
+                  // @ts-expect-error webkitdirectory is non-standard but widely supported
+                  webkitdirectory=""
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files ?? []);
+                    let recognized = 0;
+                    files.forEach(f => { if (assignFile(f)) recognized++; });
+                    if (recognized === 0) setError('Nie rozpoznano żadnych plików Excel w katalogu.');
+                    else setError('');
+                    e.target.value = '';
+                  }}
+                />
+              </label>
             </div>
 
             {/* Manual file pickers — Bilans/RZiS */}

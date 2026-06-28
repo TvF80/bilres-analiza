@@ -321,19 +321,20 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 
 // ── Raport Grupy Pracy — sekcja kontrolna ──────────────────────────────────
-const grpData = grpRaw as GrpData;
+const staticGrpData = (grpRaw && (grpRaw as unknown as GrpData).groups?.length)
+  ? grpRaw as unknown as GrpData : null;
 const PLN_GRP = new Intl.NumberFormat('pl-PL',{minimumFractionDigits:0,maximumFractionDigits:0});
 const fmtM_g = (v:number) => Math.abs(v)>=1_000_000?`${(v/1_000_000).toFixed(2)} M PLN`:Math.abs(v)>=1_000?`${(v/1_000).toFixed(0)} k PLN`:PLN_GRP.format(v)+' PLN';
 const CITY_COLORS_G:{[k:string]:string}={WAR:'#3b82f6',KRA:'#8b5cf6',GDA:'#06b6d4',WRO:'#f59e0b',RAD:'#10b981',KAT:'#f97316',POZ:'#ec4899'};
 const MIASTO_G:{[k:string]:string}={WAR:'Warszawa',KRA:'Kraków',GDA:'Gdańsk',KAT:'Katowice',WRO:'Wrocław',POZ:'Poznań',RAD:'Radom'};
 
-function GrpSection(){
+function GrpSection({ data }: { data: GrpData }){
   const { t } = useLang();
-  const activeGrps = useMemo(()=>grpData.groups.filter(g=>g.lider!=='0'&&g.miasto!=='0'&&g.total.przychod>0),[]);
+  const activeGrps = useMemo(()=>data.groups.filter(g=>g.lider!=='0'&&g.miasto!=='0'&&g.total.przychod>0),[data.groups]);
   const totalP = useMemo(()=>activeGrps.reduce((s,g)=>s+g.total.przychod,0),[activeGrps]);
   const totalMB = useMemo(()=>activeGrps.reduce((s,g)=>s+g.total.mb,0),[activeGrps]);
   const avgMBpct = totalP>0?totalMB/totalP:0;
-  const totalKP = useMemo(()=>grpData.kosztPrac.reduce((s,k)=>s+k.razem,0),[]);
+  const totalKP = useMemo(()=>data.kosztPrac.reduce((s,k)=>s+k.razem,0),[data.kosztPrac]);
   const cities = useMemo(()=>{
     const m:{[k:string]:{p:number;mb:number;n:number}}={};
     for(const g of activeGrps){if(!m[g.miasto])m[g.miasto]={p:0,mb:0,n:0};m[g.miasto].p+=g.total.przychod;m[g.miasto].mb+=g.total.mb;m[g.miasto].n++;}
@@ -343,13 +344,13 @@ function GrpSection(){
 
   return(
     <>
-      <SectionHeader title={t('grp.title')} subtitle={`Okres: ${grpData.periodLabels[0]} – ${grpData.periodLabels[grpData.periodLabels.length-1]} · dane z grpData.json`}/>
+      <SectionHeader title={t('grp.title')} subtitle={`Okres: ${data.periodLabels[0]} – ${data.periodLabels[data.periodLabels.length-1]}`}/>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-        <StatCard label={t('grp.activeGroups')} value={String(activeGrps.length)} sub={t('grp.of', { total: grpData.groups.length })}/>
+        <StatCard label={t('grp.activeGroups')} value={String(activeGrps.length)} sub={t('grp.of', { total: data.groups.length })}/>
         <StatCard label={t('grp.revenueYTD')} value={fmtM_g(totalP)}/>
         <StatCard label={t('grp.grossMargin')} value={fmtM_g(totalMB)} sub={`${(avgMBpct*100).toFixed(1)}% MB`}/>
         <StatCard label={t('grp.laborCost')} value={fmtM_g(totalKP)} sub={t('grp.ofRevenue', { pct: `${(kpShare*100).toFixed(1)}%` })}/>
-        <StatCard label={t('grp.employeesInGP')} value={String(grpData.employees.length)} sub={t('grp.leadersWithKP', { count: grpData.kosztPrac.length })}/>
+        <StatCard label={t('grp.employeesInGP')} value={String(data.employees.length)} sub={t('grp.leadersWithKP', { count: data.kosztPrac.length })}/>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto mb-8">
         <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
@@ -527,7 +528,9 @@ export default function ControlSheet() {
         </div>
 
         {/* ── 6. Raport Grupy Pracy ── */}
-        <GrpSection />
+        {(activeCompany?.grpData ?? staticGrpData) && (
+          <GrpSection data={(activeCompany?.grpData ?? staticGrpData)!} />
+        )}
 
         {/* ── 7. Sprawdzenie mapowania pól ── */}
         {fieldSources && (
