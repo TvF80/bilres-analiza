@@ -27,7 +27,7 @@ function makeTooltip(formatter: (v: number, name: string) => [string, string]) {
   return {
     contentStyle: TOOLTIP_STYLE,
     cursor: { fill: 'rgba(248,250,252,0.8)' },
-    formatter: (v: unknown, name: string) => formatter(Number(v), name),
+    formatter: (v: unknown, name: string | undefined) => formatter(Number(v), name ?? ''),
   };
 }
 
