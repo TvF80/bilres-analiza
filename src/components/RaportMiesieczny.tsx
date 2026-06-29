@@ -389,7 +389,7 @@ export default function RaportMiesieczny() {
         {activeTab === 'marza'      && <MarzaTab departments={data.departments} totals={data.totals} period={data.period} />}
         {activeTab === 'heatmapa'   && <HeatmapaTab departments={data.departments} periodLabels={data.periodLabels} />}
         {activeTab === 'koszty'     && <KosztyTab costCategories={data.costCategories} totals={data.totals} period={data.period} />}
-        {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} />}
+        {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} departments={data.departments} />}
         {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} />}
       </div>
     </div>
@@ -1055,7 +1055,7 @@ function CustomFunnel({ data, onStageClick, onStageHover }: {
 }) {
   // Lejek odwrócony (szerszy na górze) — wzorowany na klasycznym funnel chart
   const STAGE_H = 46;
-  const GAP = 2;           // mała przerwa między stopniami
+  const GAP = 8;           // przerwa między stopniami (przestrzeń na adnotacje)
   const VIEW_W = 360;
   const FUNNEL_X0 = 8;    // lewy margines lejka
   const FUNNEL_W = 200;   // szerokość strefy lejka
@@ -1098,49 +1098,74 @@ function CustomFunnel({ data, onStageClick, onStageHover }: {
         const midW = (cw + pw) / 2; // średnia szerokość — czy jest miejsce na tekst
 
         return (
-          <g key={i} onClick={() => onStageClick(i)} onMouseEnter={() => onStageHover?.(i)} onMouseLeave={() => onStageHover?.(null)} style={{ cursor: 'pointer' }}>
-            {/* cień (glow) przy hover */}
-            <path d={shape} fill={fill} fillOpacity={0.04} transform="translate(0,2)" />
-            {/* główny trapez */}
-            <path d={shape} fill={fill} fillOpacity={0.92}>
-              <title>{stage.name}: {plnM(stage.value)} ({(stage.pctOfRevenue * 100).toFixed(1)}%)</title>
-            </path>
-            {/* bevel */}
-            <path d={bevelShape} fill="white" fillOpacity={0.22} pointerEvents="none" />
+          <g key={i}>
+            <g onClick={() => onStageClick(i)} onMouseEnter={() => onStageHover?.(i)} onMouseLeave={() => onStageHover?.(null)} style={{ cursor: 'pointer' }}>
+              {/* cień (glow) przy hover */}
+              <path d={shape} fill={fill} fillOpacity={0.04} transform="translate(0,2)" />
+              {/* główny trapez */}
+              <path d={shape} fill={fill} fillOpacity={0.92}>
+                <title>{stage.name}: {plnM(stage.value)} ({(stage.pctOfRevenue * 100).toFixed(1)}%)</title>
+              </path>
+              {/* bevel */}
+              <path d={bevelShape} fill="white" fillOpacity={0.22} pointerEvents="none" />
 
-            {/* % wewnątrz — tylko gdy jest miejsce */}
-            {midW > 44 && (
-              <text x={cx} y={y0 + STAGE_H / 2}
-                textAnchor="middle" dominantBaseline="middle"
-                fontSize={midW > 80 ? 11 : 9} fontWeight="800" fill="white"
-                pointerEvents="none" style={{ userSelect: 'none' }}>
-                {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
-              </text>
-            )}
-
-            {/* linia łącząca do etykiety */}
-            <line
-              x1={bR + 2} y1={y0 + STAGE_H / 2}
-              x2={LABEL_X - 4} y2={y0 + STAGE_H / 2}
-              stroke="#e2e8f0" strokeWidth={0.8} pointerEvents="none"
-            />
-
-            {/* etykieta — PRAWA strona */}
-            <text x={LABEL_X} y={y0 + STAGE_H / 2 - (pctOfPrevDelta != null ? 6 : 0)}
-              textAnchor="start" dominantBaseline="middle"
-              fontSize={9.5} fontWeight="600" fill="#334155"
-              pointerEvents="none" style={{ userSelect: 'none' }}>
-              {stage.name.length > 16 ? stage.name.slice(0, 15) + '…' : stage.name}
-            </text>
-            <text x={LABEL_X} y={y0 + STAGE_H / 2 + (pctOfPrevDelta != null ? 6 : 7)}
-              textAnchor="start" dominantBaseline="middle"
-              fontSize={8.5} fill={isNeg ? '#dc2626' : '#64748b'}
-              pointerEvents="none" style={{ userSelect: 'none' }}>
-              {plnM(stage.value)}
-              {pctOfPrevDelta != null && (
-                ` · ${pctOfPrevDelta >= 0 ? '↑' : '↓'}${Math.abs(pctOfPrevDelta).toFixed(1)}%`
+              {/* % wewnątrz — tylko gdy jest miejsce */}
+              {midW > 44 && (
+                <text x={cx} y={y0 + STAGE_H / 2}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fontSize={midW > 80 ? 11 : 9} fontWeight="800" fill="white"
+                  pointerEvents="none" style={{ userSelect: 'none' }}>
+                  {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
+                </text>
               )}
-            </text>
+
+              {/* linia łącząca do etykiety */}
+              <line
+                x1={bR + 2} y1={y0 + STAGE_H / 2}
+                x2={LABEL_X - 4} y2={y0 + STAGE_H / 2}
+                stroke="#e2e8f0" strokeWidth={0.8} pointerEvents="none"
+              />
+
+              {/* etykieta — PRAWA strona */}
+              <text x={LABEL_X} y={y0 + STAGE_H / 2 - (pctOfPrevDelta != null ? 6 : 0)}
+                textAnchor="start" dominantBaseline="middle"
+                fontSize={9.5} fontWeight="600" fill="#334155"
+                pointerEvents="none" style={{ userSelect: 'none' }}>
+                {stage.name.length > 16 ? stage.name.slice(0, 15) + '…' : stage.name}
+              </text>
+              <text x={LABEL_X} y={y0 + STAGE_H / 2 + (pctOfPrevDelta != null ? 6 : 7)}
+                textAnchor="start" dominantBaseline="middle"
+                fontSize={8.5} fill={isNeg ? '#dc2626' : '#64748b'}
+                pointerEvents="none" style={{ userSelect: 'none' }}>
+                {plnM(stage.value)}
+                {pctOfPrevDelta != null && (
+                  ` · ${pctOfPrevDelta >= 0 ? '↑' : '↓'}${Math.abs(pctOfPrevDelta).toFixed(1)}%`
+                )}
+              </text>
+            </g>
+            {/* Gap annotation showing % consumed going from prev stage to this one */}
+            {i > 0 && (() => {
+              const prevPct = data[i - 1].pctOfRevenue;
+              const thisPct = stage.pctOfRevenue;
+              const consumedPct = (prevPct - thisPct) * 100;
+              if (consumedPct <= 0.1) return null;
+              const gapY = i * (STAGE_H + GAP) + 6 - GAP / 2;
+              return (
+                <text
+                  x={cx}
+                  y={gapY}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={7.5}
+                  fontWeight="700"
+                  fill="#f43f5e"
+                  pointerEvents="none"
+                  style={{ userSelect: 'none' }}
+                >
+                  ↓ −{consumedPct.toFixed(1)}% obrotów
+                </text>
+              );
+            })()}
           </g>
         );
       })}
@@ -1148,7 +1173,7 @@ function CustomFunnel({ data, onStageClick, onStageHover }: {
   );
 }
 
-function WynikTab({ result, totals, periodLabels, costCategories }: { result: MonthlyReportLine[]; totals: MonthlyReportTotals; periodLabels: string[]; costCategories: CostCategory[] }) {
+function WynikTab({ result, totals, periodLabels, costCategories, departments }: { result: MonthlyReportLine[]; totals: MonthlyReportTotals; periodLabels: string[]; costCategories: CostCategory[]; departments: DepartmentMargin[] }) {
   const { t, lang } = useLang();
   const find = (id: string) => result.find(x => x.id === id);
   const netLine = find('resultat_de_l_exercice');
@@ -1204,132 +1229,124 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
             onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}
             onStageHover={setHoveredStageIdx}
           />
-          {/* Hover detail panel */}
-          {hoveredStageIdx != null && (() => {
-            const stage = funnelData[hoveredStageIdx];
-            const stageMonthly = stages[hoveredStageIdx]?.monthly ?? [];
-            const maxM = Math.max(...stageMonthly.map(Math.abs), 1);
-            const prevStage = hoveredStageIdx > 0 ? funnelData[hoveredStageIdx - 1] : null;
-            const consumed = prevStage != null ? prevStage.value - stage.value : null;
-            const bestMonthIdx = stageMonthly.reduce((bi, v, i) => Math.abs(v) > Math.abs(stageMonthly[bi]) ? i : bi, 0);
-            return (
-              <div
-                className="mt-3 rounded-xl border-2 p-3 transition-all duration-150 animate-pulse-once"
-                style={{ borderColor: stage.fill + '60', background: stage.fill + '0a' }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: stage.fill }} />
-                  <span className="text-[11px] font-bold text-slate-700">{stage.name}</span>
-                  <span className="ml-auto text-base font-black tabular-nums" style={{ color: stage.fill }}>
-                    {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex gap-4 mb-2.5">
-                  <div>
-                    <p className="text-[9px] text-slate-400 uppercase font-semibold">Wartość</p>
-                    <p className={`text-sm font-bold ${stage.value < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{plnM(stage.value)}</p>
+          {/* Dynamic hover panel — only visible on hover */}
+          <div className="mt-3 min-h-[120px]">
+            {hoveredStageIdx == null ? (
+              <div className="h-full flex items-center justify-center py-6">
+                <p className="text-[10px] text-slate-300 italic text-center">↑ Najedź na fragment lejka<br/>aby zobaczyć szczegóły</p>
+              </div>
+            ) : (() => {
+              const stage = funnelData[hoveredStageIdx];
+              const stageMonthly = stages[hoveredStageIdx]?.monthly ?? [];
+              const maxM = Math.max(...stageMonthly.map(Math.abs), 1);
+              const prevStage = hoveredStageIdx > 0 ? funnelData[hoveredStageIdx - 1] : null;
+              const consumed = prevStage != null ? prevStage.value - stage.value : null;
+              const consumedPct = prevStage != null ? (prevStage.pctOfRevenue - stage.pctOfRevenue) * 100 : null;
+              const bestMonthIdx = stageMonthly.length > 0
+                ? stageMonthly.reduce((bi, v, i) => Math.abs(v) > Math.abs(stageMonthly[bi]) ? i : bi, 0)
+                : 0;
+
+              // Stage-specific breakdown
+              const isRevenue = hoveredStageIdx === 0;
+              const breakdown = isRevenue
+                ? departments
+                    .map(d => ({ label: d.label, value: d.revenue.total, color: COST_COLORS[departments.indexOf(d) % COST_COLORS.length] }))
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 5)
+                : costCategories
+                    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+                    .slice(0, 5)
+                    .map((c, ci) => ({ label: trLabel(lang, c), value: c.total, color: COST_COLORS[ci % COST_COLORS.length] }));
+
+              const breakdownTotal = isRevenue ? totals.revenue.total : Math.abs(consumed ?? 0);
+
+              return (
+                <div
+                  className="rounded-xl border-2 p-3 transition-all duration-150"
+                  style={{ borderColor: stage.fill + '50', background: stage.fill + '08' }}
+                >
+                  {/* Header row */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: stage.fill }} />
+                    <span className="text-[11px] font-bold text-slate-700 truncate flex-1">{stage.name}</span>
+                    <span className="text-lg font-black tabular-nums shrink-0" style={{ color: stage.fill }}>
+                      {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
+                    </span>
                   </div>
-                  {consumed != null && (
-                    <div>
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Zużyte</p>
-                      <p className="text-sm font-bold text-rose-500">-{plnM(Math.abs(consumed))}</p>
+
+                  {/* KPI row */}
+                  <div className="flex gap-3 mb-2.5 text-center">
+                    <div className="flex-1">
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Wartość</p>
+                      <p className={`text-sm font-bold tabular-nums ${stage.value < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{plnM(stage.value)}</p>
+                    </div>
+                    {consumedPct != null && consumedPct > 0.05 && (
+                      <div className="flex-1">
+                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Pochłonięto</p>
+                        <p className="text-sm font-bold text-rose-500 tabular-nums">−{consumedPct.toFixed(1)}%</p>
+                      </div>
+                    )}
+                    {stageMonthly.length > 0 && (
+                      <div className="flex-1">
+                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Najlepszy</p>
+                        <p className="text-sm font-bold text-slate-700">{periodLabels[bestMonthIdx] ?? `M${bestMonthIdx + 1}`}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Breakdown items */}
+                  {breakdown.length > 0 && (
+                    <div className="space-y-1 mb-2.5">
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">
+                        {isRevenue ? 'Główne działy' : 'Składniki kosztów'}
+                      </p>
+                      {breakdown.map((item, bi) => {
+                        const share = breakdownTotal !== 0 ? Math.abs(item.value) / Math.abs(breakdownTotal) : 0;
+                        return (
+                          <div key={bi} className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: item.color }} />
+                            <span className="text-[9px] text-slate-600 truncate flex-1 min-w-0">{item.label}</span>
+                            <span className="text-[9px] font-semibold text-slate-700 shrink-0 tabular-nums">{plnM(item.value)}</span>
+                            <div className="w-12 shrink-0">
+                              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: item.color }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
+
+                  {/* Monthly sparkbars */}
                   {stageMonthly.length > 0 && (
                     <div>
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Najlepszy mies.</p>
-                      <p className="text-sm font-bold text-slate-700">{periodLabels[bestMonthIdx] ?? `M${bestMonthIdx+1}`}</p>
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">Miesiące</p>
+                      <div className="flex items-end gap-px h-6">
+                        {stageMonthly.map((v, mi) => {
+                          const h = Math.max(2, Math.round((Math.abs(v) / maxM) * 20));
+                          const isBest = mi === bestMonthIdx;
+                          return (
+                            <div
+                              key={mi}
+                              className="flex-1 rounded-t-sm"
+                              title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}
+                              style={{
+                                height: h,
+                                background: v < 0 ? '#f87171' : stage.fill,
+                                opacity: isBest ? 1 : 0.55,
+                                alignSelf: 'flex-end',
+                                outline: isBest ? `1px solid ${stage.fill}` : 'none',
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
-                {stageMonthly.length > 0 && (
-                  <div>
-                    <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">Miesięczna progresja</p>
-                    <div className="flex items-end gap-0.5 h-8">
-                      {stageMonthly.map((v, mi) => {
-                        const h = Math.max(3, Math.round((Math.abs(v) / maxM) * 28));
-                        const isNeg = v < 0;
-                        const isBest = mi === bestMonthIdx;
-                        return (
-                          <div key={mi} className="flex-1 flex flex-col items-center gap-0.5 group/bar" title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}>
-                            <div
-                              className="w-full rounded-t-sm transition-opacity"
-                              style={{
-                                height: h,
-                                background: isNeg ? '#f87171' : stage.fill,
-                                opacity: isBest ? 1 : 0.6,
-                                alignSelf: 'flex-end',
-                                outline: isBest ? `2px solid ${stage.fill}` : 'none',
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-          {/* Breakdown głównych kategorii kosztów */}
-          {costCategories.length > 0 && (() => {
-            const topCosts = [...costCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total)).slice(0, 5);
-            const rev = totals.revenue.total;
-            return (
-              <div className="mt-3 pt-3 border-t border-slate-100">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t('wynik.mainCostComponents')}</p>
-                <div className="space-y-1.5">
-                  {topCosts.map((c, i) => {
-                    const share = rev !== 0 ? Math.abs(c.total) / rev : 0;
-                    return (
-                      <div key={c.id} className="flex items-center gap-2 min-w-0">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COST_COLORS[i % COST_COLORS.length] }} />
-                        <span className="text-[10px] text-slate-600 truncate flex-1 min-w-0" title={trLabel(lang, c)}>{trLabel(lang, c)}</span>
-                        <span className="text-[10px] font-semibold text-slate-700 shrink-0 whitespace-nowrap">{plnM(c.total)}</span>
-                        <div className="w-14 shrink-0">
-                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: COST_COLORS[i % COST_COLORS.length] }} />
-                          </div>
-                          <p className="text-[9px] text-slate-400 text-right">{(share * 100).toFixed(0)}%</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-          {/* Miesięczna progresja wyników */}
-          <div className="mt-3 pt-3 border-t border-slate-100">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Progresja miesięczna</p>
-            <div className="space-y-1.5">
-              {funnelData.slice(0, 3).map((stage, i) => {
-                const stageMonthly = stages[i]?.monthly ?? [];
-                const maxVal = Math.max(...stageMonthly.map(Math.abs), 1);
-                return (
-                  <div key={stage.name} className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: stage.fill }} />
-                    <span className="text-[9px] text-slate-500 truncate" style={{ minWidth: 64, maxWidth: 64 }}>
-                      {stage.name.length > 10 ? stage.name.slice(0, 9) + '…' : stage.name}
-                    </span>
-                    <div className="flex items-end gap-0.5 flex-1 h-5">
-                      {stageMonthly.map((v, mi) => {
-                        const h = Math.max(2, Math.round((Math.abs(v) / maxVal) * 16));
-                        const isNeg = v < 0;
-                        return (
-                          <div
-                            key={mi}
-                            title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}
-                            className="flex-1 rounded-t-sm"
-                            style={{ height: h, background: isNeg ? '#f87171' : stage.fill, opacity: 0.75, alignSelf: 'flex-end' }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              );
+            })()}
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
             {funnelData.map(s => (
@@ -1376,15 +1393,15 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-        <table className="w-full text-[11px]">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-[11px]" style={{ tableLayout: 'fixed' }}>
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
             <tr>
-              <th className="text-left px-3 py-2 sticky left-0 bg-slate-50">{t('chart.position')}</th>
-              <th className="text-right px-3 py-2 font-bold text-slate-700">{t('chart.total')}</th>
-              <th className="text-right px-3 py-2">{t('chart.deltaYoY')}</th>
+              <th className="text-left px-3 py-2 sticky left-0 bg-slate-50" style={{ width: '20%' }}>{t('chart.position')}</th>
+              <th className="text-right px-3 py-2 font-bold text-slate-700" style={{ width: '9%' }}>{t('chart.total')}</th>
+              <th className="text-right px-3 py-2" style={{ width: '8%' }}>{t('chart.deltaYoY')}</th>
               <th className="px-1 py-2 w-3 bg-slate-100/60" />
-              {periodLabels.map(p => <th key={p} className="text-right px-2 py-2 whitespace-nowrap font-normal text-slate-400">{p}</th>)}
+              {periodLabels.map(p => <th key={p} className="text-right px-1 py-2 font-normal text-slate-400" style={{ width: '5.2%' }}>{p}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -1397,11 +1414,11 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
                   title={t('wynik.clickTrendYoY')}
                   className={`border-t border-slate-100 cursor-pointer transition-colors ${isMain ? 'bg-amber-50/50 font-semibold text-slate-800 hover:bg-amber-100/60' : `text-slate-600 hover:bg-amber-50/40 ${i % 2 ? 'bg-slate-50/40' : ''}`}`}
                 >
-                  <td className="px-3 py-1.5 whitespace-nowrap sticky left-0 bg-inherit">{trLabel(lang, line)}</td>
+                  <td className="px-2 py-1.5 truncate sticky left-0 bg-inherit">{trLabel(lang, line)}</td>
                   <td className={`text-right px-3 py-1.5 font-semibold ${diffClass(line.total)}`}>{formatPLN(line.total)}</td>
                   <td className="text-right px-3 py-1.5"><TrendBadge value={yoyChange(line.history)} /></td>
                   <td className="px-1 py-1.5 bg-slate-50/60 w-3" />
-                  {line.monthly.map((v, j) => <td key={j} className={`text-right px-2 py-1.5 text-[10px] ${diffClass(v)}`}>{plnM(v)}</td>)}
+                  {line.monthly.map((v, j) => <td key={j} className={`text-right px-1 py-1 text-[9px] tabular-nums ${diffClass(v)}`}>{plnM(v)}</td>)}
                 </tr>
               );
             })}

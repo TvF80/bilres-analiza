@@ -88,7 +88,7 @@ const CustomLegend = ({ payload }: any) => (
 
 function ChartCard({ title, children, height = 210, hint }: ChartCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 transition-all duration-150 hover:border-slate-300 hover:shadow-[0_4px_16px_rgba(0,0,0,0.07),0_0_0_1px_rgba(59,130,246,0.08)] hover:-translate-y-0.5" style={{ minHeight: height + 60 }}>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-[0_2px_0_0_#e2e8f0,0_1px_4px_rgba(0,0,0,0.04)] p-4 transition-all duration-150 hover:border-slate-300 hover:shadow-[0_6px_0_0_#d1d5db,0_8px_20px_rgba(0,0,0,0.04)] hover:-translate-y-1" style={{ minHeight: height + 60 }}>
       <div className="flex items-baseline gap-2 mb-3">
         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex-1">{title}</p>
         {hint && <p className="text-[10px] text-slate-300 italic">{hint}</p>}
