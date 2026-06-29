@@ -23,6 +23,13 @@ const staticData = (raportDataRaw && (raportDataRaw as unknown as MonthlyReportD
 const C = { pos: '#10b981', neg: '#f43f5e', p1: '#3b82f6', amber: '#f59e0b' };
 const COST_COLORS = ['#3b82f6', '#f97316', '#8b5cf6', '#06b6d4', '#f43f5e', '#10b981', '#f59e0b', '#94a3b8'];
 const TOOLTIP_STYLE = { fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,.06)' };
+function makeTooltip(formatter: (v: number, name: string) => [string, string]) {
+  return {
+    contentStyle: TOOLTIP_STYLE,
+    cursor: { fill: 'rgba(248,250,252,0.8)' },
+    formatter: (v: unknown, name: string) => formatter(Number(v), name),
+  };
+}
 
 function Bar3DShape(props: any) {
   const { x, y, width, height, fill } = props;
@@ -190,6 +197,7 @@ function HistoryComparisonChart({ history, height = 230, kind: _kind = 'line' }:
   const { t, lang } = useLang();
   const months = MONTHS_SHORT[lang];
   const series = useMemo(() => historySeries(history, months), [history, months]);
+  const [hoveredFy, setHoveredFy] = useState<string | null>(null);
   if (!series.length || !history) return <p className="text-xs text-slate-400 italic">{t('costs.noHistoryPosition')}</p>;
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -197,10 +205,24 @@ function HistoryComparisonChart({ history, height = 230, kind: _kind = 'line' }:
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => plnM(Number(v))} width={48} />
-        <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('fy', '')}`]} contentStyle={TOOLTIP_STYLE} />
-        <Legend formatter={(v) => `FY ${String(v).replace('fy', '')}`} wrapperStyle={{ fontSize: 10 }} />
+        <Tooltip {...makeTooltip((v, name) => [`${formatPLN(v)} PLN`, `FY ${name.replace('fy', '')}`])} />
+        <Legend
+          formatter={(v) => `FY ${String(v).replace('fy', '')}`}
+          wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+          onMouseEnter={({ dataKey }: { dataKey: string }) => setHoveredFy(String(dataKey).replace('fy', ''))}
+          onMouseLeave={() => setHoveredFy(null)}
+        />
         {[...history].sort((a, b) => b.fy.localeCompare(a.fy)).map(h => (
-          <Line key={h.fy} type="monotone" dataKey={`fy${h.fy}`} stroke={HISTORY_COLORS[h.fy] ?? '#94a3b8'} strokeWidth={h.fy === '2025' ? 2.5 : 1.5} dot={false} />
+          <Line
+            key={h.fy}
+            type="monotone"
+            dataKey={`fy${h.fy}`}
+            stroke={HISTORY_COLORS[h.fy] ?? '#94a3b8'}
+            strokeWidth={hoveredFy === h.fy ? 3 : h.fy === '2025' ? 2.5 : 1.5}
+            strokeOpacity={hoveredFy && hoveredFy !== h.fy ? 0.2 : 1}
+            dot={false}
+            activeDot={{ r: 3 }}
+          />
         ))}
       </LineChart>
     </ResponsiveContainer>
@@ -1187,6 +1209,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
   const [selected, setSelected] = useState<{ label: string; line: MonthlyReportLine } | null>(null);
   const [hoveredStageIdx, setHoveredStageIdx] = useState<number | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
+  const [hoveredFy, setHoveredFy] = useState<string | null>(null);
 
   const tableGroups = useMemo(() => {
     // Przychód na górze — top-5 działów jako zwijane podpozycje
@@ -1399,16 +1422,23 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
             subtitle={t('funnel.3yearSubtitle')}
             height={260}
           >
-            <BarChart data={checkpointComparison} margin={{ bottom: 50 }} barCategoryGap="22%">
+            <BarChart data={checkpointComparison} margin={{ bottom: 50 }} barCategoryGap="22%"
+              onMouseLeave={() => setHoveredFy(null)}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="name" tick={{ fontSize: 8.5, fill: '#64748b' }} axisLine={false} tickLine={false} angle={-30} textAnchor="end" height={70} interval={0} />
               <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => plnM(Number(v))} />
-              <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('fy', '')}`]} contentStyle={TOOLTIP_STYLE} />
-              <Legend formatter={(v) => `FY ${String(v).replace('fy', '')}`} wrapperStyle={{ fontSize: 10 }} />
+              <Tooltip {...makeTooltip((v, name) => [`${formatPLN(v)} PLN`, `FY ${name.replace('fy', '')}`])} />
+              <Legend
+                formatter={(v) => `FY ${String(v).replace('fy', '')}`}
+                wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                onMouseEnter={({ dataKey }: { dataKey: string }) => setHoveredFy(String(dataKey).replace('fy', ''))}
+                onMouseLeave={() => setHoveredFy(null)}
+              />
               <ReferenceLine y={0} stroke="#e2e8f0" />
               {(['2025', '2024', '2023'] as const).map(fy => (
                 <Bar
                   key={fy} dataKey={`fy${fy}`} fill={HISTORY_COLORS[fy]} radius={[3, 3, 0, 0]} maxBarSize={20} cursor="pointer"
+                  opacity={hoveredFy && hoveredFy !== fy ? 0.3 : 1}
                   shape={Bar3DShape}
                   onClick={(_, idx) => { const line = stages[idx]; if (line) setSelected({ label: t(FUNNEL_STAGE_IDS[idx].tKey), line }); }}
                 />
