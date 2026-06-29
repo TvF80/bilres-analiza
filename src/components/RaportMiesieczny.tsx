@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+﻿import { useMemo, useState, type ReactNode, Fragment } from 'react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   Cell, ReferenceLine, PieChart, Pie, LineChart, Line,
@@ -1048,6 +1048,14 @@ function costIntensityColor(p: number): string {
   return `hsl(${Math.round(120 - t * 120)}, 58%, 83%)`;
 }
 
+const FUNNEL_GAP_NAMES: (string | null)[] = [
+  null,                          // before stage 0 (revenue itself)
+  'Koszty eksploatacji',         // Revenue → Marża
+  'Koszty inwestycji',           // Marża → Wynik po kosztach
+  'Inne przychody / koszty',     // Wynik → Wynik brutto
+  'Podatek',                     // Brutto → Wynik netto
+];
+
 function CustomFunnel({ data, onStageClick, onStageHover }: {
   data: FunnelStage[];
   onStageClick: (i: number) => void;
@@ -1148,22 +1156,41 @@ function CustomFunnel({ data, onStageClick, onStageHover }: {
               const prevPct = data[i - 1].pctOfRevenue;
               const thisPct = stage.pctOfRevenue;
               const consumedPct = (prevPct - thisPct) * 100;
-              if (consumedPct <= 0.1) return null;
               const gapY = i * (STAGE_H + GAP) + 6 - GAP / 2;
+              const gapName = FUNNEL_GAP_NAMES[i];
               return (
-                <text
-                  x={cx}
-                  y={gapY}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={7.5}
-                  fontWeight="700"
-                  fill="#f43f5e"
-                  pointerEvents="none"
-                  style={{ userSelect: 'none' }}
-                >
-                  ↓ −{consumedPct.toFixed(1)}% obrotów
-                </text>
+                <g key={`gap${i}`}>
+                  {gapName && (
+                    <text
+                      x={cx - FUNNEL_W / 2 - 4}
+                      y={gapY - 3}
+                      textAnchor="end"
+                      dominantBaseline="middle"
+                      fontSize={7}
+                      fontWeight="700"
+                      fill="#475569"
+                      pointerEvents="none"
+                      style={{ userSelect: 'none' }}
+                    >
+                      {gapName}
+                    </text>
+                  )}
+                  {consumedPct > 0.1 && (
+                    <text
+                      x={cx}
+                      y={gapY + 2}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={7}
+                      fontWeight="600"
+                      fill="#f43f5e"
+                      pointerEvents="none"
+                      style={{ userSelect: 'none' }}
+                    >
+                      ↓ −{consumedPct.toFixed(1)}%
+                    </text>
+                  )}
+                </g>
               );
             })()}
           </g>
@@ -1179,6 +1206,20 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
   const netLine = find('resultat_de_l_exercice');
   const [selected, setSelected] = useState<{ label: string; line: MonthlyReportLine } | null>(null);
   const [hoveredStageIdx, setHoveredStageIdx] = useState<number | null>(null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
+
+  const tableGroups = useMemo(() => {
+    const result_groups: { header: MonthlyReportLine; details: MonthlyReportLine[] }[] = [];
+    for (const line of result) {
+      const isMain = line.labelPl === line.labelPl.toUpperCase();
+      if (isMain) {
+        result_groups.push({ header: line, details: [] });
+      } else if (result_groups.length > 0) {
+        result_groups[result_groups.length - 1].details.push(line);
+      }
+    }
+    return result_groups;
+  }, [result]);
 
   const stages = useMemo(() => FUNNEL_STAGE_IDS.map(s => s.id === '__revenue' ? totals.revenue : find(s.id)), [result, totals]);
 
@@ -1400,26 +1441,69 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
               <th className="text-left px-3 py-2 sticky left-0 bg-slate-50" style={{ width: '20%' }}>{t('chart.position')}</th>
               <th className="text-right px-3 py-2 font-bold text-slate-700" style={{ width: '9%' }}>{t('chart.total')}</th>
               <th className="text-right px-3 py-2" style={{ width: '8%' }}>{t('chart.deltaYoY')}</th>
-              <th className="px-1 py-2 w-3 bg-slate-100/60" />
-              {periodLabels.map(p => <th key={p} className="text-right px-1 py-2 font-normal text-slate-400" style={{ width: '5.2%' }}>{p}</th>)}
+              <th className="px-1 py-2 bg-slate-100/60" style={{ width: '12px' }} />
+              {periodLabels.map(p => (
+                <th key={p} className="text-right px-1 py-2 font-normal text-slate-400" style={{ width: '5.2%' }}>
+                  {p.length > 3 ? p.slice(0, 3) : p}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {result.map((line, i) => {
-              const isMain = line.labelPl === line.labelPl.toUpperCase();
+            {tableGroups.map(({ header, details }) => {
+              const isOpen = openGroups.has(header.id);
+              const hasDetails = details.length > 0;
               return (
-                <tr
-                  key={line.id}
-                  onClick={() => setSelected({ label: trLabel(lang, line), line })}
-                  title={t('wynik.clickTrendYoY')}
-                  className={`border-t border-slate-100 cursor-pointer transition-colors ${isMain ? 'bg-amber-50/50 font-semibold text-slate-800 hover:bg-amber-100/60' : `text-slate-600 hover:bg-amber-50/40 ${i % 2 ? 'bg-slate-50/40' : ''}`}`}
-                >
-                  <td className="px-2 py-1.5 truncate sticky left-0 bg-inherit">{trLabel(lang, line)}</td>
-                  <td className={`text-right px-3 py-1.5 font-semibold ${diffClass(line.total)}`}>{formatPLN(line.total)}</td>
-                  <td className="text-right px-3 py-1.5"><TrendBadge value={yoyChange(line.history)} /></td>
-                  <td className="px-1 py-1.5 bg-slate-50/60 w-3" />
-                  {line.monthly.map((v, j) => <td key={j} className={`text-right px-1 py-1 text-[9px] tabular-nums ${diffClass(v)}`}>{plnM(v)}</td>)}
-                </tr>
+                <Fragment key={header.id}>
+                  {/* Header row */}
+                  <tr
+                    onClick={() => {
+                      if (hasDetails) {
+                        setOpenGroups(prev => {
+                          const s = new Set(prev);
+                          s.has(header.id) ? s.delete(header.id) : s.add(header.id);
+                          return s;
+                        });
+                      } else {
+                        setSelected({ label: trLabel(lang, header), line: header });
+                      }
+                    }}
+                    title={hasDetails ? (isOpen ? 'Zwiń' : 'Rozwiń szczegóły') : t('wynik.clickTrendYoY')}
+                    className="border-t border-slate-100 cursor-pointer bg-amber-50/50 font-semibold text-slate-800 hover:bg-amber-100/60 transition-colors"
+                  >
+                    <td className="px-3 py-1.5 whitespace-nowrap sticky left-0 bg-inherit">
+                      <span className="inline-flex items-center gap-1.5">
+                        {hasDetails && (
+                          <span className={`text-slate-400 text-[10px] transition-transform duration-150 ${isOpen ? '' : '-rotate-90'} inline-block`}>▾</span>
+                        )}
+                        {trLabel(lang, header)}
+                      </span>
+                    </td>
+                    <td className={`text-right px-3 py-1.5 font-semibold ${diffClass(header.total)}`}>{formatPLN(header.total)}</td>
+                    <td className="text-right px-3 py-1.5"><TrendBadge value={yoyChange(header.history)} /></td>
+                    <td className="px-1 py-1.5 bg-slate-50/60" style={{ width: '12px' }} />
+                    {header.monthly.map((v, j) => (
+                      <td key={j} className={`text-right px-1 py-1 text-[9px] tabular-nums ${diffClass(v)}`}>{plnM(v)}</td>
+                    ))}
+                  </tr>
+                  {/* Detail rows — only visible when open */}
+                  {isOpen && details.map((line, di) => (
+                    <tr
+                      key={line.id}
+                      onClick={() => setSelected({ label: trLabel(lang, line), line })}
+                      title={t('wynik.clickTrendYoY')}
+                      className={`border-t border-slate-100 cursor-pointer text-slate-600 hover:bg-amber-50/40 transition-colors ${di % 2 ? 'bg-slate-50/40' : ''}`}
+                    >
+                      <td className="px-3 py-1 sticky left-0 bg-inherit truncate pl-7 text-slate-500">{trLabel(lang, line)}</td>
+                      <td className={`text-right px-3 py-1 text-[10px] font-medium ${diffClass(line.total)}`}>{formatPLN(line.total)}</td>
+                      <td className="text-right px-3 py-1 text-[10px]"><TrendBadge value={yoyChange(line.history)} /></td>
+                      <td className="px-1 py-1 bg-slate-50/60" style={{ width: '12px' }} />
+                      {line.monthly.map((v, j) => (
+                        <td key={j} className={`text-right px-1 py-0.5 text-[9px] tabular-nums text-slate-400 ${diffClass(v)}`}>{plnM(v)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </Fragment>
               );
             })}
           </tbody>
@@ -1676,6 +1760,7 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
   const { t, lang } = useLang();
   const [filter, setFilter] = useState('');
   const [selectedItem, setSelectedItem] = useState<YearComparisonItem | null>(null);
+  const [inneHoverIdx, setInneHoverIdx] = useState<number | null>(null);
 
   const topMovers = useMemo(() =>
     [...items].sort((a, b) => Math.abs(b.deltaRY1) - Math.abs(a.deltaRY1)).slice(0, 5),
@@ -1690,18 +1775,41 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
     [items]);
 
   // Marże wg działów — porównanie wieloosiowe (radar) 3 lat — alternatywne spojrzenie na sezonowość/trwałość zmian
-  const marginRadar = useMemo(() => items
+  const allMarginDepts = useMemo(() => items
     .filter(it => it.labelPl.startsWith('MARŻA USŁUGI'))
     .map(it => ({
       dept: (s => s.charAt(0) + s.slice(1).toLowerCase())(it.labelPl.replace('MARŻA USŁUGI ', '')),
       y2023: it.values.y2023,
       y2024: it.values.y2024,
       y2025: it.values.y2025,
+      item: it,
     })), [items]);
 
-  const marginRadarItems = useMemo(() =>
-    items.filter(it => it.labelPl.startsWith('MARŻA USŁUGI')),
-    [items]);
+  const marginRadar = useMemo(() => {
+    // Sort by abs(y2025) desc, keep top 7, rest → "Inne"
+    const sorted = [...allMarginDepts].sort((a, b) => Math.abs(b.y2025) - Math.abs(a.y2025));
+    const topN = sorted.slice(0, 7);
+    const rest = sorted.slice(7);
+    const rows = [...topN];
+    if (rest.length > 0) {
+      rows.push({
+        dept: 'Inne',
+        y2023: rest.reduce((s, d) => s + d.y2023, 0),
+        y2024: rest.reduce((s, d) => s + d.y2024, 0),
+        y2025: rest.reduce((s, d) => s + d.y2025, 0),
+        item: rest[0].item,
+      });
+    }
+    return rows;
+  }, [allMarginDepts]);
+
+  const marginInneDepts = useMemo(() =>
+    [...allMarginDepts]
+      .sort((a, b) => Math.abs(b.y2025) - Math.abs(a.y2025))
+      .slice(7),
+    [allMarginDepts]);
+
+
 
   return (
     <div className="space-y-4">
@@ -1755,22 +1863,59 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
 
       {/* Ciekawe wykresy podsumowujące porównanie 3 lat */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard
-          title={t('comp.radarTitle')}
-          subtitle={t('comp.radarSubtitle')}
-          height={320}
-        >
-          <BarChart data={marginRadar} margin={{ left: 4, right: 4, top: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="dept" tick={{ fontSize: 8, fill: '#64748b' }} interval={0} />
-            <YAxis tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={v => plnM(Number(v))} width={44} />
-            <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('y', '')}`]} contentStyle={TOOLTIP_STYLE} />
-            <Legend formatter={(v) => `FY ${String(v).replace('y', '')}`} wrapperStyle={{ fontSize: 10 }} />
-            <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} cursor="pointer" shape={Bar3DShape} onClick={(_, idx) => { if (marginRadarItems[idx]) setSelectedItem(marginRadarItems[idx]); }} />
-            <Bar dataKey="y2024" name="2024" fill={HISTORY_COLORS['2024']} radius={[3, 3, 0, 0]} maxBarSize={14} cursor="pointer" shape={Bar3DShape} onClick={(_, idx) => { if (marginRadarItems[idx]) setSelectedItem(marginRadarItems[idx]); }} />
-            <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} cursor="pointer" shape={Bar3DShape} onClick={(_, idx) => { if (marginRadarItems[idx]) setSelectedItem(marginRadarItems[idx]); }} />
-          </BarChart>
-        </ChartCard>
+        <div className="relative">
+          <ChartCard
+            title={t('comp.radarTitle')}
+            subtitle={t('comp.radarSubtitle')}
+            height={320}
+          >
+            <BarChart
+              data={marginRadar.map(r => ({ name: r.dept, y2023: r.y2023, y2024: r.y2024, y2025: r.y2025 }))}
+              margin={{ left: 4, right: 4, top: 4, bottom: 4 }}
+              onMouseMove={(state: any) => {
+                if (state?.activeTooltipIndex != null && marginInneDepts.length > 0 && state.activeTooltipIndex === marginRadar.length - 1) {
+                  setInneHoverIdx(state.activeTooltipIndex);
+                } else {
+                  setInneHoverIdx(null);
+                }
+              }}
+              onMouseLeave={() => setInneHoverIdx(null)}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#64748b' }} interval={0} />
+              <YAxis tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={v => plnM(Number(v))} width={44} />
+              <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('y', '')}`]} contentStyle={TOOLTIP_STYLE} />
+              <Legend formatter={(v) => `FY ${String(v).replace('y', '')}`} wrapperStyle={{ fontSize: 10 }} />
+              <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
+                onClick={(_, idx) => { if (marginRadar[idx]?.item && marginRadar[idx].dept !== 'Inne') setSelectedItem(marginRadar[idx].item); }} />
+              <Bar dataKey="y2024" name="2024" fill={HISTORY_COLORS['2024']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
+                onClick={(_, idx) => { if (marginRadar[idx]?.item && marginRadar[idx].dept !== 'Inne') setSelectedItem(marginRadar[idx].item); }} />
+              <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
+                onClick={(_, idx) => { if (marginRadar[idx]?.item && marginRadar[idx].dept !== 'Inne') setSelectedItem(marginRadar[idx].item); }} />
+            </BarChart>
+          </ChartCard>
+
+          {/* "Inne" hover detail panel */}
+          {inneHoverIdx != null && marginInneDepts.length > 0 && (
+            <div className="absolute right-0 top-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl p-3 w-56 pointer-events-none">
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-2">Pozostałe działy</p>
+              <div className="space-y-1">
+                {marginInneDepts.map((d, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-slate-600 truncate flex-1">{d.dept}</span>
+                    <span className={`text-[10px] font-semibold tabular-nums ${d.y2025 >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {formatPLN(d.y2025)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 pt-2 border-t border-slate-100 flex justify-between">
+                <span className="text-[9px] text-slate-400">Razem FY2025</span>
+                <span className="text-[10px] font-bold text-slate-700">{formatPLN(marginInneDepts.reduce((s, d) => s + d.y2025, 0))}</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         <ChartCard
           title={t('comp.topPctTitle')}

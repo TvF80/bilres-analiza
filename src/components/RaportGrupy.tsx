@@ -899,7 +899,7 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
 
   // Outliers: poniżej skali i powyżej 100%
   const outliersLow = groups.filter(g => mbp(g) < yMin);
-  const outliersHigh = groups.filter(g => mbp(g) > 1.0);
+  const outliersHigh = groups.filter(g => mbp(g) > yMax);
 
   const PAD_X = 10; // % padding poziomy
   const PAD_Y = 8;  // % padding pionowy
@@ -932,7 +932,7 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
               className="text-[9px] bg-emerald-50 border border-emerald-300 text-emerald-700 px-1.5 py-0.5 rounded cursor-pointer hover:bg-emerald-100 transition-colors"
               title={`${g.lider} · MB: ${fmtPct(mbp(g))} · ${fmtM(g.total.przychod)}`}
             >
-              {g.lider} <span className="font-bold">{fmtPct(mbp(g))}</span>
+              {g.lider} <span className="font-bold text-emerald-800">↑{fmtPct(mbp(g))}</span>
             </button>
           ))}
         </div>
@@ -954,13 +954,13 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
         )}
 
         {/* linie siatki Y — rozszerzone, z wyróżnieniem strefowym */}
-        {[0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4].map(v => {
+        {[0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0].map(v => {
           if (v < yMin || v > yMax) return null;
           const py = yToPct(v);
-          const isKey = v === 0.1 || v === 0.2 || v === 0.3;
+          const isKey = v === 0.1 || v === 0.2 || v === 0.3 || v === 0.5 || v === 1.0;
           return (
             <div key={v} className={`absolute left-0 right-0 border-t pointer-events-none ${isKey ? 'border-slate-300 opacity-70' : 'border-slate-200 opacity-40'}`} style={{ top: `${py}%` }}>
-              <span className={`absolute right-1 -top-3 text-[8px] ${isKey ? 'text-slate-400' : 'text-slate-300'}`}>{(v * 100).toFixed(0)}%</span>
+              <span className={`absolute right-1 -top-3 text-[8px] ${isKey ? 'text-slate-400 font-semibold' : 'text-slate-300'}`}>{(v * 100).toFixed(0)}%</span>
             </div>
           );
         })}
@@ -968,7 +968,7 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
         {/* punkty */}
         {groups.map((g, i) => {
           const my = mbp(g);
-          if (my < yMin || my > 1.0) return null; // outliers pokazane osobno
+          if (my < yMin || my > yMax) return null; // outliers pokazane osobno
           const px = ((g.total.przychod - minX) / rangeX) * (100 - 2 * PAD_X) + PAD_X;
           const py = yToPct(my);
           const color = (CITY_COLORS as Record<string, string>)[g.miasto] ?? '#64748b';
