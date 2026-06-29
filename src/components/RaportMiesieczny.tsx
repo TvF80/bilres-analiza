@@ -391,7 +391,7 @@ export default function RaportMiesieczny() {
         {activeTab === 'heatmapa'   && <HeatmapaTab departments={data.departments} periodLabels={data.periodLabels} />}
         {activeTab === 'koszty'     && <KosztyTab costCategories={data.costCategories} totals={data.totals} period={data.period} />}
         {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} departments={data.departments} />}
-        {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} />}
+        {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} totals={data.totals} />}
       </div>
     </div>
   );
@@ -1607,11 +1607,13 @@ function isSummaryRow(label: string): boolean {
   return /[A-ZĄĆĘŁŃÓŚŹŻ]/.test(label) && label === label.toUpperCase();
 }
 
-function ComparisonSection({ section, items, filter, onRowClick }: {
+function ComparisonSection({ section, items, filter, onRowClick, viewMode, revByYear }: {
   section: { tKey: string; from: number; to: number };
   items: YearComparisonItem[];
   filter: string;
   onRowClick?: (item: YearComparisonItem) => void;
+  viewMode: 'pln' | 'pct';
+  revByYear: { y2025: number; y2024: number; y2023: number };
 }) {
   const { t, lang } = useLang();
   const [expanded, setExpanded] = useState(false);
@@ -1622,6 +1624,14 @@ function ComparisonSection({ section, items, filter, onRowClick }: {
     ? all.filter(it => it.labelPl.toLowerCase().includes(q))
     : (expanded ? all : summaries);
   const hiddenCount = all.length - summaries.length;
+
+  function fmtCell(val: number, fy: 'y2025' | 'y2024' | 'y2023'): string {
+    if (viewMode === 'pct') {
+      const rev = revByYear[fy];
+      return rev !== 0 ? `${((val / rev) * 100).toFixed(1)}%` : '—';
+    }
+    return formatPLN(val);
+  }
 
   return (
     <div className="border-t border-slate-100 first:border-t-0">
@@ -1641,6 +1651,8 @@ function ComparisonSection({ section, items, filter, onRowClick }: {
           <tbody>
             {visible.map((it, i) => {
               const summary = isSummaryRow(it.labelPl);
+              const trendDir = it.deltaRY1 > 0 ? '▲' : it.deltaRY1 < 0 ? '▼' : '–';
+              const trendColor = it.deltaRY1 > 0 ? 'text-emerald-500' : it.deltaRY1 < 0 ? 'text-rose-500' : 'text-slate-400';
               return (
                 <tr
                   key={it.id}
@@ -1648,12 +1660,17 @@ function ComparisonSection({ section, items, filter, onRowClick }: {
                   title={onRowClick ? 'Kliknij, aby zobaczyć szczegóły i porównanie 3 lat' : undefined}
                   className={`border-t border-slate-100 hover:bg-amber-50/40 ${onRowClick ? 'cursor-pointer' : ''} ${summary ? 'bg-slate-50/50 font-semibold text-slate-800' : `text-slate-600 ${i % 2 ? 'bg-slate-50/30' : ''}`}`}
                 >
-                  <td className="px-3 py-1.5 whitespace-nowrap" style={{ paddingLeft: summary ? 12 : 28 }}>{trLabel(lang, it)}</td>
-                  <td className="px-3 py-1.5 text-right text-slate-500 w-28">{formatPLN(it.values.y2023)}</td>
-                  <td className="px-3 py-1.5 text-right text-slate-500 w-28">{formatPLN(it.values.y2024)}</td>
-                  <td className="px-3 py-1.5 text-right text-slate-700 font-medium w-28">{formatPLN(it.values.y2025)}</td>
-                  <td className={`px-3 py-1.5 text-right font-semibold w-28 ${diffClass(it.deltaRY1)}`}>{formatDiff(it.deltaRY1)}</td>
-                  <td className={`px-3 py-1.5 text-right w-20 ${it.deltaPctRY1 != null ? diffClass(it.deltaPctRY1) : 'text-slate-300'}`}>
+                  <td className="py-1.5 whitespace-nowrap" style={{ paddingLeft: summary ? 12 : 28 }}>
+                    <span className="inline-flex items-center gap-1.5">
+                      {summary && <span className={`text-[9px] ${trendColor}`}>{trendDir}</span>}
+                      {trLabel(lang, it)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5 text-right text-slate-400 w-24 tabular-nums">{fmtCell(it.values.y2023, 'y2023')}</td>
+                  <td className="px-3 py-1.5 text-right text-slate-500 w-24 tabular-nums">{fmtCell(it.values.y2024, 'y2024')}</td>
+                  <td className={`px-3 py-1.5 text-right font-medium w-24 tabular-nums ${viewMode === 'pct' ? 'text-slate-700' : diffClass(it.values.y2025)}`}>{fmtCell(it.values.y2025, 'y2025')}</td>
+                  <td className={`px-3 py-1.5 text-right font-semibold w-24 tabular-nums ${diffClass(it.deltaRY1)}`}>{formatDiff(it.deltaRY1)}</td>
+                  <td className={`px-3 py-1.5 text-right w-16 tabular-nums ${it.deltaPctRY1 != null ? diffClass(it.deltaPctRY1) : 'text-slate-300'}`}>
                     {it.deltaPctRY1 != null ? `${(it.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
                   </td>
                 </tr>
@@ -1751,11 +1768,18 @@ function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onC
   );
 }
 
-function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]; comparisonLabel: string }) {
+function PorownanieTab({ items, comparisonLabel, totals }: { items: YearComparisonItem[]; comparisonLabel: string; totals: MonthlyReportTotals }) {
   const { t, lang } = useLang();
   const [filter, setFilter] = useState('');
   const [selectedItem, setSelectedItem] = useState<YearComparisonItem | null>(null);
   const [inneHoverIdx, setInneHoverIdx] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'pln' | 'pct'>('pln');
+
+  const revByYear = useMemo(() => ({
+    y2025: totals.revenue.total,
+    y2024: totals.revenue.history?.find(h => h.fy === '2024')?.total ?? 0,
+    y2023: totals.revenue.history?.find(h => h.fy === '2023')?.total ?? 0,
+  }), [totals]);
 
   const topMovers = useMemo(() =>
     [...items].sort((a, b) => Math.abs(b.deltaRY1) - Math.abs(a.deltaRY1)).slice(0, 5),
@@ -1829,30 +1853,43 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 flex-wrap gap-y-2">
           <p className="text-[11px] text-slate-400">{comparisonLabel} · {t('comp.sectionsHint')}</p>
-          <input
-            type="search"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            placeholder={t('comp.filterPlaceholder')}
-            className="w-52 px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:border-amber-400 focus:bg-white transition-colors"
-          />
+          <div className="flex items-center gap-2">
+            {/* Toggle PLN / % przychodów */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-medium">
+              <button
+                onClick={() => setViewMode('pln')}
+                className={`px-2.5 py-1 transition-colors ${viewMode === 'pln' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+              >PLN</button>
+              <button
+                onClick={() => setViewMode('pct')}
+                className={`px-2.5 py-1 transition-colors ${viewMode === 'pct' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+              >% przych.</button>
+            </div>
+            <input
+              type="search"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder={t('comp.filterPlaceholder')}
+              className="w-44 px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:border-amber-400 focus:bg-white transition-colors"
+            />
+          </div>
         </div>
         <table className="w-full text-xs">
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">{t('chart.position')}</th>
-              <th className="text-right px-3 py-2 w-28">2023</th>
-              <th className="text-right px-3 py-2 w-28">2024</th>
-              <th className="text-right px-3 py-2 w-28">2025</th>
-              <th className="text-right px-3 py-2 w-28">{t('comp.delta2024to2025')}</th>
-              <th className="text-right px-3 py-2 w-20">{t('comp.pctChange')}</th>
+              <th className="text-right px-3 py-2 w-24">2023</th>
+              <th className="text-right px-3 py-2 w-24">2024</th>
+              <th className="text-right px-3 py-2 w-24 text-slate-700 font-bold">2025</th>
+              <th className="text-right px-3 py-2 w-24">{t('comp.delta2024to2025')}</th>
+              <th className="text-right px-3 py-2 w-16">{t('comp.pctChange')}</th>
             </tr>
           </thead>
         </table>
         {COMPARISON_SECTIONS.map(section => (
-          <ComparisonSection key={section.tKey} section={section} items={items} filter={filter} onRowClick={setSelectedItem} />
+          <ComparisonSection key={section.tKey} section={section} items={items} filter={filter} onRowClick={setSelectedItem} viewMode={viewMode} revByYear={revByYear} />
         ))}
       </div>
 
