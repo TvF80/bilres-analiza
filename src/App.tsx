@@ -103,7 +103,7 @@ function MainApp() {
         <WelcomeScreen onImport={() => setShowImport(true)} lang={lang} onLangChange={setLang} />
       ) : (
         /* ── Główna aplikacja ── */
-        <div className="flex h-screen bg-slate-100 overflow-hidden">
+        <div className="flex h-screen bg-slate-50 overflow-hidden">
           {mobileSidebarOpen && (
             <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileSidebarOpen(false)} />
           )}
