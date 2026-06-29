@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -14,8 +14,8 @@ import { useLang } from '../i18n/LanguageContext';
 
 const C = {
   p1:     '#3b82f6',   // blue  — bieżący
-  p2:     '#94a3b8',   // slate — porównawczy
-  p3:     '#c4b5fd',   // violet-300 — najstarszy (wyróżniony pastelowo)
+  p2:     '#6b7280',   // gray-500 — porównawczy (ciemny szary)
+  p3:     '#d1d5db',   // gray-300 — najstarszy (jasny szary)
   pos:    '#10b981',
   neg:    '#f43f5e',
   norm:   '#f59e0b',
@@ -23,6 +23,40 @@ const C = {
   cyan:   '#06b6d4',
   orange: '#f97316',
 };
+
+// ── Bar z efektem 3D (bevel highlight + drop-shadow na hover) ─────────────────
+function Bar3DShape(props: any) {
+  const [hov, setHov] = useState(false);
+  const { x, y, width, height, fill } = props;
+  if (!width || height == null || height <= 0) return null;
+  const R = 5;
+  const hlH = Math.min(8, Math.floor(height * 0.22));
+  return (
+    <g
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ cursor: 'pointer' }}
+    >
+      <rect
+        x={x} y={y} width={width} height={height}
+        fill={fill} rx={R} ry={R}
+        fillOpacity={hov ? 1 : 0.88}
+        style={{
+          filter: hov ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.06)' : 'none',
+          transition: 'all 0.12s ease',
+        }}
+      />
+      {hlH > 0 && (
+        <rect
+          x={x + 1} y={y + 1} width={Math.max(0, width - 2)} height={hlH}
+          fill="white" fillOpacity={hov ? 0.32 : 0.16} rx={R - 1}
+          pointerEvents="none"
+          style={{ transition: 'fill-opacity 0.12s' }}
+        />
+      )}
+    </g>
+  );
+}
 const PIE_AKTYWA = [C.p1, C.violet, C.cyan, C.pos, C.orange];
 const PIE_PASYWA = [C.pos, C.p1, C.neg, C.norm];
 const PLN_FMT = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
@@ -94,9 +128,9 @@ export function PlynnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPro
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
         <Tooltip formatter={(v) => [`${Number(v).toFixed(2)}x`, '']} contentStyle={TOOLTIP_STYLE} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} />
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} />}
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
         <ReferenceLine y={1.2} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'min 1,2', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
       </BarChart>
@@ -134,9 +168,9 @@ export function SprawnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPr
         <Legend wrapperStyle={{ fontSize: 11 }} />
         <ReferenceLine y={60} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: '60 dni', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} />
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} />}
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
       </BarChart>
     </ChartCard>
   );
@@ -171,9 +205,9 @@ export function ZadluzenieChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <Legend wrapperStyle={{ fontSize: 11 }} />
         <ReferenceLine y={0.6} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'max 0,6', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={32} />
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={32} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={32} />}
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />}
       </BarChart>
     </ChartCard>
   );
@@ -208,11 +242,11 @@ export function RentownoscChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <ReferenceLine y={0} stroke="#e2e8f0" />
         <ReferenceLine y={5} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'min 5%', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} radius={[5, 5, 0, 0]} maxBarSize={36}>
+        <Bar dataKey="P1" name={l1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={(p: any) => <Bar3DShape {...p} fill={p.P1 >= 0 ? C.p1 : C.neg} />}>
           {data.map((d, i) => <Cell key={i} fill={d.P1 >= 0 ? C.p1 : C.neg} />)}
         </Bar>
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} />}
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
       </BarChart>
     </ChartCard>
   );
@@ -439,11 +473,11 @@ export function RZiSStruktura({ rzis, f1, f2, f3 }: { rzis: ReportRow[]; f1: Fie
             <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, '']} contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <ReferenceLine y={0} stroke="#e2e8f0" />
-            <Bar dataKey="P1" name="P1" radius={[5, 5, 0, 0]} maxBarSize={36}>
+            <Bar dataKey="P1" name="P1" radius={[5, 5, 0, 0]} maxBarSize={36} shape={(p: any) => <Bar3DShape {...p} fill={p.P1 >= 0 ? C.p1 : C.neg} />}>
               {marginsData.map((d, i) => <Cell key={i} fill={d.P1 >= 0 ? C.p1 : C.neg} />)}
             </Bar>
-            <Bar dataKey="P2" name="P2" fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} />
-            {f3 && <Bar dataKey="P3" name="P3" fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} />}
+            <Bar dataKey="P2" name="P2" fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
+            {f3 && <Bar dataKey="P3" name="P3" fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
           </BarChart>
         </ChartCard>
       </div>

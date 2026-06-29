@@ -1017,37 +1017,98 @@ function costIntensityColor(p: number): string {
 }
 
 function CustomFunnel({ data, onStageClick }: { data: FunnelStage[]; onStageClick: (i: number) => void }) {
-  const maxVal = Math.max(...data.map(d => Math.abs(d.value)), 1);
+  // Lejek odwrócony (szerszy na górze) — wzorowany na klasycznym funnel chart
+  const STAGE_H = 46;
+  const GAP = 2;           // mała przerwa między stopniami
+  const VIEW_W = 360;
+  const FUNNEL_X0 = 8;    // lewy margines lejka
+  const FUNNEL_W = 200;   // szerokość strefy lejka
+  const LABEL_X = FUNNEL_X0 + FUNNEL_W + 12; // start etykiet po prawej
+  const TOTAL_H = data.length * (STAGE_H + GAP) + 14;
+  const revenue = Math.abs(data[0]?.value ?? 1);
+  const cx = FUNNEL_X0 + FUNNEL_W / 2;
+
+  // Szerokości trapezów: max → min (co najmniej 18% szerokości lejka)
+  const MIN_W_FRAC = 0.18;
+  const widths = data.map(s =>
+    FUNNEL_W * Math.max(MIN_W_FRAC, Math.min(1, Math.abs(s.value) / revenue))
+  );
+
   return (
-    <div className="flex flex-col gap-1 py-2 px-2">
+    <svg viewBox={`0 0 ${VIEW_W} ${TOTAL_H}`} className="w-full" style={{ height: TOTAL_H }}>
       {data.map((stage, i) => {
-        // szerokość paska: 10% min → 94% max, liniowo względem wartości bezwzględnej
-        const widthPct = Math.round(10 + (Math.abs(stage.value) / maxVal) * 84);
+        const y0 = i * (STAGE_H + GAP) + 6;
+        const cw = widths[i];
+        const pw = i > 0 ? widths[i - 1] : cw;
         const isNeg = stage.value < 0;
+        const fill = isNeg ? '#f87171' : stage.fill;
+
+        const tL = cx - pw / 2;
+        const tR = cx + pw / 2;
+        const bL = cx - cw / 2;
+        const bR = cx + cw / 2;
+
+        const shape = i === 0
+          ? `M ${bL},${y0+STAGE_H} L ${bL},${y0} L ${bR},${y0} L ${bR},${y0+STAGE_H} Z`
+          : `M ${tL},${y0} L ${tR},${y0} L ${bR},${y0+STAGE_H} L ${bL},${y0+STAGE_H} Z`;
+
+        // bevel highlight (top bright strip)
+        const bevelH = Math.min(10, STAGE_H * 0.24);
+        const bevelShape = i === 0
+          ? `M ${bL+1},${y0+1} L ${bR-1},${y0+1} L ${bR-1},${y0+bevelH} L ${bL+1},${y0+bevelH} Z`
+          : `M ${tL+1},${y0+1} L ${tR-1},${y0+1} L ${bR-2},${y0+bevelH} L ${bL+2},${y0+bevelH} Z`;
+
+        const pctOfPrevDelta = stage.pctOfPrev != null ? (stage.pctOfPrev - 1) * 100 : null;
+        const midW = (cw + pw) / 2; // średnia szerokość — czy jest miejsce na tekst
+
         return (
-          <div
-            key={i}
-            className="w-full flex flex-col items-center cursor-pointer group"
-            onClick={() => onStageClick(i)}
-          >
-            <div
-              className="rounded-md h-10 flex items-center justify-center text-white text-[10px] font-bold shadow-sm overflow-hidden group-hover:brightness-95 transition-all"
-              style={{ width: `${widthPct}%`, backgroundColor: isNeg ? '#f87171' : stage.fill }}
-            >
-              <span className="truncate px-2">{stage.name} — {pct(stage.pctOfRevenue)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-slate-400">
-              <span className="font-mono">{plnM(stage.value)}</span>
-              {stage.pctOfPrev != null && (
-                <span className={diffClass(stage.pctOfPrev - 1)}>
-                  {((stage.pctOfPrev - 1) * 100).toFixed(1)}%
-                </span>
+          <g key={i} onClick={() => onStageClick(i)} style={{ cursor: 'pointer' }}>
+            {/* cień (glow) przy hover */}
+            <path d={shape} fill={fill} fillOpacity={0.04} transform="translate(0,2)" />
+            {/* główny trapez */}
+            <path d={shape} fill={fill} fillOpacity={0.92}>
+              <title>{stage.name}: {plnM(stage.value)} ({(stage.pctOfRevenue * 100).toFixed(1)}%)</title>
+            </path>
+            {/* bevel */}
+            <path d={bevelShape} fill="white" fillOpacity={0.22} pointerEvents="none" />
+
+            {/* % wewnątrz — tylko gdy jest miejsce */}
+            {midW > 44 && (
+              <text x={cx} y={y0 + STAGE_H / 2}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={midW > 80 ? 11 : 9} fontWeight="800" fill="white"
+                pointerEvents="none" style={{ userSelect: 'none' }}>
+                {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
+              </text>
+            )}
+
+            {/* linia łącząca do etykiety */}
+            <line
+              x1={bR + 2} y1={y0 + STAGE_H / 2}
+              x2={LABEL_X - 4} y2={y0 + STAGE_H / 2}
+              stroke="#e2e8f0" strokeWidth={0.8} pointerEvents="none"
+            />
+
+            {/* etykieta — PRAWA strona */}
+            <text x={LABEL_X} y={y0 + STAGE_H / 2 - (pctOfPrevDelta != null ? 6 : 0)}
+              textAnchor="start" dominantBaseline="middle"
+              fontSize={9.5} fontWeight="600" fill="#334155"
+              pointerEvents="none" style={{ userSelect: 'none' }}>
+              {stage.name.length > 16 ? stage.name.slice(0, 15) + '…' : stage.name}
+            </text>
+            <text x={LABEL_X} y={y0 + STAGE_H / 2 + (pctOfPrevDelta != null ? 6 : 7)}
+              textAnchor="start" dominantBaseline="middle"
+              fontSize={8.5} fill={isNeg ? '#dc2626' : '#64748b'}
+              pointerEvents="none" style={{ userSelect: 'none' }}>
+              {plnM(stage.value)}
+              {pctOfPrevDelta != null && (
+                ` · ${pctOfPrevDelta >= 0 ? '↑' : '↓'}${Math.abs(pctOfPrevDelta).toFixed(1)}%`
               )}
-            </div>
-          </div>
+            </text>
+          </g>
         );
       })}
-    </div>
+    </svg>
   );
 }
 

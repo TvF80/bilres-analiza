@@ -39,7 +39,8 @@ const T: Record<Lang, Record<string,string>> = {
     // wykresy
     chartMBTrend:'MB% — trend miesięczny', chartClickMonth:'Kliknij słupek → szczegóły miesiąca',
     chartRevCostMB:'Przychód · Koszt · MB', chartTop15:'Top 15 grup — MB YTD',
-    chartClickGroup:'Kliknij słupek → szczegóły grupy', chartBubble:'Przychód vs MB% — bubble chart',
+    chartBottom15:'Najsłabsze 15 grup — MB YTD', chartFlipHint:'kliknij tytuł → odwróć ranking',
+    chartClickGroup:'Kliknij słupek → szczegóły grupy', chartBubble:'Przychód vs MB% — scatter',
     chartBubbleSub:'Kolor = miasto · Kliknij → szczegóły', chartDept:'Marża wg działu',
     chartDeptSub:'Kliknij → drawer działu', chartKPTrend:'Koszt prac vs Koszt całkowity — trend',
     chartKPTrendSub:'Kliknij słupek → relacje kosztów i przychodu w tym miesiącu',
@@ -91,7 +92,8 @@ const T: Record<Lang, Record<string,string>> = {
     colLaborCost:'Coût trav.', colLaborShare:'CT/C', colTrend:'Tend.',
     chartMBTrend:'MB% — tendance mensuelle', chartClickMonth:'Cliquez sur la barre → détails du mois',
     chartRevCostMB:'CA · Coût · Marge', chartTop15:'Top 15 groupes — Marge YTD',
-    chartClickGroup:'Cliquez sur la barre → détails du groupe', chartBubble:'CA vs MB% — bubble chart',
+    chartBottom15:'15 pires groupes — Marge YTD', chartFlipHint:'cliquez titre → inverser',
+    chartClickGroup:'Cliquez sur la barre → détails du groupe', chartBubble:'CA vs MB% — scatter',
     chartBubbleSub:'Couleur = ville · Cliquez → détails', chartDept:'Marge par département',
     chartDeptSub:'Cliquez → tiroir département', chartKPTrend:'Coût trav. vs Coût total — tendance',
     chartKPTrendSub:'Cliquez sur la barre → relations coûts/CA mensuel',
@@ -143,7 +145,8 @@ const T: Record<Lang, Record<string,string>> = {
     colLaborCost:'Labor cost', colLaborShare:'LC/C', colTrend:'Trend',
     chartMBTrend:'GM% — monthly trend', chartClickMonth:'Click bar → month details',
     chartRevCostMB:'Revenue · Cost · Margin', chartTop15:'Top 15 groups — Margin YTD',
-    chartClickGroup:'Click bar → group details', chartBubble:'Revenue vs GM% — bubble chart',
+    chartBottom15:'Bottom 15 groups — Margin YTD', chartFlipHint:'click title → flip ranking',
+    chartClickGroup:'Click bar → group details', chartBubble:'Revenue vs GM% — scatter',
     chartBubbleSub:'Color = city · Click → details', chartDept:'Margin by department',
     chartDeptSub:'Click → dept drawer', chartKPTrend:'Labor cost vs Total cost — trend',
     chartKPTrendSub:'Click bar → cost/revenue ratio for that month',
@@ -567,20 +570,26 @@ function CityCostSection({miasto,kosztItems,filtered,onGroup}:{miasto:string;kos
   );
 }
 
-// ── Heatmapa (zwijana) ────────────────────────────────────────────────────────
-function Heatmap({groups,tr}:{groups:GroupRow[];tr:(k:string)=>string}){
+// ── Heatmapa (zwijana, klikalna) ──────────────────────────────────────────────
+function Heatmap({groups,tr,onCellClick,selectedCell}:{
+  groups:GroupRow[];
+  tr:(k:string)=>string;
+  onCellClick:(miasto:string,monthIdx:number)=>void;
+  selectedCell:{miasto:string;monthIdx:number}|null;
+}){
   const { lang } = useLang();
   const months = I18N_MONTHS_SHORT[lang];
   const [open,setOpen]=useState(true);
   const cities=Object.keys(CITY_SVG).filter(m=>groups.some(g=>g.miasto===m));
   const cells=cities.map(miasto=>{
     const gs=groups.filter(g=>g.miasto===miasto);
-    return{miasto,monthly:months.map((_,i)=>{const p=gs.reduce((s,g)=>s+g.monthly.przychod[i],0);const mb=gs.reduce((s,g)=>s+g.monthly.mb[i],0);return{pct:p>0?mb/p:0,p};})};
+    return{miasto,monthly:months.map((_,i)=>{const p=gs.reduce((s,g)=>s+g.monthly.przychod[i],0);const mb=gs.reduce((s,g)=>s+g.monthly.mb[i],0);return{pct:p>0?mb/p:0,p,mb};})};
   });
   return(
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <button onClick={()=>setOpen(o=>!o)} className="w-full flex items-center gap-3 px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left">
         <p className="text-sm font-semibold text-slate-700">{tr('heatTitle')}</p>
+        <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{tr('clickDetails')}</span>
         <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-auto">{open?tr('collapseBtn'):tr('expandBtn')}</span>
       </button>
       {open&&(<div className="px-3 py-3 overflow-x-auto">
@@ -593,14 +602,24 @@ function Heatmap({groups,tr}:{groups:GroupRow[];tr:(k:string)=>string}){
           <tbody>
             {cells.map(({miasto,monthly})=>{
               const avg=monthly.filter(d=>d.p>0).reduce((s,d)=>s+d.pct,0)/Math.max(1,monthly.filter(d=>d.p>0).length);
-              return(<tr key={miasto} className="border-b border-slate-100 hover:bg-slate-50/50">
+              return(<tr key={miasto} className="border-b border-slate-100 hover:bg-slate-50/30">
                 <td className="px-3 py-1.5 font-semibold text-slate-700 whitespace-nowrap"><div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/>{MIASTO_LABEL[miasto]??miasto}</div></td>
-                {monthly.map((d,i)=>(<td key={i} className="px-0.5 py-1 text-center">
-                  {d.p>0?(<div className="rounded mx-auto w-7 h-6 flex items-center justify-center text-[10px] font-bold hover:scale-110 transition-transform cursor-default"
-                    style={{backgroundColor:d.pct>0.3?'#d1fae5':d.pct>0.2?'#fef3c7':d.pct>0.1?'#fed7aa':d.pct>0?'#fee2e2':'#f1f5f9',color:d.pct>0.3?'#065f46':d.pct>0.2?'#92400e':d.pct>0.1?'#c2410c':d.pct>0?'#991b1b':'#94a3b8'}}
-                    title={`${MIASTO_LABEL[miasto]} · ${months[i]} · ${fmtPct(d.pct)}`}>{(d.pct*100).toFixed(0)}%</div>
-                  ):<div className="w-7 h-6 mx-auto rounded bg-slate-50 flex items-center justify-center text-slate-300 text-[9px]">—</div>}
-                </td>))}
+                {monthly.map((d,i)=>{
+                  const isSel=selectedCell?.miasto===miasto&&selectedCell?.monthIdx===i;
+                  return(<td key={i} className="px-0.5 py-1 text-center">
+                    {d.p>0?(
+                      <button
+                        onClick={()=>onCellClick(miasto,i)}
+                        className={`rounded mx-auto w-7 h-6 flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer ${isSel?'ring-2 ring-orange-400 scale-110':''} hover:scale-110 hover:shadow-md`}
+                        style={{
+                          backgroundColor:isSel?'#f97316':d.pct>0.3?'#d1fae5':d.pct>0.2?'#fef3c7':d.pct>0.1?'#fed7aa':d.pct>0?'#fee2e2':'#f1f5f9',
+                          color:isSel?'white':d.pct>0.3?'#065f46':d.pct>0.2?'#92400e':d.pct>0.1?'#c2410c':d.pct>0?'#991b1b':'#94a3b8',
+                        }}
+                        title={`${MIASTO_LABEL[miasto]} · ${months[i]} · ${fmtPct(d.pct)} · kliknij → szczegóły`}
+                      >{(d.pct*100).toFixed(0)}%</button>
+                    ):<div className="w-7 h-6 mx-auto rounded bg-slate-50 flex items-center justify-center text-slate-300 text-[9px]">—</div>}
+                  </td>);
+                })}
                 <td className="px-3 py-1.5 text-right"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(avg)}`}>{fmtPct(avg)}</span></td>
               </tr>);
             })}
@@ -608,6 +627,125 @@ function Heatmap({groups,tr}:{groups:GroupRow[];tr:(k:string)=>string}){
         </table>
       </div>)}
     </div>
+  );
+}
+
+// ── Drawer szczegółów komórki heatmapy ────────────────────────────────────────
+function HeatmapCellDrawer({groups,miasto,monthIdx,onClose,tr}:{
+  groups:GroupRow[];
+  miasto:string;
+  monthIdx:number;
+  onClose:()=>void;
+  tr:(k:string)=>string;
+}){
+  const { lang } = useLang();
+  const months = I18N_MONTHS_FULL[lang] ?? I18N_MONTHS_SHORT[lang];
+  const monthsShort = I18N_MONTHS_SHORT[lang];
+  const cityGroups=groups.filter(g=>g.miasto===miasto&&g.monthly.przychod[monthIdx]>0);
+  const totalP=cityGroups.reduce((s,g)=>s+g.monthly.przychod[monthIdx],0);
+  const totalMB=cityGroups.reduce((s,g)=>s+g.monthly.mb[monthIdx],0);
+  const avgPct=totalP>0?totalMB/totalP:0;
+  const yearLabel=monthIdx<3?'\'24':'\'25';
+
+  // Porównanie z innymi miesiącami tego samego miasta (do wykresu)
+  const cityAllGroups=groups.filter(g=>g.miasto===miasto);
+  const monthlyTrend=monthsShort.map((_,i)=>{
+    const p=cityAllGroups.reduce((s,g)=>s+g.monthly.przychod[i],0);
+    const mb=cityAllGroups.reduce((s,g)=>s+g.monthly.mb[i],0);
+    return{month:monthsShort[i],pct:p>0?mb/p:0,p,selected:i===monthIdx};
+  });
+
+  const sorted=[...cityGroups].sort((a,b)=>b.monthly.mb[monthIdx]-a.monthly.mb[monthIdx]);
+
+  return(
+    <Drawer
+      title={`${MIASTO_LABEL[miasto]??miasto} · ${months[monthIdx]} ${yearLabel}`}
+      subtitle={`MB: ${fmtPct(avgPct)} · Przychód: ${fmtM(totalP)} · ${cityGroups.length} grup`}
+      onClose={onClose}
+      w={500}
+    >
+      {/* KPI */}
+      <div className="grid grid-cols-3 gap-3">
+        {([
+          ['Przychód',fmtM(totalP),'blue'],
+          ['Marża brutto',fmtM(totalMB),totalMB>0?'green':'red'],
+          ['MB%',fmtPct(avgPct),avgPct>0.3?'green':avgPct>0.1?'amber':'red'],
+        ] as const).map(([l,v,c])=>(
+          <div key={l} className={`rounded-lg p-3 border ${c==='green'?'bg-emerald-50 border-emerald-200':c==='red'?'bg-rose-50 border-rose-200':c==='amber'?'bg-amber-50 border-amber-200':'bg-blue-50 border-blue-200'}`}>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase">{l}</p>
+            <p className={`text-base font-bold mt-0.5 ${c==='green'?'text-emerald-700':c==='red'?'text-rose-700':c==='amber'?'text-amber-700':'text-blue-700'}`}>{v}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Wykres trendu MB% — wszystkie miesiące tego miasta z zaznaczonym */}
+      <div>
+        <p className="text-[10px] font-semibold text-slate-400 uppercase mb-2">MB% — trend miesięczny (to miasto)</p>
+        <div className="flex items-end gap-0.5 h-16">
+          {monthlyTrend.map((d,i)=>{
+            const h=d.p>0?Math.max(4,Math.abs(d.pct)*160):2;
+            return(
+              <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                <div className="w-full rounded-sm" style={{
+                  height:h,
+                  backgroundColor:d.selected?'#f97316':d.pct>0.3?'#10b981':d.pct>0.1?'#f59e0b':d.pct>0?'#f97316':'#f43f5e',
+                  opacity:d.p>0?1:0.2,
+                  minHeight:2,
+                }}/>
+                <span className={`text-[7px] font-medium ${d.selected?'text-orange-500':'text-slate-300'}`}>{monthsShort[i]}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tabela grup */}
+      <div>
+        <p className="text-[10px] font-semibold text-slate-400 uppercase mb-2">Grupy · {months[monthIdx]} — wyliczenia</p>
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full text-[11px] border-collapse">
+            <thead><tr className="bg-slate-50 border-b border-slate-200">
+              <th className="text-left px-3 py-2 font-semibold text-slate-500">{tr('colLider')}</th>
+              <th className="text-right px-2 py-2 font-semibold text-slate-500">{tr('colRevenue')}</th>
+              <th className="text-right px-2 py-2 font-semibold text-slate-500">{tr('colMargin')}</th>
+              <th className="text-right px-3 py-2 font-semibold text-slate-500">{tr('colMB')}</th>
+            </tr></thead>
+            <tbody>
+              {sorted.map((g,i)=>{
+                const p=g.monthly.przychod[monthIdx];
+                const mb=g.monthly.mb[monthIdx];
+                const pct=p>0?mb/p:0;
+                const shareP=totalP>0?p/totalP:0;
+                return(
+                  <tr key={i} className={`border-b border-slate-100 ${i%2===0?'':'bg-slate-50/40'}`}>
+                    <td className="px-3 py-1.5">
+                      <div className="font-semibold text-slate-800">{g.lider}</div>
+                      {/* pasek udziału w przychodzie */}
+                      <div className="w-full bg-slate-100 rounded-full h-1 mt-1">
+                        <div className="h-1 rounded-full bg-blue-400" style={{width:`${shareP*100}%`}}/>
+                      </div>
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono text-slate-700">{fmtM(p)}</td>
+                    <td className={`px-2 py-1.5 text-right font-mono font-semibold ${mb>=0?'text-emerald-600':'text-rose-600'}`}>{fmtM(mb)}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(pct)}`}>{fmtPct(pct)}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-orange-50 border-t border-orange-200 font-semibold">
+                <td className="px-3 py-1.5 text-slate-700 text-[10px] uppercase">Suma</td>
+                <td className="px-2 py-1.5 text-right font-mono text-slate-800">{fmtM(totalP)}</td>
+                <td className={`px-2 py-1.5 text-right font-mono font-bold ${totalMB>=0?'text-emerald-700':'text-rose-700'}`}>{fmtM(totalMB)}</td>
+                <td className="px-3 py-1.5 text-right">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(avgPct)}`}>{fmtPct(avgPct)}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Drawer>
   );
 }
 
@@ -708,38 +846,101 @@ function agg(gs:GroupRow[]){const p=Array(12).fill(0),k=Array(12).fill(0),m=Arra
 // ── CSS Scatter (replaces recharts ScatterChart — tree-shaking safe) ──────────
 function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: GroupRow) => void; tr: (k: string) => string }) {
   if (!groups.length) return <div className="h-48 flex items-center justify-center text-xs text-slate-400">—</div>;
+
   const xs = groups.map(g => g.total.przychod);
-  const ys = groups.map(g => g.total.przychod > 0 ? g.total.mb / g.total.przychod : 0);
+  const ys = groups.map(g => mbp(g));
   const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
   const rangeX = maxX - minX || 1;
-  const rangeY = maxY - minY || 0.01;
-  const PAD = 10;
-  const zero0 = minY < 0 && maxY > 0
-    ? 100 - PAD - ((-minY) / rangeY) * (100 - 2 * PAD)
+
+  // Zoom Y — clip outliers poniżej -15% lub > 5pkt ponad 90-percentyl
+  const sortedY = [...ys].sort((a, b) => a - b);
+  const p05 = sortedY[Math.max(0, Math.floor(sortedY.length * 0.05))];
+  const p95 = sortedY[Math.min(sortedY.length - 1, Math.ceil(sortedY.length * 0.95) - 1)];
+  const spread = p95 - p05 || 0.1;
+  const yMin = Math.max(p05 - spread * 0.15, Math.min(...ys));  // lekki padding poniżej
+  const yMax = p95 + spread * 0.15;                              // lekki padding powyżej
+  const rangeY = yMax - yMin || 0.01;
+
+  // Punkty poza zakresem (outlier)
+  const outliers = groups.filter(g => mbp(g) < yMin);
+
+  const PAD_X = 10; // % padding poziomy
+  const PAD_Y = 8;  // % padding pionowy
+
+  const zero0 = yMin < 0 && yMax > 0
+    ? 100 - PAD_Y - ((0 - yMin) / rangeY) * (100 - 2 * PAD_Y)
     : null;
+
   return (
-    <div className="relative bg-slate-50 rounded-lg border border-slate-100" style={{ height: 220 }}>
-      {zero0 !== null && (
-        <div className="absolute left-0 right-0 border-t border-dashed border-rose-300 opacity-50 pointer-events-none" style={{ top: `${zero0}%` }} />
+    <div className="space-y-1">
+      {/* scatter area */}
+      <div className="relative bg-slate-50 rounded-lg border border-slate-100" style={{ height: 290 }}>
+        {/* oś Y=0 */}
+        {zero0 !== null && (
+          <div className="absolute left-0 right-0 border-t border-dashed border-rose-300 opacity-60 pointer-events-none" style={{ top: `${zero0}%` }}>
+            <span className="absolute right-1 -top-3 text-[8px] text-rose-400">0%</span>
+          </div>
+        )}
+
+        {/* linie siatki Y */}
+        {[0.1, 0.2, 0.3].map(v => {
+          if (v < yMin || v > yMax) return null;
+          const py = 100 - PAD_Y - ((v - yMin) / rangeY) * (100 - 2 * PAD_Y);
+          return (
+            <div key={v} className="absolute left-0 right-0 border-t border-slate-200 opacity-50 pointer-events-none" style={{ top: `${py}%` }}>
+              <span className="absolute right-1 -top-3 text-[8px] text-slate-300">{(v * 100).toFixed(0)}%</span>
+            </div>
+          );
+        })}
+
+        {/* punkty */}
+        {groups.map((g, i) => {
+          const my = mbp(g);
+          if (my < yMin) return null; // outlier — poniżej wykresu
+          const px = ((g.total.przychod - minX) / rangeX) * (100 - 2 * PAD_X) + PAD_X;
+          const py = 100 - PAD_Y - ((my - yMin) / rangeY) * (100 - 2 * PAD_Y);
+          const color = (CITY_COLORS as Record<string, string>)[g.miasto] ?? '#64748b';
+          return (
+            <div
+              key={i}
+              className="absolute w-3 h-3 rounded-full cursor-pointer hover:scale-150 transition-all hover:z-10 border-2 border-white shadow-sm"
+              style={{ left: `${px}%`, top: `${py}%`, backgroundColor: color, transform: 'translate(-50%,-50%)' }}
+              title={`${g.lider} · ${(my * 100).toFixed(1)}% MB · ${fmtM(g.total.przychod)}`}
+              onClick={() => onGroup(g)}
+            />
+          );
+        })}
+
+        <div className="absolute bottom-1 left-0 right-0 text-center text-[8px] text-slate-400 pointer-events-none">{tr('revenue')} →</div>
+        <div className="absolute top-1 left-1 text-[8px] text-slate-400 pointer-events-none">MB%↑</div>
+      </div>
+
+      {/* outliers poniżej wykresu jako etykiety inline */}
+      {outliers.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-1 pt-1">
+          <span className="text-[9px] text-slate-400 font-semibold">Poza skalą:</span>
+          {outliers.map((g, i) => (
+            <button
+              key={i}
+              onClick={() => onGroup(g)}
+              className="text-[9px] bg-red-50 border border-red-200 text-red-700 px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-100 transition-colors"
+              title={`${g.lider} · MB: ${fmtPct(mbp(g))} · ${fmtM(g.total.przychod)}`}
+            >
+              {g.lider} <span className="font-bold">{fmtPct(mbp(g))}</span>
+            </button>
+          ))}
+        </div>
       )}
-      {groups.map((g, i) => {
-        const px = ((g.total.przychod - minX) / rangeX) * (100 - 2 * PAD) + PAD;
-        const mbPct = g.total.przychod > 0 ? g.total.mb / g.total.przychod : 0;
-        const py = 100 - PAD - ((mbPct - minY) / rangeY) * (100 - 2 * PAD);
-        const color = (CITY_COLORS as Record<string, string>)[g.miasto] ?? '#64748b';
-        return (
-          <div
-            key={i}
-            className="absolute w-3 h-3 rounded-full cursor-pointer hover:scale-150 transition-transform border-2 border-white shadow"
-            style={{ left: `${px}%`, top: `${py}%`, backgroundColor: color, transform: 'translate(-50%,-50%)' }}
-            title={`${g.lider} · ${(mbPct * 100).toFixed(1)}% MB`}
-            onClick={() => onGroup(g)}
-          />
-        );
-      })}
-      <div className="absolute bottom-1 left-0 right-0 text-center text-[8px] text-slate-400 pointer-events-none">{tr('revenue')} →</div>
-      <div className="absolute top-1 left-1 text-[8px] text-slate-400 pointer-events-none">MB%↑</div>
+
+      {/* legenda miast */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-1">
+        {Object.entries(CITY_COLORS).filter(([m]) => groups.some(g => g.miasto === m)).map(([m, color]) => (
+          <div key={m} className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-full border border-white shadow-sm" style={{ backgroundColor: color }} />
+            <span className="text-[9px] text-slate-500">{MIASTO_LABEL[m] ?? m}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -772,14 +973,22 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
   const [dDept,setDDept]=useState<string|null>(null);
   const [dKpi,setDKpi]=useState<'przychod'|'koszt'|'mb'|'mbpct'|'grupy'|null>(null);
   const [dKosztMonth,setDKosztMonth]=useState<number|null>(null);
+  const [dHeatCell,setDHeatCell]=useState<{miasto:string;monthIdx:number}|null>(null);
+  const [showWorst,setShowWorst]=useState(false);
+  const [top15Flipping,setTop15Flipping]=useState(false);
 
-  function closeAll(){setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);}
-  function openGroup(g:GroupRow){setDGroup(g);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);}
-  function openMonth(i:number){setDMonthIdx(i);setDGroup(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);}
-  function openCity(m:string){setDCity(m);setDGroup(null);setDMonthIdx(null);setDDept(null);setDKpi(null);setDKosztMonth(null);}
-  function openDept(d:string){setDDept(d);setDGroup(null);setDMonthIdx(null);setDCity(null);setDKpi(null);setDKosztMonth(null);}
-  function openKpi(t:'przychod'|'koszt'|'mb'|'mbpct'|'grupy'){setDKpi(t);setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKosztMonth(null);}
-  function openKosztMonth(i:number){setDKosztMonth(i);setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);}
+  function closeAll(){setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);setDHeatCell(null);}
+  function openGroup(g:GroupRow){setDGroup(g);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);setDHeatCell(null);}
+  function openMonth(i:number){setDMonthIdx(i);setDGroup(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);setDHeatCell(null);}
+  function openCity(m:string){setDCity(m);setDGroup(null);setDMonthIdx(null);setDDept(null);setDKpi(null);setDKosztMonth(null);setDHeatCell(null);}
+  function openDept(d:string){setDDept(d);setDGroup(null);setDMonthIdx(null);setDCity(null);setDKpi(null);setDKosztMonth(null);setDHeatCell(null);}
+  function openKpi(t:'przychod'|'koszt'|'mb'|'mbpct'|'grupy'){setDKpi(t);setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKosztMonth(null);setDHeatCell(null);}
+  function openKosztMonth(i:number){setDKosztMonth(i);setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);setDHeatCell(null);}
+  function openHeatCell(miasto:string,monthIdx:number){setDHeatCell({miasto,monthIdx});setDGroup(null);setDMonthIdx(null);setDCity(null);setDDept(null);setDKpi(null);setDKosztMonth(null);}
+  function flipTop15(){
+    setTop15Flipping(true);
+    setTimeout(()=>{setShowWorst(w=>!w);setTop15Flipping(false);},250);
+  }
 
   const allMiasta=useMemo(()=>[...new Set(data.groups.map(g=>g.miasto))].filter(m=>m&&m!=='0').sort(),[]);
   const allDzialy=useMemo(()=>[...new Set(data.groups.map(g=>g.dzial))].filter(d=>d&&d!=='0').sort(),[]);
@@ -798,7 +1007,10 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
 
   const kpi=useMemo(()=>{const{p,k,m}=aggGroups(filtered);const best=[...filtered].sort((a,b)=>b.total.mb-a.total.mb)[0];return{p,k,m,pct:p>0?m/p:0,best,count:filtered.length};},[filtered]);
   const trendData=useMemo(()=>{const a=agg(filtered);return months.map((mo,i)=>({month:mo,Przychód:a.p[i],Koszt:a.k[i],MB:a.m[i],mbPct:a.p[i]>0?a.m[i]/a.p[i]:0}));},[filtered,months]);
-  const top15=useMemo(()=>[...filtered].sort((a,b)=>b.total.mb-a.total.mb).slice(0,15).map(g=>({name:g.lider,MB:g.total.mb,mbPct:mbp(g)})),[filtered]);
+  const top15=useMemo(()=>{
+    const sorted=[...filtered].sort((a,b)=>showWorst?a.total.mb-b.total.mb:b.total.mb-a.total.mb);
+    return sorted.slice(0,15).map(g=>({name:g.lider,MB:g.total.mb,mbPct:mbp(g)}));
+  },[filtered,showWorst]);
   // Koszt prac — scalamy duplikaty tego samego lidera (różne groupNr → suma narastająca)
   const kosztData=useMemo(()=>{
     const ls=new Set(filtered.map(g=>g.lider));
@@ -957,23 +1169,41 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
               </div>
             </div>
 
-            {/* Top 15 — poprawione etykiety */}
+            {/* Top / Worst 15 — klikalny tytuł z animacją flip */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{tr('chartTop15')}</p>
+              <div className="flex items-center gap-2 mb-0.5">
+                <button
+                  onClick={flipTop15}
+                  className="text-[10px] font-semibold uppercase tracking-wide transition-colors cursor-pointer hover:text-orange-500 flex items-center gap-1.5"
+                  style={{color: showWorst?'#dc2626':'#94a3b8'}}
+                  title={tr('chartFlipHint')}
+                >
+                  <span style={{display:'inline-block',transition:'transform 0.25s',transform:showWorst?'rotate(180deg)':'rotate(0deg)'}}>⟳</span>
+                  {showWorst ? tr('chartBottom15') : tr('chartTop15')}
+                </button>
+                <span className="text-[9px] text-slate-300 ml-auto">{tr('chartFlipHint')}</span>
+              </div>
               <p className="text-[10px] text-slate-400 mb-3">{tr('chartClickGroup')}</p>
-              <ResponsiveContainer width="100%" height={310}>
-                <BarChart data={top15} layout="vertical" margin={{top:0,right:32,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false}/>
-                  <XAxis type="number" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}}/>
-                  <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#475569'}} width={56} interval={0}/>
-                  <Tooltip contentStyle={TT} formatter={((v:number)=>[fmtM(v),'MB']) as any}/>
-                  <ReferenceLine x={0} stroke="#94a3b8"/>
-                  <Bar dataKey="MB" radius={[0,4,4,0]} cursor="pointer" label={{position:'right',formatter:((v:number)=>fmtM(v)) as any,fontSize:9,fill:'#64748b'}}
-                    onClick={(d:any)=>{const g=filtered.find(x=>x.lider===d.name);if(g)openGroup(g);}}>
-                    {top15.map((d,i)=><Cell key={i} fill={dGroup?.lider===d.name?'#ea580c':d.MB>0?C.pos:C.neg}/>)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{
+                transition:'transform 0.25s ease, opacity 0.25s ease',
+                transform: top15Flipping ? 'rotateY(90deg) scaleX(0.1)' : 'rotateY(0deg) scaleX(1)',
+                opacity: top15Flipping ? 0 : 1,
+                transformOrigin: 'center',
+              }}>
+                <ResponsiveContainer width="100%" height={310}>
+                  <BarChart data={top15} layout="vertical" margin={{top:0,right:32,left:0,bottom:0}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false}/>
+                    <XAxis type="number" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}}/>
+                    <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#475569'}} width={56} interval={0}/>
+                    <Tooltip contentStyle={TT} formatter={((v:number)=>[fmtM(v),'MB']) as any}/>
+                    <ReferenceLine x={0} stroke="#94a3b8"/>
+                    <Bar dataKey="MB" radius={[0,4,4,0]} cursor="pointer" label={{position:'right',formatter:((v:number)=>fmtM(v)) as any,fontSize:9,fill:'#64748b'}}
+                      onClick={(d:any)=>{const g=filtered.find(x=>x.lider===d.name);if(g)openGroup(g);}}>
+                      {top15.map((d,i)=><Cell key={i} fill={dGroup?.lider===d.name?'#ea580c':d.MB>0?C.pos:C.neg}/>)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* Scatter + dział */}
@@ -992,7 +1222,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
             </div>
 
             {/* Heatmapa — zwijana */}
-            <Heatmap groups={filtered} tr={tr}/>
+            <Heatmap groups={filtered} tr={tr} onCellClick={openHeatCell} selectedCell={dHeatCell}/>
           </div>
         )}
 
@@ -1060,7 +1290,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
                   {(()=>{const bc:{[k:string]:{p:number;mb:number;n:number}}={};for(const g of filtered){if(!bc[g.miasto])bc[g.miasto]={p:0,mb:0,n:0};bc[g.miasto].p+=g.total.przychod;bc[g.miasto].mb+=g.total.mb;bc[g.miasto].n++;}const maxP2=Math.max(...Object.values(bc).map(s=>s.p),1);return Object.entries(bc).sort(([,a],[,b])=>b.p-a.p).map(([miasto,s])=>{const mp2=s.p>0?s.mb/s.p:0;const isSel=dCity===miasto;return(<div key={miasto} onClick={()=>isSel?closeAll():openCity(miasto)} className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer border transition-all ${isSel?'bg-orange-50 border-orange-300':'bg-slate-50 border-transparent hover:border-orange-200 hover:bg-orange-50/40'}`}><div className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-1"><span className="text-xs font-semibold text-slate-700">{MIASTO_LABEL[miasto]??miasto}</span><span className="text-[10px] text-slate-400">×{s.n}</span></div><div className="flex items-center gap-2"><div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden"><div className="h-full rounded-full" style={{width:`${s.p/maxP2*100}%`,backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/></div><span className="text-[10px] text-slate-500 shrink-0 w-16 text-right">{fmtM(s.p)}</span></div></div><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${mbBadge(mp2)}`}>{fmtPct(mp2)}</span></div>);})})()}
                 </div>
               </div>
-              <Heatmap groups={filtered} tr={tr}/>
+              <Heatmap groups={filtered} tr={tr} onCellClick={openHeatCell} selectedCell={dHeatCell}/>
             </div>
           </div>
         )}
@@ -1073,6 +1303,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
       {dDept&&<DeptDrawer dzial={dDept} groups={filtered} onClose={closeAll} onGroup={openGroup}/>}
       {dKpi&&<KpiDrawer type={dKpi} groups={filtered} onClose={closeAll} onGroup={openGroup}/>}
       {dKosztMonth!==null&&<KosztMonthDrawer idx={dKosztMonth} kosztData={kosztData} trendData={trendData} filtered={filtered} onClose={closeAll} onGroup={openGroup}/>}
+      {dHeatCell&&<HeatmapCellDrawer groups={filtered} miasto={dHeatCell.miasto} monthIdx={dHeatCell.monthIdx} onClose={closeAll} tr={tr}/>}
     </div>
   );
 }
