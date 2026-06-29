@@ -1458,8 +1458,8 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-[11px]" style={{ tableLayout: 'fixed' }}>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[640px] text-[11px]" style={{ tableLayout: 'fixed' }}>
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
             <tr>
               <th className="text-left px-3 py-2 sticky left-0 bg-slate-50" style={{ width: '20%' }}>{t('chart.position')}</th>

@@ -1701,7 +1701,7 @@ function BeneishTab({ result }: { result: BeneishResult | null }) {
     <div className="space-y-4">
 
       {/* ── Wynik M-score — baner ── */}
-      <div className={`flex items-center gap-5 rounded-xl border-2 p-5 ${riskBg}`}>
+      <div className={`flex flex-wrap items-center gap-5 gap-y-3 rounded-xl border-2 p-5 ${riskBg}`}>
         <div>
           <div className="text-4xl font-black font-mono tracking-tight">{fmtScore}</div>
           <div className="text-xs font-semibold uppercase tracking-wide opacity-60 mt-0.5">{t('beneish.mscore')} · {t('beneish.threshold')}</div>
