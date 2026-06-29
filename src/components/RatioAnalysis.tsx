@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useCompanies } from '../store/CompaniesContext';
 import { mapFields, type FieldMap } from '../lib/fieldMapping';
 import { computeBeneish, type BeneishResult, type BeneishIndex } from '../lib/controlChecks';
@@ -7,6 +7,7 @@ import {
   PlynnostChart, SprawnostChart, ZadluzenieChart, RentownoscChart,
   BilansStruktura, RZiSStruktura,
 } from './AnalysisCharts';
+import AIAnalysisModal from './AIAnalysisModal';
 
 // ── Sub-tab type ──────────────────────────────────────────────────────────────
 
@@ -342,7 +343,7 @@ function IndicatorCards({ rows, labels }: { rows: Indicator[]; labels: string[] 
 
 // ── Płynność finansowa ────────────────────────────────────────────────────────
 
-function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[] }) {
+function PlynnostTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t } = useLang();
   const pl = periodLabels ?? [];
   const labels = [pl[0] ?? 'P1', pl[1] ?? 'P2', pl[2] ?? 'P3'];
@@ -419,6 +420,9 @@ function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap;
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => onOpenAI({ section: 'liquidity', periods: labels, indicators: rows.map(r => ({ name: r.shortName ?? r.name, p1: r.val1, grade_p1: r.grade1, p2: r.val2, ...(r.val3 ? { p3: r.val3 } : {}), norm: r.norm })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+      </div>
       <PlynnostChart f1={f1} f2={f2} f3={f3} periodLabels={periodLabels}
         onBarClick={idx => setChartInd(rows[idx] ?? null)} />
       <IndicatorCards rows={rows} labels={labels} />
@@ -429,7 +433,7 @@ function PlynnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap;
 
 // ── Sprawność działania ───────────────────────────────────────────────────────
 
-function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[] }) {
+function SprawnostTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t } = useLang();
   const pl = periodLabels ?? [];
   const labels = [pl[0] ?? 'P1', pl[1] ?? 'P2', pl[2] ?? 'P3'];
@@ -554,6 +558,9 @@ function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap
   // SprawnostChart bars [0,1,2,3] = DSO, DSI, DPO, CCC → rows[3,4,5,6]
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => onOpenAI({ section: 'efficiency', periods: labels, indicators: rows.map(r => ({ name: r.shortName ?? r.name, p1: r.val1, grade_p1: r.grade1, p2: r.val2, ...(r.val3 ? { p3: r.val3 } : {}), norm: r.norm })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+      </div>
       <SprawnostChart f1={f1} f2={f2} f3={f3} periodLabels={periodLabels}
         onBarClick={idx => setChartInd(rows[[3, 4, 5, 6][idx] ?? idx] ?? null)} />
       <IndicatorCards rows={rows} labels={labels} />
@@ -564,7 +571,7 @@ function SprawnostTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap
 
 // ── Zadłużenie ────────────────────────────────────────────────────────────────
 
-function ZadluzenieTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[] }) {
+function ZadluzenieTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t } = useLang();
   const pl = periodLabels ?? [];
   const labels = [pl[0] ?? 'P1', pl[1] ?? 'P2', pl[2] ?? 'P3'];
@@ -691,6 +698,9 @@ function ZadluzenieTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
   // ZadluzenieChart bars [0,1,2,3] = D/A, Dług/KW(D/E), ZD/KW(LTD/E), ZK/KW → rows[0,2,3,1]
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => onOpenAI({ section: 'debt', periods: labels, indicators: rows.map(r => ({ name: r.shortName ?? r.name, p1: r.val1, grade_p1: r.grade1, p2: r.val2, ...(r.val3 ? { p3: r.val3 } : {}), norm: r.norm })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+      </div>
       <ZadluzenieChart f1={f1} f2={f2} f3={f3} periodLabels={periodLabels}
         onBarClick={idx => setChartInd(rows[[0, 2, 3, 1][idx] ?? 0] ?? null)} />
       <IndicatorCards rows={rows} labels={labels} />
@@ -701,7 +711,7 @@ function ZadluzenieTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
 
 // ── Rentowność ────────────────────────────────────────────────────────────────
 
-function RentownoscTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[] }) {
+function RentownoscTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t } = useLang();
   const pl = periodLabels ?? [];
   const labels = [pl[0] ?? 'P1', pl[1] ?? 'P2', pl[2] ?? 'P3'];
@@ -824,6 +834,9 @@ function RentownoscTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
   // RentownoscChart bars [0,1,2,3,4] = ROE, ROA, ROS, EBIT%, EBITDA% → rows[0,1,3,5,6]
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => onOpenAI({ section: 'profitability', periods: labels, indicators: rows.map(r => ({ name: r.shortName ?? r.name, p1: r.val1, grade_p1: r.grade1, p2: r.val2, ...(r.val3 ? { p3: r.val3 } : {}), norm: r.norm })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+      </div>
       <RentownoscChart f1={f1} f2={f2} f3={f3} periodLabels={periodLabels}
         onBarClick={idx => setChartInd(rows[[0, 1, 3, 5, 6][idx] ?? 0] ?? null)} />
       <IndicatorCards rows={rows} labels={labels} />
@@ -1433,7 +1446,7 @@ const GRADE_ORDER: Record<Grade, number> = { 'SŁABY': 0, 'UWAGA': 1, 'DOBRY': 2
 
 const ALL_SECTORS = ['all', 'universal', 'manufacturing', 'trade', 'services', 'construction', 'transport'] as const;
 
-function DyskryminacyjneTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[] }) {
+function DyskryminacyjneTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const pl = periodLabels ?? [];
   const labels = [pl[0] ?? 'P1', pl[1] ?? 'P2', pl[2] ?? 'P3'];
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1473,8 +1486,11 @@ function DyskryminacyjneTab({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: Fi
     <div className="space-y-3">
       {/* Filtr branży */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Branża:</span>
+          <button onClick={() => onOpenAI({ section: 'discriminant_models', period: labels[0], models: modelScores.map(m => { const r = computeScore(m.def, f1); return { name: m.def.name, score: r.score !== null ? Math.round(r.score * 100) / 100 : null, grade: m.grade }; }), summary: counts })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide shrink-0">Branża:</span>
           {activeSectors.map(s => (
             <button
               key={s}
@@ -1676,7 +1692,7 @@ function BeneishIndexRow({ idx, isOpen, onToggle, isDriver }: {
   );
 }
 
-function BeneishTab({ result }: { result: BeneishResult | null }) {
+function BeneishTab({ result, onOpenAI }: { result: BeneishResult | null; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t } = useLang();
   const [openKey, setOpenKey] = useState<string | null>(null);
 
@@ -1699,6 +1715,10 @@ function BeneishTab({ result }: { result: BeneishResult | null }) {
 
   return (
     <div className="space-y-4">
+
+      <div className="flex justify-end">
+        <button onClick={() => onOpenAI({ section: 'beneish_mscore', mscore: result?.mscore, high_risk: result?.highRisk, top_drivers: result?.topDrivers, indices: result?.indices.map(idx => ({ key: idx.key, val1: idx.val1 !== null ? Math.round(idx.val1 * 1000) / 1000 : null, norm: idx.norm, direction: idx.direction })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+      </div>
 
       {/* ── Wynik M-score — baner ── */}
       <div className={`flex flex-wrap items-center gap-5 gap-y-3 rounded-xl border-2 p-5 ${riskBg}`}>
@@ -2024,13 +2044,14 @@ function NarrativeBlock({
 // ── Podsumowanie analizy ──────────────────────────────────────────────────────
 
 function PodsumowanieTab({
-  f1, f2, f3, beneish, periodLabels, companyName, onNavigate,
+  f1, f2, f3, beneish, periodLabels, companyName, onNavigate, onOpenAI,
 }: {
   f1: FieldMap; f2: FieldMap; f3: FieldMap | null;
   beneish: BeneishResult | null;
   periodLabels?: string[];
   companyName: string;
   onNavigate: (tab: SubTab) => void;
+  onOpenAI: (data: Record<string, unknown>) => void;
 }) {
   const [drawerInd, setDrawerInd] = useState<Indicator | null>(null);
   const { lang } = useLang();
@@ -2220,9 +2241,12 @@ function PodsumowanieTab({
             <h2 className="text-base font-bold text-slate-800">{companyName}</h2>
             <p className="text-xs text-slate-500">{p1} vs {p2}</p>
           </div>
-          <div className="text-right shrink-0">
-            <div className="text-[9px] text-slate-500 uppercase tracking-wide mb-1">Ocena ogólna</div>
-            <Badge g={overall} />
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => onOpenAI({ section: 'summary', company: companyName, period_p1: p1, period_p2: p2, overall_grade: overall, liquidity: { grade: gLiqd, CR: fmtP(cr1), QR: fmtP(qr1) }, debt: { grade: gDebt, DA: fmtP(da1 !== null ? da1 * 100 : null), ICR: fmtP(icr1) }, profitability: { grade: gProf, ROE_pct: fmtP(roe1 !== null ? roe1 * 100 : null), ROA_pct: fmtP(roa1 !== null ? roa1 * 100 : null), ROS_pct: fmtP(ros1 !== null ? ros1 * 100 : null), EBITDA_pct: fmtP(ebitdaM1 !== null ? ebitdaM1 * 100 : null) }, efficiency: { grade: gEff, DSO_days: fmtP(dso1, 0) }, beneish_risk: beneish ? { mscore: beneish.mscore, high_risk: beneish.highRisk } : null })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-white/70 hover:bg-white border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+            <div className="text-right">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wide mb-1">Ocena ogólna</div>
+              <Badge g={overall} />
+            </div>
           </div>
         </div>
 
@@ -2435,10 +2459,16 @@ function PodsumowanieTab({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+interface AIModalState { section: string; sectionLabel: string; data: Record<string, unknown> }
+
 export default function RatioAnalysis() {
   const { activeCompany } = useCompanies();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [activeTab, setActiveTab] = useState<SubTab>('podsumowanie');
+  const [aiModal, setAiModal] = useState<AIModalState | null>(null);
+  const openAI = useCallback((section: string, sectionLabel: string) => (data: Record<string, unknown>) => {
+    setAiModal({ section, sectionLabel, data });
+  }, []);
 
   const subTabs: { key: SubTab; label: string; group: string }[] = useMemo(() => [
     { key: 'podsumowanie',     label: t('analysis.summary'),        group: t('ratio.indicators') },
@@ -2558,16 +2588,28 @@ export default function RatioAnalysis() {
         </div>
 
         {/* Content */}
-        {activeTab === 'plynnosc'        && <PlynnostTab          f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
-        {activeTab === 'sprawnosc'       && <SprawnostTab         f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
-        {activeTab === 'zadluzenie'      && <ZadluzenieTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
-        {activeTab === 'rentownosc'      && <RentownoscTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
-        {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} />}
-        {activeTab === 'beneish'         && <BeneishTab           result={beneish} />}
-        {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} />}
+        {activeTab === 'plynnosc'        && <PlynnostTab          f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('plynnosc', t('analysis.liquidity'))} />}
+        {activeTab === 'sprawnosc'       && <SprawnostTab         f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('sprawnosc', t('analysis.efficiency'))} />}
+        {activeTab === 'zadluzenie'      && <ZadluzenieTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('zadluzenie', t('analysis.debt'))} />}
+        {activeTab === 'rentownosc'      && <RentownoscTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('rentownosc', t('analysis.profitability'))} />}
+        {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('dyskryminacyjne', t('analysis.discriminant'))} />}
+        {activeTab === 'beneish'         && <BeneishTab           result={beneish} onOpenAI={openAI('beneish', t('beneish.tabLabel'))} />}
+        {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} onOpenAI={openAI('podsumowanie', t('analysis.summary'))} />}
         {activeTab === 'bilans_str'      && <BilansStruktura      bilans={activeCompany.bilans} f1={f1} f2={f2} f3={f3} />}
         {activeTab === 'rzis_str'        && <RZiSStruktura        rzis={activeCompany.rzis}    f1={f1} f2={f2} f3={f3} />}
       </div>
+
+      {aiModal && (
+        <AIAnalysisModal
+          section={aiModal.section}
+          sectionLabel={aiModal.sectionLabel}
+          lang={lang}
+          period={activeCompany.period}
+          data={aiModal.data}
+          cacheKey={`ai_ratio_${activeCompany.id}_${aiModal.section}_${activeCompany.period}_${lang}`}
+          onClose={() => setAiModal(null)}
+        />
+      )}
     </div>
   );
 }

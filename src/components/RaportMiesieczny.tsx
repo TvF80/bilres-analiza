@@ -448,9 +448,9 @@ export default function RaportMiesieczny() {
         {/* Content */}
         {activeTab === 'marza'      && <MarzaTab departments={data.departments} totals={data.totals} period={data.period} />}
         {activeTab === 'heatmapa'   && <HeatmapaTab departments={data.departments} periodLabels={data.periodLabels} />}
-        {activeTab === 'koszty'     && <KosztyTab costCategories={data.costCategories} totals={data.totals} period={data.period} />}
+        {activeTab === 'koszty'     && <KosztyTab costCategories={data.costCategories} totals={data.totals} period={data.period} onOpenAI={openAI('koszty', `Koszty — ${data.period}`)} />}
         {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} departments={data.departments} onOpenAI={openAI('wynik_lejek', `Lejek wyniku — ${data.period}`)} />}
-        {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} totals={data.totals} />}
+        {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} totals={data.totals} onOpenAI={openAI('porownanie', `Porównanie r/r — ${data.period}`)} />}
       </div>
 
       {/* AI Analysis Modal */}
@@ -948,7 +948,7 @@ function CostRow({ cat, revenue, depth, expanded, onToggle, onSelect }: {
   );
 }
 
-function KosztyTab({ costCategories, totals, period }: { costCategories: CostCategory[]; totals: MonthlyReportTotals; period: string }) {
+function KosztyTab({ costCategories, totals, period, onOpenAI }: { costCategories: CostCategory[]; totals: MonthlyReportTotals; period: string; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t, lang } = useLang();
   const revenue = totals.revenue.total;
   const allParentIds = useMemo(() => collectParentIds(costCategories), [costCategories]);
@@ -1001,7 +1001,26 @@ function KosztyTab({ costCategories, totals, period }: { costCategories: CostCat
           </PieChart>
         </ChartCard>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('costs.rankTitle')}</p>
+          <div className="flex items-center justify-between mb-0.5">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('costs.rankTitle')}</p>
+            <button
+              onClick={() => onOpenAI({
+                period,
+                total_costs_PLN: totalAbs,
+                total_costs_pct_of_revenue: revenue !== 0 ? Math.round(totalAbs / revenue * 1000) / 10 : null,
+                top_categories: costCategories.slice(0, 5).map(c => ({
+                  name: c.labelPl,
+                  total_PLN: Math.abs(c.total),
+                  pct_of_revenue: revenue !== 0 ? Math.round(Math.abs(c.total) / revenue * 1000) / 10 : null,
+                })),
+                fastest_growing: costRanking.up.slice(0, 3).map(x => ({ name: x.cat.labelPl, yoy_pct: Math.round(x.yoy * 1000) / 10 })),
+                fastest_declining: costRanking.down.slice(0, 3).map(x => ({ name: x.cat.labelPl, yoy_pct: Math.round(x.yoy * 1000) / 10 })),
+              })}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all shrink-0"
+            >
+              🤖 AI
+            </button>
+          </div>
           <p className="text-[10px] text-slate-400 mt-0.5 mb-2.5">
             {t('costs.totalCosts', { amount: formatPLN(totalAbs), pct: revenue !== 0 ? pct(totalAbs / revenue) : '—', period })}
           </p>
@@ -1868,7 +1887,7 @@ function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onC
   );
 }
 
-function PorownanieTab({ items, comparisonLabel, totals }: { items: YearComparisonItem[]; comparisonLabel: string; totals: MonthlyReportTotals }) {
+function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: YearComparisonItem[]; comparisonLabel: string; totals: MonthlyReportTotals; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t, lang } = useLang();
   const [filter, setFilter] = useState('');
   const [selectedItem, setSelectedItem] = useState<YearComparisonItem | null>(null);
@@ -1933,7 +1952,28 @@ function PorownanieTab({ items, comparisonLabel, totals }: { items: YearComparis
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3">{t('comp.topChanges')}</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('comp.topChanges')}</p>
+          <button
+            onClick={() => onOpenAI({
+              period: comparisonLabel,
+              revenue_current_PLN: revByYear.y2025,
+              revenue_prev_PLN: revByYear.y2024,
+              revenue_yoy_PLN: revByYear.y2025 - revByYear.y2024,
+              revenue_yoy_pct: revByYear.y2024 !== 0 ? Math.round((revByYear.y2025 - revByYear.y2024) / revByYear.y2024 * 1000) / 10 : null,
+              top_movers: topMovers.slice(0, 5).map(it => ({
+                name: it.labelPl,
+                current_PLN: it.values.y2025,
+                prev_PLN: it.values.y2024,
+                delta_PLN: it.deltaRY1,
+                delta_pct: it.deltaPctRY1 !== null ? Math.round(it.deltaPctRY1 * 1000) / 10 : null,
+              })),
+            })}
+            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all shrink-0"
+          >
+            🤖 AI
+          </button>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {topMovers.map(m => (
             <button

@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useCallback, type ReactNode } from 'react';
+import AIAnalysisModal from './AIAnalysisModal';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   LineChart, Line, Legend, ReferenceLine, Cell,
@@ -1040,6 +1041,8 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
   const [selBK,setSelBK]=useState<'all'|'B_'|'K_'>('all');
   const [search,setSearch]=useState('');
   const [activeTab,setActiveTab]=useState<'grupy'|'trend'|'koszty'|'mapa'>('trend');
+  const [aiModal,setAiModal]=useState<{section:string;sectionLabel:string;data:Record<string,unknown>}|null>(null);
+  const openAI=useCallback((section:string,sectionLabel:string)=>(aiData:Record<string,unknown>)=>{setAiModal({section,sectionLabel,data:aiData});},[]);
 
   if (!data) {
     return (
@@ -1180,6 +1183,8 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
               <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2">
                 <p className="text-sm font-semibold text-slate-700">{tr('citySummary')}</p>
                 <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{tr('clickDetails')}</span>
+                <div className="flex-1"/>
+                <button onClick={() => openAI('grupy', tr('citySummary'))({total_groups:kpi.count,revenue_PLN:kpi.p,cost_PLN:kpi.k,margin_PLN:kpi.m,margin_pct:kpi.p>0?Math.round(kpi.m/kpi.p*1000)/10:null,by_city:byCity.map(([miasto,gs])=>{const{p,m}=aggGroups(gs);return{city:MIASTO_LABEL[miasto]??miasto,groups:gs.length,revenue_PLN:p,margin_PLN:m,mb_pct:p>0?Math.round(m/p*1000)/10:null};}),top_groups:filtered.slice().sort((a,b)=>b.total.mb-a.total.mb).slice(0,5).map(g=>({name:g.lider,revenue_PLN:g.total.przychod,mb_pct:g.total.przychod>0?Math.round(g.total.mb/g.total.przychod*1000)/10:null}))})} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 AI</button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px] border-collapse">
@@ -1241,6 +1246,9 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
         {/* ── TREND ─────────────────────────────────────────────────────────── */}
         {activeTab==='trend'&&(
           <div className="space-y-4">
+            <div className="flex justify-end">
+              <button onClick={() => openAI('trend', tr('trend'))({total_groups:kpi.count,revenue_PLN:kpi.p,margin_pct:kpi.p>0?Math.round(kpi.m/kpi.p*1000)/10:null,best_month:trendData.reduce((a,b)=>b.mbPct>a.mbPct?b:a,trendData[0]),worst_month:trendData.reduce((a,b)=>b.mbPct<a.mbPct?b:a,trendData[0]),monthly:trendData.map(d=>({month:d.month,revenue_PLN:d['Przychód'],cost_PLN:d['Koszt'],margin_PLN:d['MB'],mb_pct:d.mbPct>0?Math.round(d.mbPct*1000)/10:null}))})} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{tr('chartMBTrend')}</p>
@@ -1322,6 +1330,9 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
         {/* ── KOSZT PRAC ────────────────────────────────────────────────────── */}
         {activeTab==='koszty'&&(
           <div className="space-y-4">
+            <div className="flex justify-end">
+              <button onClick={()=>openAI('koszty_prac',tr('koszty'))({total_labor_cost_PLN:kosztData.reduce((s,k)=>s+k.razem,0),total_cost_PLN:kpi.k,labor_share_pct:kpi.k>0?Math.round(kosztData.reduce((s,k)=>s+k.razem,0)/kpi.k*1000)/10:null,groups_with_cost:kosztData.length,top_leaders_by_cost:kosztData.slice(0,5).map(k=>({name:k.name,labor_cost_PLN:k.razem,share_pct:kpi.k>0?Math.round(k.razem/kpi.k*1000)/10:null})),monthly_trend:kosztTrend.map(m=>({month:m.month,labor_PLN:m[laborCostLabel],total_PLN:m[totalCostLabel]}))})} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <KpiCard label={tr('kpiLaborFiltered')} value={fmtM(kosztData.reduce((s,k)=>s+k.razem,0))} color="blue" onClick={()=>openKpi('koszt')}/>
               <KpiCard label={tr('kpiLaborTotal')} value={data.sumaKosztPrac?fmtM(data.sumaKosztPrac.razem):'—'}/>
@@ -1397,6 +1408,18 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
       {dKpi&&<KpiDrawer type={dKpi} groups={filtered} onClose={closeAll} onGroup={openGroup}/>}
       {dKosztMonth!==null&&<KosztMonthDrawer idx={dKosztMonth} kosztData={kosztData} trendData={trendData} filtered={filtered} onClose={closeAll} onGroup={openGroup}/>}
       {dHeatCell&&<HeatmapCellDrawer groups={filtered} miasto={dHeatCell.miasto} monthIdx={dHeatCell.monthIdx} onClose={closeAll} tr={tr}/>}
+
+      {aiModal&&(
+        <AIAnalysisModal
+          section={aiModal.section}
+          sectionLabel={aiModal.sectionLabel}
+          lang={lang}
+          period={activeCompany?.period??''}
+          data={aiModal.data}
+          cacheKey={`ai_grp_${activeCompany?.id??'local'}_${aiModal.section}_${activeCompany?.period??''}_${lang}`}
+          onClose={()=>setAiModal(null)}
+        />
+      )}
     </div>
   );
 }
