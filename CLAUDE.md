@@ -1,22 +1,59 @@
-# BilRes Analiza Sprawozdań Finansowych
+# FinScopePL — Analiza Sprawozdań Finansowych
 
 Aplikacja webowa do interaktywnej analizy Bilansu i RZiS.  
-Stack: **React 19 · Vite · TypeScript · Tailwind CSS v4 · Recharts**  
+Stack: **React 19 · Vite · TypeScript · Tailwind CSS v4 · Recharts 3.8.1**  
 Lokalizacja: `C:\Users\tvf19\exco-analiza`  
-Online: **https://tvf80.github.io/bilres-analiza/**
+Online: **https://finscopepl.vercel.app** (Vercel, projekt `prj_bEJ0HCxkKhHinCj8F5yslghrAvcj`)
+
+Dawna nazwa: BilRes. Produkcja na Vercel od SESJA start.
+
+---
+
+## Bezpieczeństwo — zasady krytyczne
+
+**Aplikacja używa Vite — wszystko z prefiksem `VITE_` trafia do bundle klienta.**
+
+| Zmienna | Gdzie | Cel |
+|---|---|---|
+| `VITE_SUPABASE_URL` | frontend | URL projektu Supabase |
+| `VITE_SUPABASE_ANON_KEY` | frontend | klucz publiczny (RLS chroni dane) |
+| `ANTHROPIC_API_KEY` | **tylko Vercel serverless** (`api/`) | Claude AI — NIGDY nie dodawaj `VITE_` |
+| `SUPABASE_SERVICE_ROLE_KEY` | **nigdy nie używaj po stronie klienta** | admin — zostaw na później |
+
+- `zapisy` (42 MB dziennik FK) — **nigdy nie trafia do Supabase**, tylko `sessionStorage`
+- Klucze nie są hardcoded w kodzie ani nie trafiają do repo
+
+---
+
+## Supabase — architektura (SESJA 1-2)
+
+- `src/lib/supabase.ts` — klient Supabase (VITE_* env)
+- `AuthContext.tsx` — Supabase Auth: `signInWithPassword`, `signUp`, `signOut`, `resetPasswordForEmail`
+  - `AppUser { id, name, email, color }` — color deterministically z `user.id.charCodeAt(0)`
+  - Session restore: `getSession()` + `onAuthStateChange` listener
+- `CompaniesContext.tsx` — localStorage jako write-through cache dla Supabase
+  - Optimistic updates: UI od razu, Supabase sync w tle
+  - `hasMigratableData`, `migrateLocalData()` — migracja z localStorage do konta
+- `MigrateLocalDataBanner.tsx` — amber baner z przyciskiem migracji
+- `LoginScreen.tsx` — email+password, tryby login/register/forgot, rate limiting (5 prób → 30s cooldown)
+
+### Tabele SQL (Supabase)
+```sql
+-- Uruchomione w Supabase SQL Editor (SESJA 2)
+create table companies (...) -- dane firm (bez zapisy)
+create table user_preferences (...) -- preferencje użytkownika
+-- RLS: auth.uid() = user_id
+```
 
 ---
 
 ## Prywatność danych / RODO
 
-**Aplikacja nie przechowuje żadnych danych wrażliwych w kodzie źródłowym ani na serwerze.**
-
-- Pliki `src/data/*.json` to **puste placeholdery** (`[]` / `null`) — nie zawierają żadnych danych finansowych.
-- Wszystkie dane finansowe użytkownik importuje samodzielnie z plików Excel.
-- Dane po imporcie przechowywane są wyłącznie w `localStorage` i `sessionStorage` przeglądarki użytkownika.
-- Żadne dane finansowe nie są wysyłane na zewnętrzny serwer.
-- Usunięcie danych: wystarczy wyczyścić localStorage przeglądarki lub użyć przycisku „Wyczyść dane" w aplikacji.
-- Repozytorium GitHub nie zawiera żadnych danych finansowych firm.
+- Pliki `src/data/*.json` to **puste placeholdery** — nie zawierają żadnych danych finansowych.
+- Dane finansowe user importuje z pliku Excel (parsowanie lokalne w przeglądarce).
+- Dane firm: localStorage (cache) + Supabase PostgreSQL (konto).
+- Zapisy FK (42 MB): wyłącznie `sessionStorage` — nie trafia na serwer.
+- Usunięcie danych: „Wyczyść dane" w sidebarze + usunięcie konta przez admina.
 
 ---
 
@@ -42,11 +79,14 @@ src/
     xlsxParser.ts       Parsowanie xlsx w przeglądarce → typy danych
     fieldMapping.ts     Mapowanie pozycji BIL/RZiS → FieldMap (keyword matching)
     controlChecks.ts    Funkcje kontroli integralności i wskaźników
+  lib/
+    supabase.ts         Klient Supabase (createClient z VITE_* env)
   store/
-    AuthContext.tsx      Użytkownicy + sesja (localStorage + sessionStorage)
-    CompaniesContext.tsx Biblioteka firm + isLoaded guard (fix race condition)
+    AuthContext.tsx      Supabase Auth — login/register/forgot/session restore
+    CompaniesContext.tsx Biblioteka firm — localStorage cache + Supabase sync (optimistic)
   components/
-    LoginScreen.tsx      Siatka avatarów → hasło (i18n)
+    LoginScreen.tsx      Email+password, tryby login/register/forgot, rate limiting
+    MigrateLocalDataBanner.tsx  Baner migracji localStorage → konto Supabase
     Sidebar.tsx          Nawigacja lewa — zwijana, podmień/usuń firmę (i18n)
     Header.tsx           Bilans | RZiS | Kontrola | Analiza + zoom + szukaj + lang switcher (i18n)
     ImportModal.tsx      Import 6 xlsx (tryb nowy + tryb podmiana danych), selektywna podmiana komponentów (Partial<CompanyData>) (i18n)
@@ -145,6 +185,34 @@ Sekcje (level=0) nigdy nie są wygaszane.
 - **RZiS** — kaskada wyników (waterfall) + marże% (3 słupki) + tabela: % przychodów + Δ r/r + P3
 
 ### Mapowanie pól → przeniesione do `Kontrola` (sekcja 7 "Sprawdzenie mapowania")
+
+---
+
+## Raport zarządczy (`raport_miesieczny`) — zmiany SESJA 4
+
+### WynikTab (zakładka Wynik)
+- **Przychód na górze tabeli** — syntetyczny wiersz `__revenue_hdr` (niebieski bg) z top-5 działami
+  jako zwijane detale (`tableGroups[0]` = `{ header: totals.revenue, details: top5depts }`)
+- **Dynamiczny prevFy** — heatmapa kosztów: "Δ vs FYxx" obliczane z `totals.revenue.history`
+- `tableGroups` → zmienna deps: `[result, totals, departments]` (wcześniej tylko `[result]`)
+
+### PorownanieTab (zakładka Porównanie)
+- **Toggle PLN / % przych.** — przełącza widok tabeli między wartościami PLN a % przychodów
+  (revenue z `totals.revenue.history`)
+- **Trend arrows** (▲▼) obok nazwy pozycji dla wierszy podsumowujących
+- Prop `totals: MonthlyReportTotals` dodany do sygnatury
+
+### Wykresy — `makeTooltip` + `hoveredFy`
+- `makeTooltip(formatter)` — helper standaryzujący `contentStyle` + `cursor` w tooltipach
+- `HistoryComparisonChart` — `hoveredFy` state z `Legend.onMouseEnter/Leave`
+  → nieaktywne linie FY przygasają (`strokeOpacity: 0.2`), aktywna pogrubia się
+- WynikTab 3-year comparison `BarChart` — `hoveredFy` + `opacity` na `Bar` komponentach
+
+### FY order (SESJA 4 pkt 1) — newest-first
+Wszystkie listy historyczne posortowane `2025 → 2024 → 2023`.
+
+### Funnel gap-labels (SESJA 4 pkt 2)
+`FUNNEL_GAP_NAMES = [null, ...]` — usunięte etykiety z 8px przerw (za małe, wychodziły poza SVG).
 
 ---
 
