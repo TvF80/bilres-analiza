@@ -70,6 +70,7 @@ const LABEL_OVERRIDES: Record<string, Partial<Record<Lang, string>>> = {
   resultat_de_l_exercice: { pl: 'Wynik netto',             fr: 'Résultat net',              en: 'Net result' },
   koszty_exco_a2a_fr:    { pl: 'Koszty EXCO A2A Francja', fr: 'Charges EXCO A2A France',    en: 'EXCO A2A France costs' },
   publicit:              { pl: 'Reklama',                  fr: 'Publicité',                  en: 'Advertising' },
+  __revenue_hdr:         { pl: 'Przychód ogółem',          fr: "Chiffre d'affaires total",   en: 'Total revenue' },
 };
 function trLabel(lang: Lang, idOrLine: string | { id: string; labelPl: string }): string {
   const id      = typeof idOrLine === 'string' ? idOrLine : idOrLine.id;
@@ -1188,17 +1189,25 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
 
   const tableGroups = useMemo(() => {
-    const result_groups: { header: MonthlyReportLine; details: MonthlyReportLine[] }[] = [];
+    // Przychód na górze — top-5 działów jako zwijane podpozycje
+    const revDetails: MonthlyReportLine[] = [...departments]
+      .sort((a, b) => b.revenue.total - a.revenue.total)
+      .slice(0, 5)
+      .map(d => ({ ...d.revenue, id: `__dept_${d.key}`, labelPl: d.label }));
+
+    const groups: { header: MonthlyReportLine; details: MonthlyReportLine[] }[] = [
+      { header: { ...totals.revenue, id: '__revenue_hdr', labelPl: 'Przychód ogółem' }, details: revDetails },
+    ];
     for (const line of result) {
       const isMain = line.labelPl === line.labelPl.toUpperCase();
       if (isMain) {
-        result_groups.push({ header: line, details: [] });
-      } else if (result_groups.length > 0) {
-        result_groups[result_groups.length - 1].details.push(line);
+        groups.push({ header: line, details: [] });
+      } else if (groups.length > 1) {
+        groups[groups.length - 1].details.push(line);
       }
     }
-    return result_groups;
-  }, [result]);
+    return groups;
+  }, [result, totals, departments]);
 
   const stages = useMemo(() => FUNNEL_STAGE_IDS.map(s => s.id === '__revenue' ? totals.revenue : find(s.id)), [result, totals]);
 
@@ -1225,6 +1234,12 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
     return row;
   }), [result, totals, t]);
 
+  // Dynamiczne FY do porównania r/r w heatmapie (najnowszy rok historyczny poza bieżącym)
+  const prevFy = useMemo(() => {
+    const fys = (totals.revenue.history ?? []).map(h => h.fy).filter(fy => fy !== '2025').sort().reverse();
+    return fys[0] ?? '2024';
+  }, [totals]);
+
   // Heatmapa kosztów rodzajowych jako % przychodu w danym miesiącu (FY2025) — uzupełnienie heatmapy marż
   const costHeatGrid = useMemo(() => costCategories.map(c => {
     const cells = periodLabels.map((_, i) => {
@@ -1232,11 +1247,11 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
       return rev !== 0 ? Math.abs(c.monthly[i]) / rev : 0;
     });
     const avg = totals.revenue.total !== 0 ? Math.abs(c.total) / totals.revenue.total : 0;
-    const prevTotal = c.history?.find(h => h.fy === '2024')?.total ?? null;
-    const prevRevenue = totals.revenue.history?.find(h => h.fy === '2024')?.total ?? null;
+    const prevTotal = c.history?.find(h => h.fy === prevFy)?.total ?? null;
+    const prevRevenue = totals.revenue.history?.find(h => h.fy === prevFy)?.total ?? null;
     const prevAvg = prevTotal != null && prevRevenue ? Math.abs(prevTotal) / prevRevenue : null;
     return { id: c.id, label: trLabel(lang, c), cat: c, cells, avg, deltaAvg: prevAvg != null ? avg - prevAvg : null };
-  }), [costCategories, periodLabels, totals, lang]);
+  }), [costCategories, periodLabels, totals, lang, prevFy]);
 
   return (
     <div className="space-y-4">
@@ -1432,6 +1447,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
             {tableGroups.map(({ header, details }) => {
               const isOpen = openGroups.has(header.id);
               const hasDetails = details.length > 0;
+              const isRevRow = header.id === '__revenue_hdr';
               return (
                 <Fragment key={header.id}>
                   {/* Header row */}
@@ -1448,21 +1464,21 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
                       }
                     }}
                     title={hasDetails ? (isOpen ? 'Zwiń' : 'Rozwiń szczegóły') : t('wynik.clickTrendYoY')}
-                    className="border-t border-slate-100 cursor-pointer bg-amber-50/50 font-semibold text-slate-800 hover:bg-amber-100/60 transition-colors"
+                    className={`border-t border-slate-100 cursor-pointer font-semibold text-slate-800 transition-colors ${isRevRow ? 'bg-blue-50/60 hover:bg-blue-100/60' : 'bg-amber-50/50 hover:bg-amber-100/60'}`}
                   >
                     <td className="px-3 py-1.5 whitespace-nowrap sticky left-0 bg-inherit">
                       <span className="inline-flex items-center gap-1.5">
                         {hasDetails && (
-                          <span className={`text-slate-400 text-[10px] transition-transform duration-150 ${isOpen ? '' : '-rotate-90'} inline-block`}>▾</span>
+                          <span className={`text-[10px] transition-transform duration-150 ${isOpen ? '' : '-rotate-90'} inline-block ${isRevRow ? 'text-blue-400' : 'text-slate-400'}`}>▾</span>
                         )}
                         {trLabel(lang, header)}
                       </span>
                     </td>
-                    <td className={`text-right px-3 py-1.5 font-semibold ${diffClass(header.total)}`}>{formatPLN(header.total)}</td>
+                    <td className={`text-right px-3 py-1.5 font-semibold ${isRevRow ? 'text-blue-700' : diffClass(header.total)}`}>{formatPLN(header.total)}</td>
                     <td className="text-right px-3 py-1.5"><TrendBadge value={yoyChange(header.history)} /></td>
                     <td className="px-1 py-1.5 bg-slate-50/60" style={{ width: '12px' }} />
                     {header.monthly.map((v, j) => (
-                      <td key={j} className={`text-right px-1 py-1 text-[9px] tabular-nums ${diffClass(v)}`}>{plnM(v)}</td>
+                      <td key={j} className={`text-right px-1 py-1 text-[9px] tabular-nums ${isRevRow ? 'text-blue-600' : diffClass(v)}`}>{plnM(v)}</td>
                     ))}
                   </tr>
                   {/* Detail rows — only visible when open */}
@@ -1471,7 +1487,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
                       key={line.id}
                       onClick={() => setSelected({ label: trLabel(lang, line), line })}
                       title={t('wynik.clickTrendYoY')}
-                      className={`border-t border-slate-100 cursor-pointer text-slate-600 hover:bg-amber-50/40 transition-colors ${di % 2 ? 'bg-slate-50/40' : ''}`}
+                      className={`border-t border-slate-100 cursor-pointer text-slate-600 transition-colors ${isRevRow ? 'hover:bg-blue-50/40' : 'hover:bg-amber-50/40'} ${di % 2 ? 'bg-slate-50/40' : ''}`}
                     >
                       <td className="px-3 py-1 sticky left-0 bg-inherit truncate pl-7 text-slate-500">{trLabel(lang, line)}</td>
                       <td className={`text-right px-3 py-1 text-[10px] font-medium ${diffClass(line.total)}`}>{formatPLN(line.total)}</td>
@@ -1504,7 +1520,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
                   <th key={p} className="px-1 py-1 text-slate-400 font-medium text-center whitespace-nowrap">{p}</th>
                 ))}
                 <th className="px-2 py-1 text-slate-400 font-semibold text-center">{t('heat.avgPeriod')}</th>
-                <th className="px-2 py-1 text-slate-400 font-semibold text-center">Δ vs FY24</th>
+                <th className="px-2 py-1 text-slate-400 font-semibold text-center">Δ vs FY{prevFy.slice(-2)}</th>
               </tr>
             </thead>
             <tbody>
