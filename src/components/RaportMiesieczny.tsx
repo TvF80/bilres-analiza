@@ -1048,13 +1048,8 @@ function costIntensityColor(p: number): string {
   return `hsl(${Math.round(120 - t * 120)}, 58%, 83%)`;
 }
 
-const FUNNEL_GAP_NAMES: (string | null)[] = [
-  null,                          // before stage 0 (revenue itself)
-  'Koszty eksploatacji',         // Revenue → Marża
-  'Koszty inwestycji',           // Marża → Wynik po kosztach
-  'Inne przychody / koszty',     // Wynik → Wynik brutto
-  'Podatek',                     // Brutto → Wynik netto
-];
+// Gap names removed — 8px gap too narrow for text; stage labels below are self-explanatory
+const FUNNEL_GAP_NAMES: null[] = [null, null, null, null, null];
 
 function CustomFunnel({ data, onStageClick, onStageHover }: {
   data: FunnelStage[];
@@ -1157,24 +1152,8 @@ function CustomFunnel({ data, onStageClick, onStageHover }: {
               const thisPct = stage.pctOfRevenue;
               const consumedPct = (prevPct - thisPct) * 100;
               const gapY = i * (STAGE_H + GAP) + 6 - GAP / 2;
-              const gapName = FUNNEL_GAP_NAMES[i];
               return (
                 <g key={`gap${i}`}>
-                  {gapName && (
-                    <text
-                      x={cx - FUNNEL_W / 2 - 4}
-                      y={gapY - 3}
-                      textAnchor="end"
-                      dominantBaseline="middle"
-                      fontSize={7}
-                      fontWeight="700"
-                      fill="#475569"
-                      pointerEvents="none"
-                      style={{ userSelect: 'none' }}
-                    >
-                      {gapName}
-                    </text>
-                  )}
                   {consumedPct > 0.1 && (
                     <text
                       x={cx}
