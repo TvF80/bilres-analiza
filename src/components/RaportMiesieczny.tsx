@@ -1,4 +1,5 @@
-﻿import { useMemo, useState, type ReactNode, Fragment } from 'react';
+﻿import { useMemo, useState, useCallback, type ReactNode, Fragment } from 'react';
+import AIAnalysisModal from './AIAnalysisModal';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   Cell, ReferenceLine, PieChart, Pie, LineChart, Line,
@@ -265,7 +266,7 @@ function KpiCard({ k, onClick }: { k: KpiDef; onClick: () => void }) {
   );
 }
 
-function KpiPanel({ totals, result, history, period }: { totals: MonthlyReportTotals; result: MonthlyReportLine[]; history: { fy: string; label: string }[]; period: string }) {
+function KpiPanel({ totals, result, history, period, onOpenAI }: { totals: MonthlyReportTotals; result: MonthlyReportLine[]; history: { fy: string; label: string }[]; period: string; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t } = useLang();
   const [selected, setSelected] = useState<KpiDef | null>(null);
   const net = result.find(r => r.id === 'resultat_de_l_exercice');
@@ -312,9 +313,37 @@ function KpiPanel({ totals, result, history, period }: { totals: MonthlyReportTo
     ];
   }, [totals, net, opexLine, history, t]);
 
+  function buildAIData(): Record<string, unknown> {
+    const rev = totals.revenue.total;
+    return {
+      revenue_PLN: rev,
+      revenue_yoy: yoyChange(totals.revenue.history),
+      gross_margin_PLN: totals.grossMargin.total,
+      gross_margin_pct: rev !== 0 ? totals.grossMargin.total / rev : null,
+      gross_margin_yoy: yoyChange(totals.grossMargin.history),
+      cost_of_sales_PLN: totals.costOfSales.total,
+      cost_of_sales_pct: rev !== 0 ? totals.costOfSales.total / rev : null,
+      admin_costs_PLN: totals.adminCosts.total,
+      net_result_PLN: net?.total ?? null,
+      net_ros_pct: rev !== 0 && net ? net.total / rev : null,
+      net_yoy: net ? yoyChange(net.history) : null,
+      period,
+    };
+  }
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-      {kpis.map(k => <KpiCard key={k.label} k={k} onClick={() => setSelected(k)} />)}
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        {kpis.map(k => <KpiCard key={k.label} k={k} onClick={() => setSelected(k)} />)}
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI(buildAIData())}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all shadow-sm"
+        >
+          🤖 Analiza AI
+        </button>
+      </div>
 
       {selected && (
         <Drawer
@@ -350,11 +379,18 @@ function KpiPanel({ totals, result, history, period }: { totals: MonthlyReportTo
 
 type SubTab = 'marza' | 'heatmapa' | 'koszty' | 'wynik' | 'porownanie';
 
+interface AIModalState { section: string; sectionLabel: string; data: Record<string, unknown> }
+
 export default function RaportMiesieczny() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { activeCompany } = useCompanies();
   const data: MonthlyReportData | null = activeCompany?.raportMiesieczny ?? staticData;
   const [activeTab, setActiveTab] = useState<SubTab>('marza');
+  const [aiModal, setAiModal] = useState<AIModalState | null>(null);
+
+  const openAI = useCallback((section: string, sectionLabel: string) => (aiData: Record<string, unknown>) => {
+    setAiModal({ section, sectionLabel, data: aiData });
+  }, []);
 
   const SUB_TABS: { key: SubTab; label: string }[] = useMemo(() => [
     { key: 'marza',      label: t('report.marginByDept') },
@@ -387,7 +423,7 @@ export default function RaportMiesieczny() {
         </div>
 
         {/* Panel KPI / wskaźników */}
-        <KpiPanel totals={data.totals} result={data.result} history={data.history} period={data.period} />
+        <KpiPanel totals={data.totals} result={data.result} history={data.history} period={data.period} onOpenAI={openAI('kpi', `KPI — ${data.period}`)} />
 
         {/* Sub-tabs */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 flex flex-wrap gap-1">
@@ -413,9 +449,22 @@ export default function RaportMiesieczny() {
         {activeTab === 'marza'      && <MarzaTab departments={data.departments} totals={data.totals} period={data.period} />}
         {activeTab === 'heatmapa'   && <HeatmapaTab departments={data.departments} periodLabels={data.periodLabels} />}
         {activeTab === 'koszty'     && <KosztyTab costCategories={data.costCategories} totals={data.totals} period={data.period} />}
-        {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} departments={data.departments} />}
+        {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} departments={data.departments} onOpenAI={openAI('wynik_lejek', `Lejek wyniku — ${data.period}`)} />}
         {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} totals={data.totals} />}
       </div>
+
+      {/* AI Analysis Modal */}
+      {aiModal && (
+        <AIAnalysisModal
+          section={aiModal.section}
+          sectionLabel={aiModal.sectionLabel}
+          lang={lang}
+          period={data.period}
+          data={aiModal.data}
+          cacheKey={`ai_${activeCompany?.id ?? 'local'}_${aiModal.section}_${data.period}_${lang}`}
+          onClose={() => setAiModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1202,7 +1251,7 @@ function CustomFunnel({ data, onStageClick, onStageHover }: {
   );
 }
 
-function WynikTab({ result, totals, periodLabels, costCategories, departments }: { result: MonthlyReportLine[]; totals: MonthlyReportTotals; periodLabels: string[]; costCategories: CostCategory[]; departments: DepartmentMargin[] }) {
+function WynikTab({ result, totals, periodLabels, costCategories, departments, onOpenAI }: { result: MonthlyReportLine[]; totals: MonthlyReportTotals; periodLabels: string[]; costCategories: CostCategory[]; departments: DepartmentMargin[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t, lang } = useLang();
   const find = (id: string) => result.find(x => x.id === id);
   const netLine = find('resultat_de_l_exercice');
@@ -1280,8 +1329,29 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4" style={{ minHeight: 320 }}>
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('funnel.title')}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5 mb-1">{t('funnel.description')}</p>
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('funnel.title')}</p>
+            <button
+              onClick={() => onOpenAI({
+                revenue_PLN: totals.revenue.total,
+                stages: funnelData.map(s => ({
+                  name: s.name,
+                  value_PLN: s.value,
+                  pct_of_revenue: Math.round(s.pctOfRevenue * 1000) / 10,
+                  pct_of_prev: s.pctOfPrev != null ? Math.round(s.pctOfPrev * 1000) / 10 : null,
+                })),
+                top_cost_categories: costCategories.slice(0, 4).map(c => ({
+                  name: c.labelPl,
+                  total_PLN: c.total,
+                  pct_of_revenue: totals.revenue.total !== 0 ? Math.round(c.total / totals.revenue.total * 1000) / 10 : 0,
+                })),
+              })}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all shrink-0"
+            >
+              🤖 AI
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-400 mb-1">{t('funnel.description')}</p>
           <CustomFunnel
             data={funnelData}
             onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}

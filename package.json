@@ -12,6 +12,7 @@
     "convert": "node scripts/convert-xlsx.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.107.0",
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.3.0",
     "react": "^19.2.6",
