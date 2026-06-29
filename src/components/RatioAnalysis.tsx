@@ -1717,7 +1717,7 @@ function BeneishTab({ result, onOpenAI }: { result: BeneishResult | null; onOpen
     <div className="space-y-4">
 
       <div className="flex justify-end">
-        <button onClick={() => onOpenAI({ section: 'beneish_mscore', mscore: result?.mscore, high_risk: result?.highRisk, top_drivers: result?.topDrivers, indices: result?.indices.map(idx => ({ key: idx.key, val1: idx.val1 !== null ? Math.round(idx.val1 * 1000) / 1000 : null, norm: idx.norm, direction: idx.direction })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
+        <button onClick={() => onOpenAI({ section: 'beneish_mscore', mscore: result?.mscore, high_risk: result?.highRisk, top_drivers: result?.topDrivers, indices: result?.indices.map(idx => ({ key: idx.key, value: Math.round(idx.value * 1000) / 1000, weight: idx.weight, contribution: Math.round(idx.contribution * 1000) / 1000 })) })} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all">🤖 Analiza AI</button>
       </div>
 
       {/* ── Wynik M-score — baner ── */}
