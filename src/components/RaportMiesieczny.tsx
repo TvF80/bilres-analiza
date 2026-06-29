@@ -27,7 +27,8 @@ function makeTooltip(formatter: (v: number, name: string) => [string, string]) {
   return {
     contentStyle: TOOLTIP_STYLE,
     cursor: { fill: 'rgba(248,250,252,0.8)' },
-    formatter: (v: unknown, name: string | undefined) => formatter(Number(v), name ?? ''),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    formatter: (v: any, name: any) => formatter(Number(v), String(name ?? '')),
   };
 }
 
@@ -209,7 +210,7 @@ function HistoryComparisonChart({ history, height = 230, kind: _kind = 'line' }:
         <Legend
           formatter={(v) => `FY ${String(v).replace('fy', '')}`}
           wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
-          onMouseEnter={({ dataKey }: { dataKey: string }) => setHoveredFy(String(dataKey).replace('fy', ''))}
+          onMouseEnter={(d: any) => setHoveredFy(String(d.dataKey ?? '').replace('fy', ''))}
           onMouseLeave={() => setHoveredFy(null)}
         />
         {[...history].sort((a, b) => b.fy.localeCompare(a.fy)).map(h => (
@@ -1072,7 +1073,6 @@ function costIntensityColor(p: number): string {
 }
 
 // Gap names removed — 8px gap too narrow for text; stage labels below are self-explanatory
-const FUNNEL_GAP_NAMES: null[] = [null, null, null, null, null];
 
 function CustomFunnel({ data, onStageClick, onStageHover }: {
   data: FunnelStage[];
@@ -1431,7 +1431,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
               <Legend
                 formatter={(v) => `FY ${String(v).replace('fy', '')}`}
                 wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
-                onMouseEnter={({ dataKey }: { dataKey: string }) => setHoveredFy(String(dataKey).replace('fy', ''))}
+                onMouseEnter={(d: any) => setHoveredFy(String(d.dataKey ?? '').replace('fy', ''))}
                 onMouseLeave={() => setHoveredFy(null)}
               />
               <ReferenceLine y={0} stroke="#e2e8f0" />

@@ -11,13 +11,13 @@ import { CompaniesProvider } from './store/CompaniesContext.tsx';
 // Docs: https://docs.sentry.io/platforms/javascript/guides/react/
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 if (sentryDsn) {
-  import('@sentry/react').then(Sentry => {
+  // @ts-expect-error — optional peer dependency, not installed by default
+  import('@sentry/react').then((Sentry: any) => {
     Sentry.init({
       dsn: sentryDsn,
       environment: import.meta.env.MODE,
       tracesSampleRate: 0.1,
-      // Never capture financial data — only error messages and stack traces
-      beforeSend(event) {
+      beforeSend(event: any) {
         if (import.meta.env.DEV) return null;
         return event;
       },
@@ -26,7 +26,7 @@ if (sentryDsn) {
 }
 
 // ── Global unhandled promise rejections (e.g. background Supabase sync) ─────
-window.addEventListener('unhandledrejection', (event) => {
+window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
   const reason = event.reason;
   const msg = reason instanceof Error ? reason.message : String(reason);
   // Suppress noise from expected cases
