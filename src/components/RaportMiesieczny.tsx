@@ -198,7 +198,7 @@ function HistoryComparisonChart({ history, height = 230, kind: _kind = 'line' }:
         <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => plnM(Number(v))} width={48} />
         <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('fy', '')}`]} contentStyle={TOOLTIP_STYLE} />
         <Legend formatter={(v) => `FY ${String(v).replace('fy', '')}`} wrapperStyle={{ fontSize: 10 }} />
-        {history.map(h => (
+        {[...history].sort((a, b) => b.fy.localeCompare(a.fy)).map(h => (
           <Line key={h.fy} type="monotone" dataKey={`fy${h.fy}`} stroke={HISTORY_COLORS[h.fy] ?? '#94a3b8'} strokeWidth={h.fy === '2025' ? 2.5 : 1.5} dot={false} />
         ))}
       </LineChart>
@@ -307,7 +307,7 @@ function KpiPanel({ totals, result, history, period }: { totals: MonthlyReportTo
           </div>
           {!!selected.history?.length && (
             <div className="grid grid-cols-3 gap-2 text-center">
-              {selected.history!.map(h => (
+              {selected.history!.slice().reverse().map(h => (
                 <div key={h.fy} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2">
                   <p className="text-[9px] text-slate-400 uppercase font-semibold">FY {h.fy}</p>
                   <p className={`text-xs font-bold ${diffClass(h.total)}`}>{plnM(h.total)} PLN</p>
@@ -531,7 +531,7 @@ function MarzaTab({ departments, totals, period }: { departments: DepartmentMarg
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-center">
-            {selected.margin.history?.map(h => (
+            {selected.margin.history?.slice().reverse().map(h => (
               <div key={h.fy} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2">
                 <p className="text-[9px] text-slate-400 uppercase font-semibold">FY {h.fy}</p>
                 <p className={`text-xs font-bold ${diffClass(h.total)}`}>{plnM(h.total)} PLN</p>
@@ -604,7 +604,7 @@ function deltaColor(d: number): string {
   return `hsl(355, 65%, ${Math.round(96 + t * 26)}%)`;
 }
 
-const HEATMAP_FYS = ['2023', '2024', '2025'] as const;
+const HEATMAP_FYS = ['2025', '2024', '2023'] as const;
 
 function HeatmapaTab({ departments, periodLabels }: { departments: DepartmentMargin[]; periodLabels: string[] }) {
   const { t } = useLang();
@@ -1010,7 +1010,7 @@ function KosztyTab({ costCategories, totals, period }: { costCategories: CostCat
               : <p className="text-xs text-slate-400 italic">{t('costs.noHistoryPosition')}</p>}
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
-            {selected.history?.map(h => (
+            {selected.history?.slice().reverse().map(h => (
               <div key={h.fy} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2">
                 <p className="text-[9px] text-slate-400 uppercase font-semibold">FY {h.fy}</p>
                 <p className="text-xs font-bold text-slate-700">{plnM(h.total)} PLN</p>
@@ -1412,7 +1412,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
               <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('fy', '')}`]} contentStyle={TOOLTIP_STYLE} />
               <Legend formatter={(v) => `FY ${String(v).replace('fy', '')}`} wrapperStyle={{ fontSize: 10 }} />
               <ReferenceLine y={0} stroke="#e2e8f0" />
-              {(['2023', '2024', '2025'] as const).map(fy => (
+              {(['2025', '2024', '2023'] as const).map(fy => (
                 <Bar
                   key={fy} dataKey={`fy${fy}`} fill={HISTORY_COLORS[fy]} radius={[3, 3, 0, 0]} maxBarSize={20} cursor="pointer"
                   shape={Bar3DShape}
@@ -1579,7 +1579,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments }:
             </div>
             {!!selected.line.history?.length && (
               <div className="grid grid-cols-3 gap-2 text-center">
-                {selected.line.history!.map(h => (
+                {selected.line.history!.slice().reverse().map(h => (
                   <div key={h.fy} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2">
                     <p className="text-[9px] text-slate-400 uppercase font-semibold">FY {h.fy}</p>
                     <p className={`text-xs font-bold ${diffClass(h.total)}`}>{plnM(h.total)} PLN</p>
@@ -1680,9 +1680,9 @@ function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onC
   const { lang, t } = useLang();
   const label = trLabel(lang, item);
   const barData = [
-    { name: 'FY 2023', value: item.values.y2023, fy: '2023' },
-    { name: 'FY 2024', value: item.values.y2024, fy: '2024' },
     { name: 'FY 2025', value: item.values.y2025, fy: '2025' },
+    { name: 'FY 2024', value: item.values.y2024, fy: '2024' },
+    { name: 'FY 2023', value: item.values.y2023, fy: '2023' },
   ];
   return (
     <Drawer
@@ -1886,11 +1886,11 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
               <YAxis tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={v => plnM(Number(v))} width={44} />
               <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('y', '')}`]} contentStyle={TOOLTIP_STYLE} />
               <Legend formatter={(v) => `FY ${String(v).replace('y', '')}`} wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
+              <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
                 onClick={(_, idx) => { if (marginRadar[idx]?.item && marginRadar[idx].dept !== 'Inne') setSelectedItem(marginRadar[idx].item); }} />
               <Bar dataKey="y2024" name="2024" fill={HISTORY_COLORS['2024']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
                 onClick={(_, idx) => { if (marginRadar[idx]?.item && marginRadar[idx].dept !== 'Inne') setSelectedItem(marginRadar[idx].item); }} />
-              <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
+              <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} shape={Bar3DShape} cursor="pointer"
                 onClick={(_, idx) => { if (marginRadar[idx]?.item && marginRadar[idx].dept !== 'Inne') setSelectedItem(marginRadar[idx].item); }} />
             </BarChart>
           </ChartCard>
