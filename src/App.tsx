@@ -45,7 +45,12 @@ const RaportGrupy = lazy(() => import('./components/RaportGrupy'));
 const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25, 1.5];
 
 export default function App() {
-  const { currentUser } = useAuth();
+  const { currentUser, authLoading } = useAuth();
+  if (authLoading) return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+      <div className="text-slate-400 text-sm">Ładowanie…</div>
+    </div>
+  );
   if (!currentUser) return <LoginScreen />;
   return <MainApp />;
 }

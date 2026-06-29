@@ -1,92 +1,23 @@
 import { useState } from 'react';
-import { useAuth, type AppUser } from '../store/AuthContext';
+import { useAuth } from '../store/AuthContext';
 import { useLang } from '../i18n/LanguageContext';
 
-function SecurityInfo() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
-      >
-        <span className="text-green-500 text-sm">🔒</span>
-        <span className="text-xs font-medium text-slate-600 flex-1">Bezpieczeństwo danych finansowych</span>
-        <span className="text-slate-400 text-xs">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="px-4 py-3 bg-white space-y-2 text-[11px] text-slate-500 leading-relaxed">
-          <p><strong className="text-slate-700">🛡 Lokalne przechowywanie</strong> — wszystkie dane finansowe są przechowywane wyłącznie w localStorage i sessionStorage Twojej przeglądarki. Nigdy nie są wysyłane na serwer.</p>
-          <p><strong className="text-slate-700">🔑 Hasła</strong> — hasła są hashowane algorytmem SHA-256 w Twojej przeglądarce (Web Crypto API). Aplikacja nie przechowuje haseł w postaci jawnej.</p>
-          <p><strong className="text-slate-700">📂 Import danych</strong> — pliki Excel są parsowane lokalnie (SheetJS), żaden plik nie jest wysyłany poza Twoją przeglądarkę.</p>
-          <p><strong className="text-slate-700">🗑 Usuwanie danych</strong> — użyj przycisku "Wyczyść dane" w sidebarze lub wyczyść localStorage w ustawieniach przeglądarki. Odinstalowanie aplikacji usuwa wszystkie dane.</p>
-          <p><strong className="text-slate-700">📋 RODO/GDPR</strong> — aplikacja nie zbiera żadnych danych osobowych ani finansowych poza urządzeniem użytkownika. Nie ma kont online, cookies analitycznych ani zewnętrznych usług śledzenia.</p>
-        </div>
-      )}
-    </div>
-  );
-}
+type Mode = 'login' | 'register' | 'forgot';
 
 export default function LoginScreen() {
-  const { users, pendingUser, selectUser, clearSelection, addUser } = useAuth();
-  const { t } = useLang();
-  const [showAddUser, setShowAddUser] = useState(false);
+  const [mode, setMode] = useState<Mode>('login');
 
-  // No users yet — first run
-  if (users.length === 0 && !showAddUser) {
-    return (
-      <Shell>
-        <div className="text-center mb-6">
-          <p className="text-slate-500 text-sm">{t('login.noUsers')}</p>
-        </div>
-        <button
-          onClick={() => setShowAddUser(true)}
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
-        >
-          {t('login.createAccount')}
-        </button>
-      </Shell>
-    );
-  }
-
-  if (showAddUser) {
-    return (
-      <Shell>
-        <AddUserForm
-          onAdd={async (name, pass, hint) => {
-            await addUser(name, pass, hint);
-            setShowAddUser(false);
-            // auto-select the new user
-            // (handled by parent refresh — user appears in list)
-          }}
-          onCancel={users.length > 0 ? () => setShowAddUser(false) : undefined}
-        />
-      </Shell>
-    );
-  }
-
-  if (pendingUser) {
-    return (
-      <Shell>
-        <PasswordForm user={pendingUser} onBack={clearSelection} />
-      </Shell>
-    );
-  }
-
-  // Main: user picker
   return (
     <Shell>
-      <UserPicker
-        users={users}
-        onSelect={selectUser}
-        onAddUser={() => setShowAddUser(true)}
-      />
+      {mode === 'login'   && <LoginForm    onSwitch={setMode} />}
+      {mode === 'register' && <RegisterForm onSwitch={setMode} />}
+      {mode === 'forgot'  && <ForgotForm   onSwitch={setMode} />}
     </Shell>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Shell — dark background, logo
+// Shell
 // ---------------------------------------------------------------------------
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -109,218 +40,105 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
-// User picker — grid of avatars
+// Login form
 // ---------------------------------------------------------------------------
 
-function UserPicker({ users, onSelect, onAddUser }: {
-  users: AppUser[];
-  onSelect: (id: string) => void;
-  onAddUser: () => void;
-}) {
+function LoginForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
+  const { login } = useAuth();
   const { t } = useLang();
-  return (
-    <div>
-      <h2 className="text-base font-semibold text-slate-700 mb-4 text-center">{t('login.selectUser')}</h2>
-      <div className={`grid gap-3 mb-5 ${users.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
-        {users.map(user => (
-          <UserTile key={user.id} user={user} onClick={() => onSelect(user.id)} />
-        ))}
-      </div>
-      <div className="border-t border-slate-100 pt-4">
-        <button
-          onClick={onAddUser}
-          className="w-full py-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 text-sm font-medium transition-colors"
-        >
-          {t('login.addUser')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function UserTile({ user, onClick }: { user: AppUser; onClick: () => void }) {
-  const initials = user.name
-    .split(' ')
-    .map(w => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all duration-100 group shadow-[0_4px_0_0_#e2e8f0] hover:-translate-y-0.5 hover:shadow-[0_6px_0_0_#e2e8f0] active:translate-y-1 active:shadow-none"
-    >
-      <div
-        className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:scale-105 group-active:scale-95 transition-transform duration-100"
-        style={{ backgroundColor: user.color }}
-      >
-        {initials}
-      </div>
-      <span className="text-xs font-medium text-slate-700 text-center leading-tight line-clamp-2">
-        {user.name}
-      </span>
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Password form — after selecting a user
-// ---------------------------------------------------------------------------
-
-function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
-  const { login, resetPassword } = useAuth();
-  const { t } = useLang();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'login' | 'recovery'>('login');
-  const [newPass, setNewPass] = useState('');
-  const [newPassConfirm, setNewPassConfirm] = useState('');
-  const [attempts, setAttempts] = useState(0);
 
-  const initials = user.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const ok = await login(password);
+    const { error: err } = await login(email, password);
     setLoading(false);
-    if (!ok) {
-      setAttempts(a => a + 1);
-      setError(t('login.wrongPassword'));
-      setPassword('');
-    }
-  }
-
-  async function handleReset(e: React.FormEvent) {
-    e.preventDefault();
-    if (newPass.length < 4) { setError(t('login.minChars')); return; }
-    if (newPass !== newPassConfirm) { setError(t('login.noMatch')); return; }
-    setLoading(true);
-    await resetPassword(user.id, newPass);
-    setLoading(false);
-    setMode('login');
-    setError('');
-    setPassword('');
+    if (err) setError(translateError(err));
   }
 
   return (
-    <div>
-      {/* User avatar */}
-      <div className="flex flex-col items-center mb-5">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md mb-2"
-          style={{ backgroundColor: user.color }}
-        >
-          {initials}
-        </div>
-        <p className="text-sm font-semibold text-slate-800">{user.name}</p>
-        <button onClick={onBack} className="text-xs text-blue-500 hover:text-blue-700 mt-1">
-          {t('login.changeUser')}
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <h2 className="text-base font-semibold text-slate-800 mb-1">{t('login.login')}</h2>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder={t('login.email') || 'E-mail'}
+        autoFocus
+        required
+        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        placeholder={t('login.password')}
+        required
+        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+      />
+      {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
+      >
+        {loading ? t('login.checking') : t('login.login')}
+      </button>
+      <div className="flex justify-between pt-1">
+        <button type="button" onClick={() => onSwitch('forgot')} className="text-xs text-slate-400 hover:text-slate-600">
+          {t('login.forgotPassword')}
+        </button>
+        <button type="button" onClick={() => onSwitch('register')} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+          {t('login.createAccount')}
         </button>
       </div>
-
-      {mode === 'login' ? (
-        <form onSubmit={handleLogin} className="space-y-3">
-          <div>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder={t('login.password')}
-              autoFocus
-              required
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-center focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-            />
-          </div>
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 text-center">{error}</p>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
-          >
-            {loading ? t('login.checking') : t('login.login')}
-          </button>
-          {attempts >= 2 && (
-            <button
-              type="button"
-              onClick={() => { setMode('recovery'); setError(''); }}
-              className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1"
-            >
-              {t('login.forgotPassword')}
-            </button>
-          )}
-        </form>
-      ) : (
-        <form onSubmit={handleReset} className="space-y-3">
-          {user.hint && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-              <span className="font-semibold">{t('login.hint')}</span> {user.hint}
-            </div>
-          )}
-          <input
-            type="password"
-            value={newPass}
-            onChange={e => setNewPass(e.target.value)}
-            placeholder={t('login.newPassword')}
-            autoFocus
-            required
-            className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-          />
-          <input
-            type="password"
-            value={newPassConfirm}
-            onChange={e => setNewPassConfirm(e.target.value)}
-            placeholder={t('login.repeatNewPassword')}
-            required
-            className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-          />
-          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 text-center">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
-          >
-            {loading ? '…' : t('login.setNewPassword')}
-          </button>
-          <button type="button" onClick={() => setMode('login')} className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1 shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none transition-all duration-100">
-            {t('login.back')}
-          </button>
-        </form>
-      )}
-    </div>
+    </form>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Add user form
+// Register form
 // ---------------------------------------------------------------------------
 
-function AddUserForm({ onAdd, onCancel }: {
-  onAdd: (name: string, pass: string, hint: string) => Promise<void>;
-  onCancel?: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [pass, setPass] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [hint, setHint] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+function RegisterForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
+  const { signUp } = useAuth();
   const { t } = useLang();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     if (!name.trim()) { setError(t('login.enterName')); return; }
-    if (pass.length < 4) { setError(t('login.minChars')); return; }
-    if (pass !== confirm) { setError(t('login.noMatch')); return; }
+    if (password.length < 6) { setError(t('login.minChars')); return; }
+    if (password !== confirm) { setError(t('login.noMatch')); return; }
     setLoading(true);
-    await onAdd(name, pass, hint);
+    const { error: err } = await signUp(name.trim(), email, password);
     setLoading(false);
+    if (err) { setError(translateError(err)); return; }
+    setSuccess(true);
+  }
+
+  if (success) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="text-4xl">✉️</div>
+        <p className="text-sm font-semibold text-slate-800">Sprawdź skrzynkę e-mail</p>
+        <p className="text-xs text-slate-500">Wysłaliśmy link potwierdzający na <strong>{email}</strong>. Kliknij go, aby aktywować konto.</p>
+        <button onClick={() => onSwitch('login')} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors">
+          Wróć do logowania
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -336,10 +154,18 @@ function AddUserForm({ onAdd, onCancel }: {
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
       />
       <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder={t('login.email') || 'E-mail'}
+        required
+        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+      />
+      <input
         type="password"
-        value={pass}
-        onChange={e => setPass(e.target.value)}
-        placeholder={t('login.passwordMin')}
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        placeholder={t('login.passwordMin') || 'Hasło (min. 6 znaków)'}
         required
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
       />
@@ -351,20 +177,11 @@ function AddUserForm({ onAdd, onCancel }: {
         required
         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
       />
-      <input
-        type="text"
-        value={hint}
-        onChange={e => setHint(e.target.value)}
-        placeholder={t('login.passwordHint')}
-        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-      />
       {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex gap-2 pt-1">
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none transition-all duration-100">
-            {t('sidebar.cancel')}
-          </button>
-        )}
+        <button type="button" onClick={() => onSwitch('login')} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+          {t('login.back')}
+        </button>
         <button
           type="submit"
           disabled={loading}
@@ -375,4 +192,111 @@ function AddUserForm({ onAdd, onCancel }: {
       </div>
     </form>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Forgot password form
+// ---------------------------------------------------------------------------
+
+function ForgotForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
+  const { resetPassword } = useAuth();
+  const { t } = useLang();
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    const { error: err } = await resetPassword(email);
+    setLoading(false);
+    if (err) { setError(translateError(err)); return; }
+    setSuccess(true);
+  }
+
+  if (success) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="text-4xl">✉️</div>
+        <p className="text-sm font-semibold text-slate-800">Sprawdź skrzynkę e-mail</p>
+        <p className="text-xs text-slate-500">Jeśli konto istnieje, wyślemy link do resetu hasła na <strong>{email}</strong>.</p>
+        <button onClick={() => onSwitch('login')} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors">
+          Wróć do logowania
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <h2 className="text-base font-semibold text-slate-800 mb-1">{t('login.forgotPassword')}</h2>
+      <p className="text-xs text-slate-500">Podaj swój e-mail — wyślemy link do ustawienia nowego hasła.</p>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder={t('login.email') || 'E-mail'}
+        autoFocus
+        required
+        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+      />
+      {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={() => onSwitch('login')} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+          {t('login.back')}
+        </button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
+        >
+          {loading ? '…' : 'Wyślij link'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Security info — ZAKTUALIZOWANA (dane idą do Supabase)
+// ---------------------------------------------------------------------------
+
+function SecurityInfo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        <span className="text-green-500 text-sm">🔒</span>
+        <span className="text-xs font-medium text-slate-600 flex-1">Bezpieczeństwo danych</span>
+        <span className="text-slate-400 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="px-4 py-3 bg-white space-y-2 text-[11px] text-slate-500 leading-relaxed">
+          <p><strong className="text-slate-700">🔑 Konto i hasło</strong> — dane logowania są przechowywane w Supabase (szyfrowana baza PostgreSQL, EU). Hasła nigdy nie są przechowywane w postaci jawnej.</p>
+          <p><strong className="text-slate-700">📂 Dane finansowe</strong> — pliki Excel są parsowane lokalnie w Twojej przeglądarce. Dane firm przechowywane są w localStorage i sessionStorage na Twoim urządzeniu.</p>
+          <p><strong className="text-slate-700">🌐 Połączenie</strong> — komunikacja z serwerem tylko podczas logowania, rejestracji i resetowania hasła. Dane finansowe nie opuszczają Twojej przeglądarki.</p>
+          <p><strong className="text-slate-700">🗑 Usuwanie danych</strong> — aby usunąć dane finansowe, użyj "Wyczyść dane" w sidebarze. Usunięcie konta możliwe poprzez kontakt z administratorem.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helper — tłumaczenie błędów Supabase na polski
+// ---------------------------------------------------------------------------
+
+function translateError(msg: string): string {
+  if (msg.includes('Invalid login credentials')) return 'Nieprawidłowy e-mail lub hasło.';
+  if (msg.includes('Email not confirmed')) return 'Potwierdź adres e-mail przed zalogowaniem.';
+  if (msg.includes('User already registered')) return 'Ten adres e-mail jest już zarejestrowany.';
+  if (msg.includes('Password should be at least')) return 'Hasło musi mieć co najmniej 6 znaków.';
+  if (msg.includes('rate limit')) return 'Zbyt wiele prób. Poczekaj chwilę i spróbuj ponownie.';
+  if (msg.includes('network')) return 'Błąd sieci. Sprawdź połączenie z internetem.';
+  return msg;
 }
