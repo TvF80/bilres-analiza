@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { useLang } from '../i18n/LanguageContext';
 
@@ -50,14 +50,37 @@ function LoginForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [coolingDown, setCoolingDown] = useState(false);
+  const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (cooldownRef.current) clearTimeout(cooldownRef.current); }, []);
+
+  const isBlocked = loading || coolingDown;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isBlocked) return;
     setError('');
     setLoading(true);
     const { error: err } = await login(email, password);
     setLoading(false);
-    if (err) setError(translateError(err));
+    if (err) {
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= 5) {
+        setCoolingDown(true);
+        setAttempts(0);
+        setError('Zbyt wiele nieudanych prób. Poczekaj 30 sekund.');
+        cooldownRef.current = setTimeout(() => {
+          setCoolingDown(false);
+          setError('');
+        }, 30_000);
+      } else {
+        setError(translateError(err));
+      }
+      setPassword('');
+    }
   }
 
   return (
@@ -70,7 +93,8 @@ function LoginForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
         placeholder={t('login.email') || 'E-mail'}
         autoFocus
         required
-        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+        disabled={coolingDown}
+        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition disabled:opacity-50"
       />
       <input
         type="password"
@@ -78,15 +102,16 @@ function LoginForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
         onChange={e => setPassword(e.target.value)}
         placeholder={t('login.password')}
         required
-        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+        disabled={coolingDown}
+        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition disabled:opacity-50"
       />
       {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <button
         type="submit"
-        disabled={loading}
+        disabled={isBlocked}
         className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
       >
-        {loading ? t('login.checking') : t('login.login')}
+        {loading ? t('login.checking') : coolingDown ? 'Zablokowano (30s)' : t('login.login')}
       </button>
       <div className="flex justify-between pt-1">
         <button type="button" onClick={() => onSwitch('forgot')} className="text-xs text-slate-400 hover:text-slate-600">
