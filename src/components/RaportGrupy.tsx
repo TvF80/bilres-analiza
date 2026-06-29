@@ -808,15 +808,8 @@ function PolandMap({groups,onCity}:{groups:GroupRow[];onCity:(m:string)=>void}){
   return(
     <div>
       <svg viewBox="0 0 480 520" className="w-full max-w-[440px] mx-auto">
-        {/* cień */}
-        <path d={POLAND_PATH} fill="rgba(0,0,0,0.05)" transform="translate(3,5)"/>
-        {/* wypełnienie */}
-        <path d={POLAND_PATH} fill="#dbeafe" stroke="#93c5fd" strokeWidth="2" strokeLinejoin="round"/>
-        {/* siatka pomocnicza */}
-        {[50,51,52,53,54].map(lat=>{
-          const y=(55.0-lat)/6.0*480+20;
-          return <line key={lat} x1="20" y1={y} x2="460" y2={y} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="4 8"/>;
-        })}
+        {/* wypełnienie — flat, bez cienia, bez gradientu */}
+        <path d={POLAND_PATH} fill="#E8F3FF" fillOpacity={0.52} stroke="#4A90E2" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
         {/* miasta */}
         {Object.entries(CITY_SVG).map(([miasto,[cx,cy]])=>{
           const s=stats[miasto];if(!s)return null;
@@ -830,8 +823,6 @@ function PolandMap({groups,onCity}:{groups:GroupRow[];onCity:(m:string)=>void}){
               {isH&&<circle cx={cx} cy={cy} r={r+10} fill={fill} fillOpacity={0.12}/>}
               {/* pierścień MB% */}
               <circle cx={cx} cy={cy} r={r+4} fill="none" stroke={mbFill(mp2)} strokeWidth={2.5} opacity={0.75}/>
-              {/* cień bąbelka */}
-              <circle cx={cx+2} cy={cy+3} r={r} fill="rgba(0,0,0,0.12)"/>
               {/* bąbelek */}
               <circle cx={cx} cy={cy} r={r}
                 fill={fill} fillOpacity={isH?0.95:0.82}
@@ -883,8 +874,12 @@ function agg(gs:GroupRow[]){const p=Array(12).fill(0),k=Array(12).fill(0),m=Arra
 function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: GroupRow) => void; tr: (k: string) => string }) {
   if (!groups.length) return <div className="h-48 flex items-center justify-center text-xs text-slate-400">—</div>;
 
-  const xs = groups.map(g => g.total.przychod);
-  const ys = groups.map(g => mbp(g));
+  // Grupy z MB < -100% są zbyt skrajne i zaburzają skalę — wykluczamy z wykresu
+  const irrelevantGroups = groups.filter(g => mbp(g) < -1.0);
+  const relevantGroups = groups.filter(g => mbp(g) >= -1.0);
+
+  const xs = relevantGroups.map(g => g.total.przychod);
+  const ys = relevantGroups.map(g => mbp(g));
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const rangeX = maxX - minX || 1;
 
@@ -897,9 +892,9 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
   const yMax = p95 + spread * 0.15;                              // lekki padding powyżej
   const rangeY = yMax - yMin || 0.01;
 
-  // Outliers: poniżej skali i powyżej 100%
-  const outliersLow = groups.filter(g => mbp(g) < yMin);
-  const outliersHigh = groups.filter(g => mbp(g) > yMax);
+  // Outliers: poniżej skali i powyżej skali (z grupy relevantGroups)
+  const outliersLow = relevantGroups.filter(g => mbp(g) < yMin);
+  const outliersHigh = relevantGroups.filter(g => mbp(g) > yMax);
 
   const PAD_X = 10; // % padding poziomy
   const PAD_Y = 8;  // % padding pionowy
@@ -966,7 +961,7 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
         })}
 
         {/* punkty */}
-        {groups.map((g, i) => {
+        {relevantGroups.map((g, i) => {
           const my = mbp(g);
           if (my < yMin || my > yMax) return null; // outliers pokazane osobno
           const px = ((g.total.przychod - minX) / rangeX) * (100 - 2 * PAD_X) + PAD_X;
@@ -987,7 +982,7 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
         <div className="absolute top-1 left-1 text-[8px] text-slate-400 pointer-events-none">MB%↑</div>
       </div>
 
-      {/* outliers poniżej wykresu jako etykiety inline */}
+      {/* outliers poniżej skali (relevantGroups, ale pod zakresem osi) */}
       {outliersLow.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-1 pt-1">
           <span className="text-[9px] text-slate-400 font-semibold">Poza skalą:</span>
@@ -1004,9 +999,26 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
         </div>
       )}
 
+      {/* Grupy z MB < -100% — nieistotne, wykluczone ze skali */}
+      {irrelevantGroups.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-1 pt-1">
+          <span className="text-[9px] text-slate-400 font-semibold">Nieistotne (MB &lt; −100%):</span>
+          {irrelevantGroups.map((g, i) => (
+            <button
+              key={i}
+              onClick={() => onGroup(g)}
+              className="text-[9px] bg-slate-50 border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-100 transition-colors"
+              title={`${g.lider} · MB: ${fmtPct(mbp(g))} · ${fmtM(g.total.przychod)}`}
+            >
+              {g.lider} <span className="font-bold text-slate-600">{fmtPct(mbp(g))}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* legenda miast */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-1">
-        {Object.entries(CITY_COLORS).filter(([m]) => groups.some(g => g.miasto === m)).map(([m, color]) => (
+        {Object.entries(CITY_COLORS).filter(([m]) => relevantGroups.some(g => g.miasto === m)).map(([m, color]) => (
           <div key={m} className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded-full border border-white shadow-sm" style={{ backgroundColor: color }} />
             <span className="text-[9px] text-slate-500">{MIASTO_LABEL[m] ?? m}</span>
