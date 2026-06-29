@@ -305,7 +305,7 @@ function IndicatorCards({ rows, labels }: { rows: Indicator[]; labels: string[] 
             <button
               key={i}
               onClick={() => setSelectedIdx(i)}
-              className={`text-left rounded-lg border-l-4 border-r border-t border-b shadow-sm overflow-hidden transition-all hover:shadow-md hover:brightness-95 active:scale-[0.99] ${borderCls} ${bg} bg-white px-3 py-2.5`}
+              className={`text-left rounded-lg border-l-4 border-r border-t border-b overflow-hidden transition-all duration-100 ${borderCls} ${bg} bg-white px-3 py-2.5 shadow-[0_4px_0_0_#e2e8f0] hover:-translate-y-0.5 hover:shadow-[0_6px_0_0_#e2e8f0] active:translate-y-1 active:shadow-none`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -2232,7 +2232,7 @@ function PodsumowanieTab({
             <button
               key={key}
               onClick={() => onNavigate(TAB_MAP[key])}
-              className={`text-left rounded-xl px-3 py-3 border transition-all shadow-sm hover:shadow-md active:scale-[0.98] ${catCardBg(g)}`}
+              className={`text-left rounded-xl px-3 py-3 border transition-all duration-100 ${catCardBg(g)} shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">{label}</span>
@@ -2317,7 +2317,7 @@ function PodsumowanieTab({
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <button
               onClick={() => onNavigate('bilans_str')}
-              className="w-full px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2 hover:bg-slate-100 transition-colors text-left"
+              className="w-full px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2 hover:bg-slate-100 transition-all duration-100 text-left shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none"
             >
               <span className="font-bold text-sm text-slate-800 flex-1">{sl.title}</span>
               <Badge g={gStrKW} />
@@ -2366,7 +2366,7 @@ function PodsumowanieTab({
       {/* ── Modele dyskryminacyjne ── */}
       <button
         onClick={() => onNavigate('dyskryminacyjne')}
-        className="w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md hover:border-slate-300 transition-all text-left"
+        className="w-full bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-slate-300 transition-all duration-100 text-left shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none"
       >
         <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
           <span className="font-bold text-sm text-slate-800 flex-1">
@@ -2397,7 +2397,7 @@ function PodsumowanieTab({
       {beneish && (
         <button
           onClick={() => onNavigate('beneish')}
-          className={`w-full text-left rounded-xl border-2 shadow-sm p-4 hover:shadow-md transition-all ${beneish.highRisk ? 'bg-red-50 border-red-300 hover:border-red-400' : 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'}`}
+          className={`w-full text-left rounded-xl border-2 p-4 transition-all duration-100 ${beneish.highRisk ? 'bg-red-50 border-red-300 hover:border-red-400' : 'bg-emerald-50 border-emerald-300 hover:border-emerald-400'} shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none`}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="font-bold text-sm text-slate-800">Beneish M-Score</span>
@@ -2536,15 +2536,16 @@ export default function RatioAnalysis() {
               </span>
               {subTabs.filter(tab => tab.group === group).map(tab => {
                 const active = activeTab === tab.key;
-                const colorOn = group === groupNames[0]
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-blue-600 text-white shadow-sm';
                 return (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                      active ? colorOn : 'text-slate-600 hover:bg-slate-100'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-100 whitespace-nowrap ${
+                      active
+                        ? (group === groupNames[0]
+                            ? 'bg-emerald-600 text-white shadow-[0_4px_0_0_#065f46] translate-y-0 hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#065f46]'
+                            : 'bg-blue-600 text-white shadow-[0_4px_0_0_#1e40af] translate-y-0 hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1e40af]')
+                        : 'text-slate-600 hover:bg-slate-100 shadow-[0_2px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none'
                     }`}
                   >
                     {tab.label}

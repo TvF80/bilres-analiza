@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -33,7 +33,7 @@ function Bar3DShape(props: any) {
 
   function onEnter(e: React.MouseEvent<SVGGElement>) {
     const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
-    if (r) { r.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.06)'; r.style.fillOpacity = '1'; }
+    if (r) { r.style.filter = 'drop-shadow(0 3px 6px rgba(0,0,0,0.12)) brightness(1.03)'; r.style.fillOpacity = '1'; }
     const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
     if (h) h.style.fillOpacity = '0.35';
   }
@@ -102,12 +102,35 @@ function ChartCard({ title, children, height = 210, hint }: ChartCardProps) {
 
 const TOOLTIP_STYLE = { fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,.06)' };
 
+// ── Custom tooltip factory — highlights the hovered bar's row ─────────────────
+function makeTooltip(hovKey: string | null, fmtVal: (v: number) => string) {
+  return ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ ...TOOLTIP_STYLE, fontSize: 11, padding: '8px 10px', minWidth: 140 }}>
+        <p className="font-semibold text-slate-600 mb-1.5 text-[10px]">{label}</p>
+        {(payload as any[]).map((p: any) => {
+          const isActive = hovKey === p.dataKey;
+          return (
+            <div key={p.dataKey} className="flex items-center gap-2 rounded-md py-0.5 px-1 -mx-1" style={{ background: isActive ? `${p.fill}18` : 'transparent' }}>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.fill }} />
+              <span className={`flex-1 text-[10px] ${isActive ? 'font-bold text-slate-800' : 'text-slate-500'}`}>{p.name}</span>
+              <span className={`font-mono text-[10px] ${isActive ? 'font-bold text-slate-800' : 'text-slate-500'}`}>{fmtVal(Number(p.value))}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+}
+
 interface ChartProps { f1: FieldMap; f2: FieldMap; f3?: FieldMap | null; onBarClick?: (index: number) => void; periodLabels?: string[] }
 
 // ── Płynność ──────────────────────────────────────────────────────────────────
 
 export function PlynnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartProps) {
   const { t } = useLang();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [l1, l2, l3] = [periodLabels?.[0] ?? t('chart.p1Current'), periodLabels?.[1] ?? t('chart.p2Comparative'), periodLabels?.[2] ?? 'P3'];
   const data = useMemo(() => [
     {
@@ -138,11 +161,11 @@ export function PlynnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPro
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-        <Tooltip formatter={(v) => [`${Number(v).toFixed(2)}x`, '']} contentStyle={TOOLTIP_STYLE} />
+        <Tooltip content={makeTooltip(hoveredKey, v => `${v.toFixed(2)}x`)} />
         <Legend content={<CustomLegend />} />
-        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P1')} onMouseLeave={() => setHoveredKey(null)} />
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P2')} onMouseLeave={() => setHoveredKey(null)} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P3')} onMouseLeave={() => setHoveredKey(null)} />}
         <ReferenceLine y={1.2} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'min 1,2', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
       </BarChart>
@@ -154,6 +177,7 @@ export function PlynnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPro
 
 export function SprawnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartProps) {
   const { t } = useLang();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [l1, l2, l3] = [periodLabels?.[0] ?? t('chart.p1Current'), periodLabels?.[1] ?? t('chart.p2Comparative'), periodLabels?.[2] ?? 'P3'];
   const data = useMemo(() => {
     const dso = (f: FieldMap) => f.przychody > 0 ? f.naleznosci / f.przychody * 360 : 0;
@@ -176,13 +200,13 @@ export function SprawnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPr
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}d`} />
-        <Tooltip formatter={(v) => [`${Number(v)} dni`, '']} contentStyle={TOOLTIP_STYLE} />
+        <Tooltip content={makeTooltip(hoveredKey, v => `${Math.round(v)} dni`)} />
         <Legend content={<CustomLegend />} />
         <ReferenceLine y={60} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: '60 dni', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P1')} onMouseLeave={() => setHoveredKey(null)} />
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P2')} onMouseLeave={() => setHoveredKey(null)} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P3')} onMouseLeave={() => setHoveredKey(null)} />}
       </BarChart>
     </ChartCard>
   );
@@ -192,6 +216,7 @@ export function SprawnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPr
 
 export function ZadluzenieChart({ f1, f2, f3, onBarClick, periodLabels }: ChartProps) {
   const { t } = useLang();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [l1, l2, l3] = [periodLabels?.[0] ?? t('chart.p1Current'), periodLabels?.[1] ?? t('chart.p2Comparative'), periodLabels?.[2] ?? 'P3'];
   const data = useMemo(() => {
     const d1 = f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko;
@@ -213,13 +238,13 @@ export function ZadluzenieChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-        <Tooltip formatter={(v) => [`${Number(v).toFixed(2)}x`, '']} contentStyle={TOOLTIP_STYLE} />
+        <Tooltip content={makeTooltip(hoveredKey, v => `${v.toFixed(2)}x`)} />
         <Legend content={<CustomLegend />} />
         <ReferenceLine y={0.6} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'max 0,6', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />}
+        <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P1')} onMouseLeave={() => setHoveredKey(null)} />
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P2')} onMouseLeave={() => setHoveredKey(null)} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P3')} onMouseLeave={() => setHoveredKey(null)} />}
       </BarChart>
     </ChartCard>
   );
@@ -229,6 +254,7 @@ export function ZadluzenieChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
 
 export function RentownoscChart({ f1, f2, f3, onBarClick, periodLabels }: ChartProps) {
   const { t } = useLang();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [l1, l2, l3] = [periodLabels?.[0] ?? t('chart.p1Current'), periodLabels?.[1] ?? t('chart.p2Comparative'), periodLabels?.[2] ?? 'P3'];
   const data = useMemo(() => {
     const pct = (a: number, b: number) => b !== 0 ? parseFloat((a / b * 100).toFixed(1)) : 0;
@@ -249,16 +275,16 @@ export function RentownoscChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-        <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, '']} contentStyle={TOOLTIP_STYLE} />
+        <Tooltip content={makeTooltip(hoveredKey, v => `${v.toFixed(1)}%`)} />
         <Legend content={<CustomLegend />} />
         <ReferenceLine y={0} stroke="#e2e8f0" />
         <ReferenceLine y={5} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'min 5%', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
-        <Bar dataKey="P1" name={l1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={(p: any) => <Bar3DShape {...p} fill={p.P1 >= 0 ? C.p1 : C.neg} />}>
+        <Bar dataKey="P1" name={l1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={(p: any) => <Bar3DShape {...p} fill={p.P1 >= 0 ? C.p1 : C.neg} />} onMouseEnter={() => setHoveredKey('P1')} onMouseLeave={() => setHoveredKey(null)}>
           {data.map((d, i) => <Cell key={i} fill={d.P1 >= 0 ? C.p1 : C.neg} />)}
         </Bar>
-        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
-        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
+        <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P2')} onMouseLeave={() => setHoveredKey(null)} />
+        {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} onMouseEnter={() => setHoveredKey('P3')} onMouseLeave={() => setHoveredKey(null)} />}
       </BarChart>
     </ChartCard>
   );

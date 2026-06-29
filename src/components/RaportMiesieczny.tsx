@@ -24,6 +24,36 @@ const C = { pos: '#10b981', neg: '#f43f5e', p1: '#3b82f6', amber: '#f59e0b' };
 const COST_COLORS = ['#3b82f6', '#f97316', '#8b5cf6', '#06b6d4', '#f43f5e', '#10b981', '#f59e0b', '#94a3b8'];
 const TOOLTIP_STYLE = { fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,.06)' };
 
+function Bar3DShape(props: any) {
+  const { x, y, width, height, fill } = props;
+  if (!width || height == null || height <= 0) return null;
+  const R = 4;
+  const hlH = Math.min(7, Math.floor(height * 0.22));
+  function onEnter(e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
+    if (r) { r.style.filter = 'drop-shadow(0 3px 6px rgba(0,0,0,0.12)) brightness(1.03)'; r.style.fillOpacity = '1'; }
+    const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
+    if (h) h.style.fillOpacity = '0.35';
+  }
+  function onLeave(e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
+    if (r) { r.style.filter = ''; r.style.fillOpacity = '0.88'; }
+    const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
+    if (h) h.style.fillOpacity = '0.16';
+  }
+  return (
+    <g onMouseEnter={onEnter} onMouseLeave={onLeave} style={{ cursor: 'pointer' }}>
+      <rect className="bar-main" x={x} y={y} width={width} height={height}
+        fill={fill} rx={R} ry={R} fillOpacity={0.88} style={{ transition: 'all 0.12s ease' }} />
+      {hlH > 0 && (
+        <rect className="bar-hl" x={x+1} y={y+1} width={Math.max(0,width-2)} height={hlH}
+          fill="white" fillOpacity={0.16} rx={R-1} pointerEvents="none"
+          style={{ transition: 'fill-opacity 0.12s' }} />
+      )}
+    </g>
+  );
+}
+
 function plnM(v: number): string {
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} M`;
   if (Math.abs(v) >= 1_000)     return `${(v / 1_000).toFixed(0)} k`;
@@ -1018,7 +1048,11 @@ function costIntensityColor(p: number): string {
   return `hsl(${Math.round(120 - t * 120)}, 58%, 83%)`;
 }
 
-function CustomFunnel({ data, onStageClick }: { data: FunnelStage[]; onStageClick: (i: number) => void }) {
+function CustomFunnel({ data, onStageClick, onStageHover }: {
+  data: FunnelStage[];
+  onStageClick: (i: number) => void;
+  onStageHover?: (i: number | null) => void;
+}) {
   // Lejek odwrócony (szerszy na górze) — wzorowany na klasycznym funnel chart
   const STAGE_H = 46;
   const GAP = 2;           // mała przerwa między stopniami
@@ -1064,7 +1098,7 @@ function CustomFunnel({ data, onStageClick }: { data: FunnelStage[]; onStageClic
         const midW = (cw + pw) / 2; // średnia szerokość — czy jest miejsce na tekst
 
         return (
-          <g key={i} onClick={() => onStageClick(i)} style={{ cursor: 'pointer' }}>
+          <g key={i} onClick={() => onStageClick(i)} onMouseEnter={() => onStageHover?.(i)} onMouseLeave={() => onStageHover?.(null)} style={{ cursor: 'pointer' }}>
             {/* cień (glow) przy hover */}
             <path d={shape} fill={fill} fillOpacity={0.04} transform="translate(0,2)" />
             {/* główny trapez */}
@@ -1119,6 +1153,7 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
   const find = (id: string) => result.find(x => x.id === id);
   const netLine = find('resultat_de_l_exercice');
   const [selected, setSelected] = useState<{ label: string; line: MonthlyReportLine } | null>(null);
+  const [hoveredStageIdx, setHoveredStageIdx] = useState<number | null>(null);
 
   const stages = useMemo(() => FUNNEL_STAGE_IDS.map(s => s.id === '__revenue' ? totals.revenue : find(s.id)), [result, totals]);
 
@@ -1167,7 +1202,75 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
           <CustomFunnel
             data={funnelData}
             onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}
+            onStageHover={setHoveredStageIdx}
           />
+          {/* Hover detail panel */}
+          {hoveredStageIdx != null && (() => {
+            const stage = funnelData[hoveredStageIdx];
+            const stageMonthly = stages[hoveredStageIdx]?.monthly ?? [];
+            const maxM = Math.max(...stageMonthly.map(Math.abs), 1);
+            const prevStage = hoveredStageIdx > 0 ? funnelData[hoveredStageIdx - 1] : null;
+            const consumed = prevStage != null ? prevStage.value - stage.value : null;
+            const bestMonthIdx = stageMonthly.reduce((bi, v, i) => Math.abs(v) > Math.abs(stageMonthly[bi]) ? i : bi, 0);
+            return (
+              <div
+                className="mt-3 rounded-xl border-2 p-3 transition-all duration-150 animate-pulse-once"
+                style={{ borderColor: stage.fill + '60', background: stage.fill + '0a' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: stage.fill }} />
+                  <span className="text-[11px] font-bold text-slate-700">{stage.name}</span>
+                  <span className="ml-auto text-base font-black tabular-nums" style={{ color: stage.fill }}>
+                    {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex gap-4 mb-2.5">
+                  <div>
+                    <p className="text-[9px] text-slate-400 uppercase font-semibold">Wartość</p>
+                    <p className={`text-sm font-bold ${stage.value < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{plnM(stage.value)}</p>
+                  </div>
+                  {consumed != null && (
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Zużyte</p>
+                      <p className="text-sm font-bold text-rose-500">-{plnM(Math.abs(consumed))}</p>
+                    </div>
+                  )}
+                  {stageMonthly.length > 0 && (
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Najlepszy mies.</p>
+                      <p className="text-sm font-bold text-slate-700">{periodLabels[bestMonthIdx] ?? `M${bestMonthIdx+1}`}</p>
+                    </div>
+                  )}
+                </div>
+                {stageMonthly.length > 0 && (
+                  <div>
+                    <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">Miesięczna progresja</p>
+                    <div className="flex items-end gap-0.5 h-8">
+                      {stageMonthly.map((v, mi) => {
+                        const h = Math.max(3, Math.round((Math.abs(v) / maxM) * 28));
+                        const isNeg = v < 0;
+                        const isBest = mi === bestMonthIdx;
+                        return (
+                          <div key={mi} className="flex-1 flex flex-col items-center gap-0.5 group/bar" title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}>
+                            <div
+                              className="w-full rounded-t-sm transition-opacity"
+                              style={{
+                                height: h,
+                                background: isNeg ? '#f87171' : stage.fill,
+                                opacity: isBest ? 1 : 0.6,
+                                alignSelf: 'flex-end',
+                                outline: isBest ? `2px solid ${stage.fill}` : 'none',
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {/* Breakdown głównych kategorii kosztów */}
           {costCategories.length > 0 && (() => {
             const topCosts = [...costCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total)).slice(0, 5);
@@ -1196,6 +1299,38 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
               </div>
             );
           })()}
+          {/* Miesięczna progresja wyników */}
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Progresja miesięczna</p>
+            <div className="space-y-1.5">
+              {funnelData.slice(0, 3).map((stage, i) => {
+                const stageMonthly = stages[i]?.monthly ?? [];
+                const maxVal = Math.max(...stageMonthly.map(Math.abs), 1);
+                return (
+                  <div key={stage.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: stage.fill }} />
+                    <span className="text-[9px] text-slate-500 truncate" style={{ minWidth: 64, maxWidth: 64 }}>
+                      {stage.name.length > 10 ? stage.name.slice(0, 9) + '…' : stage.name}
+                    </span>
+                    <div className="flex items-end gap-0.5 flex-1 h-5">
+                      {stageMonthly.map((v, mi) => {
+                        const h = Math.max(2, Math.round((Math.abs(v) / maxVal) * 16));
+                        const isNeg = v < 0;
+                        return (
+                          <div
+                            key={mi}
+                            title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}
+                            className="flex-1 rounded-t-sm"
+                            style={{ height: h, background: isNeg ? '#f87171' : stage.fill, opacity: 0.75, alignSelf: 'flex-end' }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
             {funnelData.map(s => (
               <span key={s.name} className="inline-flex items-center gap-1 text-[9px] text-slate-400">
@@ -1222,6 +1357,7 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
               {(['2023', '2024', '2025'] as const).map(fy => (
                 <Bar
                   key={fy} dataKey={`fy${fy}`} fill={HISTORY_COLORS[fy]} radius={[3, 3, 0, 0]} maxBarSize={20} cursor="pointer"
+                  shape={Bar3DShape}
                   onClick={(_, idx) => { const line = stages[idx]; if (line) setSelected({ label: t(FUNNEL_STAGE_IDS[idx].tKey), line }); }}
                 />
               ))}
@@ -1245,9 +1381,10 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
             <tr>
               <th className="text-left px-3 py-2 sticky left-0 bg-slate-50">{t('chart.position')}</th>
-              {periodLabels.map(p => <th key={p} className="text-right px-2 py-2 whitespace-nowrap">{p}</th>)}
-              <th className="text-right px-3 py-2">{t('chart.total')}</th>
+              <th className="text-right px-3 py-2 font-bold text-slate-700">{t('chart.total')}</th>
               <th className="text-right px-3 py-2">{t('chart.deltaYoY')}</th>
+              <th className="px-1 py-2 w-3 bg-slate-100/60" />
+              {periodLabels.map(p => <th key={p} className="text-right px-2 py-2 whitespace-nowrap font-normal text-slate-400">{p}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -1261,9 +1398,10 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
                   className={`border-t border-slate-100 cursor-pointer transition-colors ${isMain ? 'bg-amber-50/50 font-semibold text-slate-800 hover:bg-amber-100/60' : `text-slate-600 hover:bg-amber-50/40 ${i % 2 ? 'bg-slate-50/40' : ''}`}`}
                 >
                   <td className="px-3 py-1.5 whitespace-nowrap sticky left-0 bg-inherit">{trLabel(lang, line)}</td>
-                  {line.monthly.map((v, j) => <td key={j} className={`text-right px-2 py-1.5 ${diffClass(v)}`}>{plnM(v)}</td>)}
                   <td className={`text-right px-3 py-1.5 font-semibold ${diffClass(line.total)}`}>{formatPLN(line.total)}</td>
                   <td className="text-right px-3 py-1.5"><TrendBadge value={yoyChange(line.history)} /></td>
+                  <td className="px-1 py-1.5 bg-slate-50/60 w-3" />
+                  {line.monthly.map((v, j) => <td key={j} className={`text-right px-2 py-1.5 text-[10px] ${diffClass(v)}`}>{plnM(v)}</td>)}
                 </tr>
               );
             })}
@@ -1544,6 +1682,10 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
       y2025: it.values.y2025,
     })), [items]);
 
+  const marginRadarItems = useMemo(() =>
+    items.filter(it => it.labelPl.startsWith('MARŻA USŁUGI')),
+    [items]);
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -1607,9 +1749,9 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
             <YAxis tick={{ fontSize: 8, fill: '#94a3b8' }} tickFormatter={v => plnM(Number(v))} width={44} />
             <Tooltip formatter={(v, name) => [`${formatPLN(Number(v))} PLN`, `FY ${String(name).replace('y', '')}`]} contentStyle={TOOLTIP_STYLE} />
             <Legend formatter={(v) => `FY ${String(v).replace('y', '')}`} wrapperStyle={{ fontSize: 10 }} />
-            <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} />
-            <Bar dataKey="y2024" name="2024" fill={HISTORY_COLORS['2024']} radius={[3, 3, 0, 0]} maxBarSize={14} />
-            <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} />
+            <Bar dataKey="y2023" name="2023" fill={HISTORY_COLORS['2023']} radius={[3, 3, 0, 0]} maxBarSize={14} cursor="pointer" shape={Bar3DShape} onClick={(_, idx) => { if (marginRadarItems[idx]) setSelectedItem(marginRadarItems[idx]); }} />
+            <Bar dataKey="y2024" name="2024" fill={HISTORY_COLORS['2024']} radius={[3, 3, 0, 0]} maxBarSize={14} cursor="pointer" shape={Bar3DShape} onClick={(_, idx) => { if (marginRadarItems[idx]) setSelectedItem(marginRadarItems[idx]); }} />
+            <Bar dataKey="y2025" name="2025" fill={HISTORY_COLORS['2025']} radius={[3, 3, 0, 0]} maxBarSize={14} cursor="pointer" shape={Bar3DShape} onClick={(_, idx) => { if (marginRadarItems[idx]) setSelectedItem(marginRadarItems[idx]); }} />
           </BarChart>
         </ChartCard>
 

@@ -149,10 +149,10 @@ function UserTile({ user, onClick }: { user: AppUser; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-slate-50 transition-colors group"
+      className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all duration-100 group shadow-[0_4px_0_0_#e2e8f0] hover:-translate-y-0.5 hover:shadow-[0_6px_0_0_#e2e8f0] active:translate-y-1 active:shadow-none"
     >
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:shadow-md transition-shadow"
+        className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:scale-105 group-active:scale-95 transition-transform duration-100"
         style={{ backgroundColor: user.color }}
       >
         {initials}
@@ -241,7 +241,7 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm transition-colors"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
           >
             {loading ? t('login.checking') : t('login.login')}
           </button>
@@ -283,11 +283,11 @@ function PasswordForm({ user, onBack }: { user: AppUser; onBack: () => void }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm transition-colors"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
           >
             {loading ? '…' : t('login.setNewPassword')}
           </button>
-          <button type="button" onClick={() => setMode('login')} className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1">
+          <button type="button" onClick={() => setMode('login')} className="w-full text-xs text-slate-400 hover:text-slate-600 text-center py-1 shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none transition-all duration-100">
             {t('login.back')}
           </button>
         </form>
@@ -361,14 +361,14 @@ function AddUserForm({ onAdd, onCancel }: {
       {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex gap-2 pt-1">
         {onCancel && (
-          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none transition-all duration-100">
             {t('sidebar.cancel')}
           </button>
         )}
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm transition-colors"
+          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1d4ed8] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all duration-100"
         >
           {loading ? t('login.creating') : t('login.create')}
         </button>

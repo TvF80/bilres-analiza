@@ -158,7 +158,7 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
               {assignedCount > 0 && (
                 <p className="text-xs text-green-600 mt-2 font-medium">{t('import.recognized', { count: assignedCount })}</p>
               )}
-              <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg cursor-pointer transition-colors shadow-sm">
+              <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg cursor-pointer shadow-[0_4px_0_0_#1e40af] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1e40af] active:translate-y-1 active:shadow-none transition-all duration-100">
                 <span>📁</span> Wybierz katalog
                 <input
                   type="file"
@@ -225,14 +225,14 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
 
         {step === 'form' && (
           <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
-            <button onClick={onClose} className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+            <button onClick={onClose} className="flex-1 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 shadow-[0_3px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0] active:translate-y-0.5 active:shadow-none transition-all duration-100">
               {t('import.cancel')}
             </button>
             <button
               onClick={handleImport}
               disabled={!canImport || loading}
-              className={`flex-1 py-2 rounded-lg disabled:opacity-40 text-white font-semibold text-sm transition-colors shadow-sm ${
-                isReplaceMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+              className={`flex-1 py-2 rounded-lg disabled:opacity-40 text-white font-semibold text-sm transition-all duration-100 ${
+                isReplaceMode ? 'bg-amber-600 hover:bg-amber-700 shadow-[0_4px_0_0_#92400e] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#92400e] active:translate-y-1 active:shadow-none' : 'bg-blue-600 hover:bg-blue-700 shadow-[0_4px_0_0_#1e40af] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1e40af] active:translate-y-1 active:shadow-none'
               }`}
             >
               {loading ? t('import.importing') : isReplaceMode ? t('import.replaceBtn') : t('import.importBtn')}
@@ -288,7 +288,7 @@ function DoneScreen({ name, onClose, isReplace }: { name: string; onClose: () =>
       </p>
       <button
         onClick={onClose}
-        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors"
+        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-[0_4px_0_0_#1e40af] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_#1e40af] active:translate-y-1 active:shadow-none transition-all duration-100"
       >
         {t('import.goToAnalysis')}
       </button>

@@ -143,10 +143,10 @@ export default function Sidebar({ collapsed, onToggle, onImport, onReplaceData, 
 
         {collapsed ? (
           <>
-            <button onClick={onImport} title={t('sidebar.import')} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors">
+            <button onClick={onImport} title={t('sidebar.import')} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/60 shadow-[0_2px_0_0_rgba(0,0,0,0.3)] active:translate-y-0.5 active:shadow-none transition-all duration-100">
               <span className="text-lg leading-none">+</span>
             </button>
-            <button onClick={() => setConfirmClear(true)} title={t('sidebar.clearData')} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-red-400 hover:bg-slate-800 transition-colors text-sm">
+            <button onClick={() => setConfirmClear(true)} title={t('sidebar.clearData')} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-red-400 hover:bg-slate-800 shadow-[0_2px_0_0_rgba(0,0,0,0.3)] active:translate-y-0.5 active:shadow-none transition-all duration-100 text-sm">
               🗑
             </button>
           </>
@@ -154,7 +154,7 @@ export default function Sidebar({ collapsed, onToggle, onImport, onReplaceData, 
           <>
           <button
             onClick={onImport}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700/60 shadow-[0_4px_0_0_rgba(0,0,0,0.3)] hover:translate-y-0.5 hover:shadow-[0_2px_0_0_rgba(0,0,0,0.3)] active:translate-y-1 active:shadow-none transition-all duration-100"
           >
             <span className="text-base leading-none">+</span>
             <span>{t('sidebar.import')}</span>
@@ -184,7 +184,7 @@ function CompanyDot({ company, isActive, onSelect }: {
       <button
         onClick={onSelect}
         title={company.name}
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold transition-all ${
+        className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-[0_3px_0_0_rgba(0,0,0,0.4)] hover:-translate-y-0.5 hover:shadow-[0_4px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none transition-all duration-100 ${
           isActive ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-slate-900' : 'opacity-60 hover:opacity-100'
         }`}
         style={{ backgroundColor: '#3b82f6' }}
@@ -218,8 +218,8 @@ function CompanyItem({
       <div className="mx-2 mb-1 rounded-lg bg-red-900/40 border border-red-700/40 px-3 py-2">
         <p className="text-xs text-red-300 mb-2">{t('sidebar.delete')} <strong>{company.name}</strong>?</p>
         <div className="flex gap-2">
-          <button onClick={onDeleteConfirm} className="flex-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md py-1 transition-colors">{t('sidebar.delete')}</button>
-          <button onClick={onDeleteCancel} className="flex-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-md py-1 transition-colors">{t('sidebar.cancel')}</button>
+          <button onClick={onDeleteConfirm} className="flex-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md py-1 shadow-[0_3px_0_0_#991b1b] hover:translate-y-0.5 active:translate-y-1 active:shadow-none transition-all duration-100">{t('sidebar.delete')}</button>
+          <button onClick={onDeleteCancel} className="flex-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-md py-1 shadow-[0_3px_0_0_rgba(0,0,0,0.3)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none transition-all duration-100">{t('sidebar.cancel')}</button>
         </div>
       </div>
     );
@@ -227,8 +227,8 @@ function CompanyItem({
 
   return (
     <div
-      className={`group mx-2 mb-0.5 rounded-lg flex items-start gap-2 px-2 py-2 cursor-pointer transition-colors ${
-        isActive ? 'bg-blue-600/20 border border-blue-500/30' : 'hover:bg-slate-800/60'
+      className={`group mx-2 mb-0.5 rounded-lg flex items-start gap-2 px-2 py-2 cursor-pointer transition-all duration-100 ${
+        isActive ? 'bg-blue-600/20 border border-blue-500/30 shadow-[inset_0_2px_0_0_rgba(255,255,255,0.06)] shadow-sm' : 'hover:bg-slate-800/60 hover:shadow-md'
       }`}
       onClick={onSelect}
     >

@@ -185,6 +185,36 @@ const T: Record<Lang, Record<string,string>> = {
   },
 };
 
+function Bar3DShape(props: any) {
+  const { x, y, width, height, fill } = props;
+  if (!width || height == null || height <= 0) return null;
+  const R = 4;
+  const hlH = Math.min(7, Math.floor(height * 0.22));
+  function onEnter(e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
+    if (r) { r.style.filter = 'drop-shadow(0 3px 6px rgba(0,0,0,0.12)) brightness(1.03)'; r.style.fillOpacity = '1'; }
+    const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
+    if (h) h.style.fillOpacity = '0.35';
+  }
+  function onLeave(e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
+    if (r) { r.style.filter = ''; r.style.fillOpacity = '0.88'; }
+    const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
+    if (h) h.style.fillOpacity = '0.16';
+  }
+  return (
+    <g onMouseEnter={onEnter} onMouseLeave={onLeave} style={{ cursor: 'pointer' }}>
+      <rect className="bar-main" x={x} y={y} width={width} height={height}
+        fill={fill} rx={R} ry={R} fillOpacity={0.88} style={{ transition: 'all 0.12s ease' }} />
+      {hlH > 0 && (
+        <rect className="bar-hl" x={x+1} y={y+1} width={Math.max(0,width-2)} height={hlH}
+          fill="white" fillOpacity={0.16} rx={R-1} pointerEvents="none"
+          style={{ transition: 'fill-opacity 0.12s' }} />
+      )}
+    </g>
+  );
+}
+
 const DZIALY_LABEL: Record<string,string> = {
   KAD:'Kadry',KON:'Konsulting',AUD:'Audyt',ADM:'Administracja',TLU:'Tłumaczenia',
   KSI:'Księgowość',PRA:'Prawo',MAR:'Marketing',RAP:'Raportowanie',OPE:'Operacje',ZAR:'Zarząd',ITE:'IT',
@@ -317,12 +347,12 @@ function GroupDrawer({group,data,onClose}:{group:GroupRow;data:GrpData;onClose:(
         ))}
       </div>
       {tab==='wyniki'&&(<>
-        <div><SL>{tr('mbMonthly')}</SL><ResponsiveContainer width="100%" height={140}><BarChart data={cd} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" radius={[3,3,0,0]}>{cd.map((d,i)=><Cell key={i} fill={mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer></div>
+        <div><SL>{tr('mbMonthly')}</SL><ResponsiveContainer width="100%" height={140}><BarChart data={cd} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" shape={Bar3DShape}>{cd.map((d,i)=><Cell key={i} fill={mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer></div>
         <div><SL>{tr('monthlyTable')}</SL><div className="mt-2 overflow-x-auto"><table className="w-full text-[11px] border-collapse"><thead><tr className="bg-slate-50">{[tr('month'),tr('colRevenue'),tr('colCost'),'MB',tr('colMB')].map((h,hi)=><th key={h+hi} className={`px-2 py-1.5 font-semibold text-slate-500 border-b border-slate-200 ${hi===0?'text-left':'text-right'}`}>{h}</th>)}</tr></thead><tbody>{months.map((_,i)=>{const mv=group.monthly.mbPct[i];return(<tr key={i} className="border-b border-slate-100 hover:bg-slate-50"><td className="px-2 py-1.5 font-medium text-slate-600">{months[i]}</td><td className="px-2 py-1.5 text-right">{fmt(group.monthly.przychod[i])}</td><td className="px-2 py-1.5 text-right text-slate-500">{fmt(group.monthly.koszt[i])}</td><td className={`px-2 py-1.5 text-right font-medium ${mbColor(mv)}`}>{fmt(group.monthly.mb[i])}</td><td className="px-2 py-1.5 text-right"><span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${mbBadge(mv)}`}>{fmtPct(mv)}</span></td></tr>);})}</tbody></table></div></div>
       </>)}
       {tab==='koszty'&&kp&&(<>
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5"><p className="text-[10px] text-blue-600 font-semibold uppercase">{tr('laborTotal')}</p><p className="text-base font-bold text-blue-800">{fmtM(kp.razem)}</p></div>
-        <div><SL>{tr('laborVsTotal')}</SL><ResponsiveContainer width="100%" height={140}><BarChart data={cd} margin={{top:4,right:4,left:-10,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>fmtM(v)} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number,n:string)=>[fmtM(v),n]) as any}/><Legend wrapperStyle={{fontSize:10}}/><Bar dataKey="Koszt" name={i18nT(lang,'trend.cost')} fill={C.slate} radius={[3,3,0,0]}/><Bar dataKey="kosztPrac" name={tr('statLaborCost')} fill={C.blue} radius={[3,3,0,0]}/></BarChart></ResponsiveContainer></div>
+        <div><SL>{tr('laborVsTotal')}</SL><ResponsiveContainer width="100%" height={140}><BarChart data={cd} margin={{top:4,right:4,left:-10,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>fmtM(v)} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number,n:string)=>[fmtM(v),n]) as any}/><Legend wrapperStyle={{fontSize:10}}/><Bar dataKey="Koszt" name={i18nT(lang,'trend.cost')} fill={C.slate} radius={[3,3,0,0]} shape={Bar3DShape}/><Bar dataKey="kosztPrac" name={tr('statLaborCost')} fill={C.blue} radius={[3,3,0,0]} shape={Bar3DShape}/></BarChart></ResponsiveContainer></div>
       </>)}
       {tab==='org'&&(<>
         {h&&<div><SL>{tr('hierarchy')}</SL><div className="flex items-center gap-2 flex-wrap text-xs mt-2"><span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-mono">{h.rootParent}</span><span className="text-slate-400">→</span><span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-mono">{h.directParent}</span><span className="text-slate-400">→</span><span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-semibold">{group.lider}</span></div></div>}
@@ -357,7 +387,7 @@ function CityDrawer({miasto,groups,onClose,onGroup}:{miasto:string;groups:GroupR
   const trend=months.map((_,i)=>({month:months[i],Przychód:gs.reduce((s,g)=>s+g.monthly.przychod[i],0),MB:gs.reduce((s,g)=>s+g.monthly.mb[i],0),mbPct:0})).map(d=>({...d,mbPct:d.Przychód>0?d.MB/d.Przychód:0}));
   return(
     <Drawer title={MIASTO_LABEL[miasto]??miasto} subtitle={`${gs.length} ${tr('groups')} · ${fmtM(p)} · MB ${fmtPct(pct)}`} onClose={onClose}>
-      <div><SL>{tr('mbTrend')}</SL><ResponsiveContainer width="100%" height={130}><BarChart data={trend} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" radius={[3,3,0,0]}>{trend.map((d,i)=><Cell key={i} fill={mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer></div>
+      <div><SL>{tr('mbTrend')}</SL><ResponsiveContainer width="100%" height={130}><BarChart data={trend} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" shape={Bar3DShape}>{trend.map((d,i)=><Cell key={i} fill={mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer></div>
       <div><SL>{tr('revenueVsMB')} · {fmtM(m)}</SL><div className="mt-2 flex flex-col gap-1.5">{gs.map(g=>{const mp2=mbp(g);const share=p>0?g.total.przychod/p:0;return(<div key={g.lider} className="flex items-center gap-2 cursor-pointer hover:bg-orange-50 rounded px-1" onClick={()=>onGroup(g)}><span className="text-[11px] font-semibold text-slate-700 w-10 shrink-0">{g.lider}</span><div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden"><div className="h-full rounded-full" style={{width:`${share*100}%`,backgroundColor:CITY_COLORS[miasto]??'#64748b'}}/></div><span className={`text-[10px] font-bold w-12 text-right ${mbColor(mp2)}`}>{fmtPct(mp2)}</span></div>);})}</div></div>
     </Drawer>
   );
@@ -392,7 +422,7 @@ function KpiDrawer({type,groups,onClose,onGroup}:{type:'przychod'|'koszt'|'mb'|'
         <div><SL>{tr('topGroups')}</SL><div className="mt-2"><GroupMiniTable groups={type==='koszt'?[...sorted].sort((a,b)=>b.total.koszt-a.total.koszt):sorted} onSelect={onGroup}/></div></div>
       </>)}
       {type==='mbpct'&&(<>
-        <div><SL>{tr('mbTrend')}</SL><ResponsiveContainer width="100%" height={140}><BarChart data={trend} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" radius={[3,3,0,0]}>{trend.map((d,i)=><Cell key={i} fill={mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer></div>
+        <div><SL>{tr('mbTrend')}</SL><ResponsiveContainer width="100%" height={140}><BarChart data={trend} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" shape={Bar3DShape}>{trend.map((d,i)=><Cell key={i} fill={mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer></div>
         <div><SL>{tr('mbDistribution')}</SL><div className="mt-2 space-y-1.5">{sorted.map(g=>{const m2=mbp(g);return(<div key={g.lider} className="flex items-center gap-2 cursor-pointer hover:bg-orange-50 rounded px-1" onClick={()=>onGroup(g)}><span className="text-[11px] font-semibold text-slate-700 w-10 shrink-0">{g.lider}</span><div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden"><div className="h-full rounded-full" style={{width:`${Math.max(0,m2)*150}%`,backgroundColor:mbFill(m2),maxWidth:'100%'}}/></div><span className={`text-[10px] font-bold w-12 text-right ${mbColor(m2)}`}>{fmtPct(m2)}</span></div>);})}</div></div>
       </>)}
       {type==='grupy'&&<div><SL>{tr('allActiveGroups')}</SL><div className="mt-2"><GroupMiniTable groups={sorted} onSelect={onGroup}/></div></div>}
@@ -1203,7 +1233,7 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{tr('chartMBTrend')}</p>
                 <p className="text-[10px] text-slate-400 mb-3">{tr('chartClickMonth')}</p>
-                <ResponsiveContainer width="100%" height={195}><BarChart data={trendData} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" radius={[3,3,0,0]} cursor="pointer" onClick={(_:any,i:number)=>openMonth(i)}>{trendData.map((d,i)=><Cell key={i} fill={dMonthIdx===i?'#ea580c':mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={195}><BarChart data={trendData} margin={{top:4,right:4,left:-22,bottom:0}}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/><XAxis dataKey="month" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v*100).toFixed(0)}%`} tick={{fontSize:10}}/><Tooltip contentStyle={TT} formatter={((v:number)=>[`${(v*100).toFixed(1)}%`,'MB%']) as any}/><ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3"/><Bar dataKey="mbPct" shape={Bar3DShape} cursor="pointer" onClick={(_:any,i:number)=>openMonth(i)}>{trendData.map((d,i)=><Cell key={i} fill={dMonthIdx===i?'#ea580c':mbFill(d.mbPct)}/>)}</Bar></BarChart></ResponsiveContainer>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{tr('chartRevCostMB')}</p>
@@ -1298,10 +1328,10 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
                   <YAxis tickFormatter={v=>fmtM(v)} tick={{fontSize:10}}/>
                   <Tooltip contentStyle={TT} formatter={((v:number,n:string)=>[fmtM(v),n]) as any}/>
                   <Legend wrapperStyle={{fontSize:10}}/>
-                  <Bar dataKey={totalCostLabel} fill={C.slate} radius={[3,3,0,0]} cursor="pointer" onClick={(_:any,i:number)=>openKosztMonth(i)}>
+                  <Bar dataKey={totalCostLabel} fill={C.slate} radius={[3,3,0,0]} shape={Bar3DShape} cursor="pointer" onClick={(_:any,i:number)=>openKosztMonth(i)}>
                     {kosztTrend.map((_,i)=><Cell key={i} fill={dKosztMonth===i?'#7c3aed':C.slate}/>)}
                   </Bar>
-                  <Bar dataKey={laborCostLabel} fill={C.blue} radius={[3,3,0,0]} cursor="pointer" onClick={(_:any,i:number)=>openKosztMonth(i)}>
+                  <Bar dataKey={laborCostLabel} fill={C.blue} radius={[3,3,0,0]} shape={Bar3DShape} cursor="pointer" onClick={(_:any,i:number)=>openKosztMonth(i)}>
                     {kosztTrend.map((_,i)=><Cell key={i} fill={dKosztMonth===i?'#1d4ed8':C.blue}/>)}
                   </Bar>
                 </BarChart>
