@@ -38,6 +38,7 @@ import DrilldownPanel from './components/DrilldownPanel';
 import ImportModal from './components/ImportModal';
 import EmptyState from './components/EmptyState';
 import ControlSheet from './components/ControlSheet';
+import MigrateLocalDataBanner from './components/MigrateLocalDataBanner';
 const RatioAnalysis = lazy(() => import('./components/RatioAnalysis'));
 const RaportMiesieczny = lazy(() => import('./components/RaportMiesieczny'));
 const RaportGrupy = lazy(() => import('./components/RaportGrupy'));
@@ -118,6 +119,7 @@ function MainApp() {
           </div>
 
           <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+            <MigrateLocalDataBanner />
             <Header
               activeView={activeView}
               onViewChange={handleViewChange}
