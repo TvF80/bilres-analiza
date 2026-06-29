@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -26,33 +26,33 @@ const C = {
 
 // ── Bar z efektem 3D (bevel highlight + drop-shadow na hover) ─────────────────
 function Bar3DShape(props: any) {
-  const [hov, setHov] = useState(false);
   const { x, y, width, height, fill } = props;
   if (!width || height == null || height <= 0) return null;
   const R = 5;
   const hlH = Math.min(8, Math.floor(height * 0.22));
+
+  function onEnter(e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
+    if (r) { r.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.06)'; r.style.fillOpacity = '1'; }
+    const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
+    if (h) h.style.fillOpacity = '0.35';
+  }
+  function onLeave(e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.querySelector('rect.bar-main') as SVGRectElement | null;
+    if (r) { r.style.filter = ''; r.style.fillOpacity = '0.88'; }
+    const h = e.currentTarget.querySelector('rect.bar-hl') as SVGRectElement | null;
+    if (h) h.style.fillOpacity = '0.16';
+  }
+
   return (
-    <g
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{ cursor: 'pointer' }}
-    >
-      <rect
-        x={x} y={y} width={width} height={height}
-        fill={fill} rx={R} ry={R}
-        fillOpacity={hov ? 1 : 0.88}
-        style={{
-          filter: hov ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.06)' : 'none',
-          transition: 'all 0.12s ease',
-        }}
-      />
+    <g onMouseEnter={onEnter} onMouseLeave={onLeave} style={{ cursor: 'pointer' }}>
+      <rect className="bar-main" x={x} y={y} width={width} height={height}
+        fill={fill} rx={R} ry={R} fillOpacity={0.88}
+        style={{ transition: 'all 0.12s ease' }} />
       {hlH > 0 && (
-        <rect
-          x={x + 1} y={y + 1} width={Math.max(0, width - 2)} height={hlH}
-          fill="white" fillOpacity={hov ? 0.32 : 0.16} rx={R - 1}
-          pointerEvents="none"
-          style={{ transition: 'fill-opacity 0.12s' }}
-        />
+        <rect className="bar-hl" x={x+1} y={y+1} width={Math.max(0,width-2)} height={hlH}
+          fill="white" fillOpacity={0.16} rx={R-1} pointerEvents="none"
+          style={{ transition: 'fill-opacity 0.12s' }} />
       )}
     </g>
   );
@@ -74,9 +74,21 @@ function safeDivide(a: number, b: number): number | null {
 }
 
 interface ChartCardProps { title: string; children: React.ReactNode; height?: number; hint?: string }
+// ── Custom Legend z okrągłymi bąbelkami ──────────────────────────────────────
+const CustomLegend = ({ payload }: any) => (
+  <div className="flex items-center justify-center gap-4 mt-2 flex-wrap">
+    {payload?.map((e: any, i: number) => (
+      <div key={i} className="flex items-center gap-1.5">
+        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: e.color }} />
+        <span className="text-[10px] text-slate-500 font-medium">{e.value}</span>
+      </div>
+    ))}
+  </div>
+);
+
 function ChartCard({ title, children, height = 210, hint }: ChartCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4" style={{ minHeight: height + 60 }}>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 transition-all duration-150 hover:border-slate-300 hover:shadow-[0_4px_16px_rgba(0,0,0,0.07),0_0_0_1px_rgba(59,130,246,0.08)] hover:-translate-y-0.5" style={{ minHeight: height + 60 }}>
       <div className="flex items-baseline gap-2 mb-3">
         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex-1">{title}</p>
         {hint && <p className="text-[10px] text-slate-300 italic">{hint}</p>}
@@ -127,7 +139,7 @@ export function PlynnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPro
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
         <Tooltip formatter={(v) => [`${Number(v).toFixed(2)}x`, '']} contentStyle={TOOLTIP_STYLE} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Legend content={<CustomLegend />} />
         <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
         <Bar dataKey="P2" name={l2} fill={C.p2} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
         {f3 && <Bar dataKey="P3" name={l3} fill={C.p3} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />}
@@ -165,7 +177,7 @@ export function SprawnostChart({ f1, f2, f3, onBarClick, periodLabels }: ChartPr
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}d`} />
         <Tooltip formatter={(v) => [`${Number(v)} dni`, '']} contentStyle={TOOLTIP_STYLE} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Legend content={<CustomLegend />} />
         <ReferenceLine y={60} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: '60 dni', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
         <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={36} shape={Bar3DShape} />
@@ -202,7 +214,7 @@ export function ZadluzenieChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
         <Tooltip formatter={(v) => [`${Number(v).toFixed(2)}x`, '']} contentStyle={TOOLTIP_STYLE} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Legend content={<CustomLegend />} />
         <ReferenceLine y={0.6} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'max 0,6', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
         <Bar dataKey="P1" name={l1} fill={C.p1} radius={[5, 5, 0, 0]} maxBarSize={32} shape={Bar3DShape} />
@@ -238,7 +250,7 @@ export function RentownoscChart({ f1, f2, f3, onBarClick, periodLabels }: ChartP
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
         <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, '']} contentStyle={TOOLTIP_STYLE} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Legend content={<CustomLegend />} />
         <ReferenceLine y={0} stroke="#e2e8f0" />
         <ReferenceLine y={5} stroke={C.norm} strokeDasharray="4 3" strokeWidth={1.5}
           label={{ value: 'min 5%', position: 'insideTopRight', fontSize: 9, fill: C.norm }} />
@@ -471,7 +483,7 @@ export function RZiSStruktura({ rzis, f1, f2, f3 }: { rzis: ReportRow[]; f1: Fie
             <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
             <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, '']} contentStyle={TOOLTIP_STYLE} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Legend content={<CustomLegend />} />
             <ReferenceLine y={0} stroke="#e2e8f0" />
             <Bar dataKey="P1" name="P1" radius={[5, 5, 0, 0]} maxBarSize={36} shape={(p: any) => <Bar3DShape {...p} fill={p.P1 >= 0 ? C.p1 : C.neg} />}>
               {marginsData.map((d, i) => <Cell key={i} fill={d.P1 >= 0 ? C.p1 : C.neg} />)}

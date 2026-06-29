@@ -500,6 +500,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'wynik.clickTrendYoY': 'Kliknij, aby zobaczyć trend i porównanie do poprzednich lat',
     'wynik.ofRevenuePct': 'przychodu',
     'wynik.drawerOfRevenue': 'przychodów',
+    'wynik.mainCostComponents': 'Główne składniki kosztów',
 
     // Comparison tab
     'comp.topChanges': 'Największe zmiany r/r — wartość bezwzględna (2025 vs 2024)',
@@ -1055,6 +1056,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'wynik.clickTrendYoY': 'Cliquez pour voir la tendance et la comparaison aux années précédentes',
     'wynik.ofRevenuePct': 'du CA',
     'wynik.drawerOfRevenue': 'du CA',
+    'wynik.mainCostComponents': 'Principales composantes des charges',
 
     'comp.topChanges': 'Plus grandes variations a/a — valeur absolue (2025 vs 2024)',
     'comp.sectionsHint': 'les sections se replient aux lignes de synthèse — cliquez l\'en-tête pour voir les détails',
@@ -1605,6 +1607,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'wynik.clickTrendYoY': 'Click to see trend and comparison to previous years',
     'wynik.ofRevenuePct': 'of revenue',
     'wynik.drawerOfRevenue': 'of revenue',
+    'wynik.mainCostComponents': 'Main cost components',
 
     'comp.topChanges': 'Largest YoY changes — absolute value (2025 vs 2024)',
     'comp.sectionsHint': 'sections collapse to summary rows — click header to see details',

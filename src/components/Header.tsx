@@ -145,8 +145,10 @@ export default function Header({
             <button
               key={tab}
               onClick={() => { onViewChange(tab); onReportChange(tab); }}
-              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeView === tab ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-all duration-100 whitespace-nowrap ${
+                activeView === tab
+                  ? 'bg-blue-600 text-white shadow-[0_4px_0_0_rgba(0,0,0,0.2)] translate-y-0 hover:translate-y-0.5 hover:shadow-[0_2px_0_0_rgba(0,0,0,0.2)]'
+                  : 'text-slate-600 hover:bg-slate-100 shadow-[0_2px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0]'
               }`}
             >
               {tab === 'bilans' ? tr('tab.bilans') : tr('tab.rzis')}
@@ -162,8 +164,10 @@ export default function Header({
             <button
               key={view}
               onClick={() => onViewChange(view)}
-              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                activeView === view ? `${activeBg} text-white shadow-sm` : 'text-slate-600 hover:bg-slate-100'
+              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-all duration-100 whitespace-nowrap ${
+                activeView === view
+                  ? `${activeBg} text-white shadow-[0_4px_0_0_rgba(0,0,0,0.2)] translate-y-0 hover:translate-y-0.5 hover:shadow-[0_2px_0_0_rgba(0,0,0,0.2)]`
+                  : 'text-slate-600 hover:bg-slate-100 shadow-[0_2px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0]'
               }`}
             >
               {tr(key)}

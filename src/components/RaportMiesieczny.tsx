@@ -343,8 +343,10 @@ export default function RaportMiesieczny() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  active ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-100 ${
+                  active
+                    ? 'bg-amber-600 text-white shadow-[0_4px_0_0_rgba(0,0,0,0.2)] translate-y-0 hover:translate-y-0.5 hover:shadow-[0_2px_0_0_rgba(0,0,0,0.2)]'
+                    : 'text-slate-600 hover:bg-slate-100 shadow-[0_2px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0]'
                 }`}
               >
                 {tab.label}
@@ -1166,6 +1168,34 @@ function WynikTab({ result, totals, periodLabels, costCategories }: { result: Mo
             data={funnelData}
             onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}
           />
+          {/* Breakdown głównych kategorii kosztów */}
+          {costCategories.length > 0 && (() => {
+            const topCosts = [...costCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total)).slice(0, 5);
+            const rev = totals.revenue.total;
+            return (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t('wynik.mainCostComponents')}</p>
+                <div className="space-y-1.5">
+                  {topCosts.map((c, i) => {
+                    const share = rev !== 0 ? Math.abs(c.total) / rev : 0;
+                    return (
+                      <div key={c.id} className="flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COST_COLORS[i % COST_COLORS.length] }} />
+                        <span className="text-[10px] text-slate-600 truncate flex-1 min-w-0" title={trLabel(lang, c)}>{trLabel(lang, c)}</span>
+                        <span className="text-[10px] font-semibold text-slate-700 shrink-0 whitespace-nowrap">{plnM(c.total)}</span>
+                        <div className="w-14 shrink-0">
+                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: COST_COLORS[i % COST_COLORS.length] }} />
+                          </div>
+                          <p className="text-[9px] text-slate-400 text-right">{(share * 100).toFixed(0)}%</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
             {funnelData.map(s => (
               <span key={s.name} className="inline-flex items-center gap-1 text-[9px] text-slate-400">
@@ -1343,7 +1373,12 @@ function isSummaryRow(label: string): boolean {
   return /[A-ZĄĆĘŁŃÓŚŹŻ]/.test(label) && label === label.toUpperCase();
 }
 
-function ComparisonSection({ section, items, filter }: { section: { tKey: string; from: number; to: number }; items: YearComparisonItem[]; filter: string }) {
+function ComparisonSection({ section, items, filter, onRowClick }: {
+  section: { tKey: string; from: number; to: number };
+  items: YearComparisonItem[];
+  filter: string;
+  onRowClick?: (item: YearComparisonItem) => void;
+}) {
   const { t, lang } = useLang();
   const [expanded, setExpanded] = useState(false);
   const all = items.slice(section.from, section.to);
@@ -1373,7 +1408,12 @@ function ComparisonSection({ section, items, filter }: { section: { tKey: string
             {visible.map((it, i) => {
               const summary = isSummaryRow(it.labelPl);
               return (
-                <tr key={it.id} className={`border-t border-slate-100 hover:bg-amber-50/40 ${summary ? 'bg-slate-50/50 font-semibold text-slate-800' : `text-slate-600 ${i % 2 ? 'bg-slate-50/30' : ''}`}`}>
+                <tr
+                  key={it.id}
+                  onClick={() => onRowClick?.(it)}
+                  title={onRowClick ? 'Kliknij, aby zobaczyć szczegóły i porównanie 3 lat' : undefined}
+                  className={`border-t border-slate-100 hover:bg-amber-50/40 ${onRowClick ? 'cursor-pointer' : ''} ${summary ? 'bg-slate-50/50 font-semibold text-slate-800' : `text-slate-600 ${i % 2 ? 'bg-slate-50/30' : ''}`}`}
+                >
                   <td className="px-3 py-1.5 whitespace-nowrap" style={{ paddingLeft: summary ? 12 : 28 }}>{trLabel(lang, it)}</td>
                   <td className="px-3 py-1.5 text-right text-slate-500 w-28">{formatPLN(it.values.y2023)}</td>
                   <td className="px-3 py-1.5 text-right text-slate-500 w-28">{formatPLN(it.values.y2024)}</td>
@@ -1395,9 +1435,92 @@ function ComparisonSection({ section, items, filter }: { section: { tKey: string
   );
 }
 
+// ── ComparisonItemDrawer — szczegóły pozycji z zakładki Porównanie ─────────────
+
+function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onClose: () => void }) {
+  const { lang, t } = useLang();
+  const label = trLabel(lang, item);
+  const barData = [
+    { name: 'FY 2023', value: item.values.y2023, fy: '2023' },
+    { name: 'FY 2024', value: item.values.y2024, fy: '2024' },
+    { name: 'FY 2025', value: item.values.y2025, fy: '2025' },
+  ];
+  return (
+    <Drawer
+      title={label}
+      subtitle={`FY2025: ${formatPLN(item.values.y2025)} · Δ r/r: ${formatDiff(item.deltaRY1)}${item.deltaPctRY1 != null ? ` (${(item.deltaPctRY1 * 100).toFixed(1)}%)` : ''}`}
+      onClose={onClose}
+    >
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-center">
+          <p className="text-[9px] text-slate-400 uppercase font-semibold">FY 2025</p>
+          <p className={`text-sm font-bold ${diffClass(item.values.y2025)}`}>{formatPLN(item.values.y2025)}</p>
+        </div>
+        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-center">
+          <p className="text-[9px] text-slate-400 uppercase font-semibold">Δ r/r</p>
+          <p className={`text-sm font-bold ${diffClass(item.deltaRY1)}`}>{formatDiff(item.deltaRY1)}</p>
+        </div>
+        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-center">
+          <p className="text-[9px] text-slate-400 uppercase font-semibold">Δ%</p>
+          <p className={`text-sm font-bold ${item.deltaPctRY1 != null ? diffClass(item.deltaPctRY1) : 'text-slate-300'}`}>
+            {item.deltaPctRY1 != null ? `${(item.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
+          </p>
+        </div>
+      </div>
+
+      {/* Grouped BarChart: FY2023 / FY2024 / FY2025 */}
+      <div>
+        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t('report.trend3years')}</p>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={barData} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => plnM(Number(v))} width={48} />
+            <Tooltip formatter={(v) => [`${formatPLN(Number(v))} PLN`]} contentStyle={TOOLTIP_STYLE} />
+            <ReferenceLine y={0} stroke="#e2e8f0" />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={40}>
+              {barData.map((d, i) => (
+                <Cell key={i} fill={HISTORY_COLORS[d.fy] ?? '#94a3b8'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Tabela 3 lat */}
+      <div className="rounded-xl border border-slate-100 overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
+            <tr>
+              <th className="text-center px-3 py-2">FY 2023</th>
+              <th className="text-center px-3 py-2">FY 2024</th>
+              <th className="text-center px-3 py-2">FY 2025</th>
+              <th className="text-center px-3 py-2">Δ</th>
+              <th className="text-center px-3 py-2">Δ%</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="text-center px-3 py-2 text-slate-500">{formatPLN(item.values.y2023)}</td>
+              <td className="text-center px-3 py-2 text-slate-500">{formatPLN(item.values.y2024)}</td>
+              <td className={`text-center px-3 py-2 font-semibold ${diffClass(item.values.y2025)}`}>{formatPLN(item.values.y2025)}</td>
+              <td className={`text-center px-3 py-2 font-semibold ${diffClass(item.deltaRY1)}`}>{formatDiff(item.deltaRY1)}</td>
+              <td className={`text-center px-3 py-2 ${item.deltaPctRY1 != null ? diffClass(item.deltaPctRY1) : 'text-slate-300'}`}>
+                {item.deltaPctRY1 != null ? `${(item.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Drawer>
+  );
+}
+
 function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]; comparisonLabel: string }) {
   const { t, lang } = useLang();
   const [filter, setFilter] = useState('');
+  const [selectedItem, setSelectedItem] = useState<YearComparisonItem | null>(null);
 
   const topMovers = useMemo(() =>
     [...items].sort((a, b) => Math.abs(b.deltaRY1) - Math.abs(a.deltaRY1)).slice(0, 5),
@@ -1427,13 +1550,18 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3">{t('comp.topChanges')}</p>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {topMovers.map(m => (
-            <div key={m.id} className="rounded-lg border border-slate-100 p-2.5 bg-slate-50/60 min-w-0">
-              <p className="text-[10px] text-slate-500 truncate" title={trLabel(lang, m)}>{trLabel(lang, m)}</p>
+            <button
+              key={m.id}
+              onClick={() => setSelectedItem(m)}
+              title={`${trLabel(lang, m)} — kliknij, aby zobaczyć szczegóły`}
+              className="rounded-lg border border-slate-100 p-2.5 bg-slate-50/60 min-w-0 text-left hover:border-amber-300 hover:bg-amber-50/40 hover:shadow-sm transition-all cursor-pointer"
+            >
+              <p className="text-[10px] text-slate-500 truncate">{trLabel(lang, m)}</p>
               <p className={`text-sm font-bold ${diffClass(m.deltaRY1)}`}>{formatDiff(m.deltaRY1)}</p>
               {m.deltaPctRY1 != null && (
                 <p className={`text-[10px] ${diffClass(m.deltaPctRY1)}`}>{(m.deltaPctRY1 * 100).toFixed(1)}%</p>
               )}
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -1462,7 +1590,7 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
           </thead>
         </table>
         {COMPARISON_SECTIONS.map(section => (
-          <ComparisonSection key={section.tKey} section={section} items={items} filter={filter} />
+          <ComparisonSection key={section.tKey} section={section} items={items} filter={filter} onRowClick={setSelectedItem} />
         ))}
       </div>
 
@@ -1496,12 +1624,16 @@ function PorownanieTab({ items, comparisonLabel }: { items: YearComparisonItem[]
             <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 9.5, fill: '#64748b' }} axisLine={false} tickLine={false} />
             <Tooltip formatter={(v) => [`${(Number(v) * 100).toFixed(1)}%`, t('comp.yoyChange')]} contentStyle={TOOLTIP_STYLE} />
             <ReferenceLine x={0} stroke="#e2e8f0" />
-            <Bar dataKey="pct" radius={[0, 4, 4, 0]} maxBarSize={14}>
+            <Bar dataKey="pct" radius={[0, 4, 4, 0]} maxBarSize={14} cursor="pointer" onClick={(_, idx) => setSelectedItem(topPctMovers[idx])}>
               {topPctMovers.map((m, i) => <Cell key={i} fill={(m.deltaPctRY1 ?? 0) >= 0 ? C.pos : C.neg} />)}
             </Bar>
           </BarChart>
         </ChartCard>
       </div>
+
+      {selectedItem && (
+        <ComparisonItemDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
     </div>
   );
 }

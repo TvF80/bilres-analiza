@@ -224,7 +224,13 @@ function Drawer({title,subtitle,onClose,children,w=580}:{title:string;subtitle?:
 
 // ── Mini komponentem ──────────────────────────────────────────────────────────
 function Chip({label,active,onClick}:{label:string;active:boolean;onClick:()=>void}){
-  return <button onClick={onClick} className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap ${active?'bg-orange-600 text-white shadow-sm':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label}</button>;
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap select-none ${active?'bg-orange-500 text-white shadow-[0_4px_0_0_#c2410c,0_2px_4px_rgba(0,0,0,0.15)] translate-y-0 hover:shadow-[0_2px_0_0_#c2410c] hover:translate-y-0.5 active:shadow-none active:translate-y-1':'bg-slate-100 text-slate-600 shadow-[0_3px_0_0_#cbd5e1,0_1px_3px_rgba(0,0,0,0.08)] hover:bg-slate-50 hover:shadow-[0_1px_0_0_#cbd5e1] hover:translate-y-0.5 active:shadow-none active:translate-y-1'}`}
+      style={{transform:undefined}}
+    >{label}</button>
+  );
 }
 function SL({children}:{children:ReactNode}){return <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{children}</p>;}
 
@@ -251,7 +257,7 @@ function KpiCard({label,value,sub,color='slate',onClick}:{label:string;value:str
   const tr = (k: string) => T[lang][k] ?? T.pl[k] ?? k;
   const clr:Record<string,string>={slate:'text-slate-800',green:'text-emerald-600',red:'text-red-600',orange:'text-orange-600',amber:'text-amber-600',blue:'text-blue-600'};
   return(
-    <div onClick={onClick} className={`bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 min-w-0 ${onClick?'cursor-pointer hover:border-orange-300 hover:shadow-md transition-all':''}`}>
+    <div onClick={onClick} className={`bg-white rounded-xl border border-slate-200 px-4 py-3 min-w-0 shadow-[0_4px_0_0_#e2e8f0,0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-100 ${onClick?'cursor-pointer hover:border-orange-300 hover:shadow-[0_2px_0_0_#e2e8f0,0_1px_4px_rgba(0,0,0,0.08)] hover:translate-y-0.5 active:shadow-none active:translate-y-1':''}`}>
       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide truncate">{label}</p>
       <p className={`text-xl font-bold mt-0.5 ${clr[color]??'text-slate-800'}`}>{value}</p>
       {sub&&<p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
@@ -861,20 +867,55 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
   const yMax = p95 + spread * 0.15;                              // lekki padding powyżej
   const rangeY = yMax - yMin || 0.01;
 
-  // Punkty poza zakresem (outlier)
-  const outliers = groups.filter(g => mbp(g) < yMin);
+  // Outliers: poniżej skali i powyżej 100%
+  const outliersLow = groups.filter(g => mbp(g) < yMin);
+  const outliersHigh = groups.filter(g => mbp(g) > 1.0);
 
   const PAD_X = 10; // % padding poziomy
   const PAD_Y = 8;  // % padding pionowy
 
-  const zero0 = yMin < 0 && yMax > 0
-    ? 100 - PAD_Y - ((0 - yMin) / rangeY) * (100 - 2 * PAD_Y)
-    : null;
+  // Konwersja wartości Y → % od góry w obszarze wykresu
+  const yToPct = (v: number) => 100 - PAD_Y - ((v - yMin) / rangeY) * (100 - 2 * PAD_Y);
+
+  const zero0 = yMin < 0 && yMax > 0 ? yToPct(0) : null;
+
+  // Pomocnik stref tła: [lo, hi] w Y → div z top/height w %
+  const renderZone = (lo: number, hi: number, cls: string) => {
+    const visLo = Math.max(lo, yMin);
+    const visHi = Math.min(hi, yMax);
+    if (visLo >= visHi) return null;
+    const screenTop = yToPct(visHi);
+    const screenBot = yToPct(visLo);
+    return <div key={`z${lo}-${hi}`} className={`absolute left-0 right-0 pointer-events-none ${cls}`} style={{ top: `${screenTop}%`, height: `${screenBot - screenTop}%` }} />;
+  };
 
   return (
     <div className="space-y-1">
+      {/* outliers powyżej skali — etykiety zielone nad wykresem */}
+      {outliersHigh.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-1 pb-1">
+          <span className="text-[9px] text-emerald-600 font-semibold">Powyżej skali:</span>
+          {outliersHigh.map((g, i) => (
+            <button
+              key={i}
+              onClick={() => onGroup(g)}
+              className="text-[9px] bg-emerald-50 border border-emerald-300 text-emerald-700 px-1.5 py-0.5 rounded cursor-pointer hover:bg-emerald-100 transition-colors"
+              title={`${g.lider} · MB: ${fmtPct(mbp(g))} · ${fmtM(g.total.przychod)}`}
+            >
+              {g.lider} <span className="font-bold">{fmtPct(mbp(g))}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* scatter area */}
-      <div className="relative bg-slate-50 rounded-lg border border-slate-100" style={{ height: 290 }}>
+      <div className="relative rounded-lg border border-slate-100 overflow-hidden" style={{ height: 290 }}>
+        {/* Kolorowe strefy tła */}
+        {renderZone(0.3, Infinity, 'bg-emerald-50 opacity-60')}
+        {renderZone(0.1, 0.3, 'bg-amber-50 opacity-60')}
+        {renderZone(0, 0.1, 'bg-orange-50 opacity-40')}
+        {renderZone(-Infinity, 0, 'bg-rose-50 opacity-40')}
+
         {/* oś Y=0 */}
         {zero0 !== null && (
           <div className="absolute left-0 right-0 border-t border-dashed border-rose-300 opacity-60 pointer-events-none" style={{ top: `${zero0}%` }}>
@@ -882,13 +923,14 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
           </div>
         )}
 
-        {/* linie siatki Y */}
-        {[0.1, 0.2, 0.3].map(v => {
+        {/* linie siatki Y — rozszerzone, z wyróżnieniem strefowym */}
+        {[0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4].map(v => {
           if (v < yMin || v > yMax) return null;
-          const py = 100 - PAD_Y - ((v - yMin) / rangeY) * (100 - 2 * PAD_Y);
+          const py = yToPct(v);
+          const isKey = v === 0.1 || v === 0.2 || v === 0.3;
           return (
-            <div key={v} className="absolute left-0 right-0 border-t border-slate-200 opacity-50 pointer-events-none" style={{ top: `${py}%` }}>
-              <span className="absolute right-1 -top-3 text-[8px] text-slate-300">{(v * 100).toFixed(0)}%</span>
+            <div key={v} className={`absolute left-0 right-0 border-t pointer-events-none ${isKey ? 'border-slate-300 opacity-70' : 'border-slate-200 opacity-40'}`} style={{ top: `${py}%` }}>
+              <span className={`absolute right-1 -top-3 text-[8px] ${isKey ? 'text-slate-400' : 'text-slate-300'}`}>{(v * 100).toFixed(0)}%</span>
             </div>
           );
         })}
@@ -896,14 +938,14 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
         {/* punkty */}
         {groups.map((g, i) => {
           const my = mbp(g);
-          if (my < yMin) return null; // outlier — poniżej wykresu
+          if (my < yMin || my > 1.0) return null; // outliers pokazane osobno
           const px = ((g.total.przychod - minX) / rangeX) * (100 - 2 * PAD_X) + PAD_X;
-          const py = 100 - PAD_Y - ((my - yMin) / rangeY) * (100 - 2 * PAD_Y);
+          const py = yToPct(my);
           const color = (CITY_COLORS as Record<string, string>)[g.miasto] ?? '#64748b';
           return (
             <div
               key={i}
-              className="absolute w-3 h-3 rounded-full cursor-pointer hover:scale-150 transition-all hover:z-10 border-2 border-white shadow-sm"
+              className="absolute w-3.5 h-3.5 rounded-full cursor-pointer hover:scale-150 transition-all hover:z-10 border-2 border-white shadow-sm hover:ring-2 hover:ring-white hover:ring-offset-1"
               style={{ left: `${px}%`, top: `${py}%`, backgroundColor: color, transform: 'translate(-50%,-50%)' }}
               title={`${g.lider} · ${(my * 100).toFixed(1)}% MB · ${fmtM(g.total.przychod)}`}
               onClick={() => onGroup(g)}
@@ -916,10 +958,10 @@ function CssScatter({ groups, onGroup, tr }: { groups: GroupRow[]; onGroup: (g: 
       </div>
 
       {/* outliers poniżej wykresu jako etykiety inline */}
-      {outliers.length > 0 && (
+      {outliersLow.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-1 pt-1">
           <span className="text-[9px] text-slate-400 font-semibold">Poza skalą:</span>
-          {outliers.map((g, i) => (
+          {outliersLow.map((g, i) => (
             <button
               key={i}
               onClick={() => onGroup(g)}
@@ -1190,14 +1232,23 @@ export default function RaportGrupy({lang='pl'}:{lang?:Lang}){
                 opacity: top15Flipping ? 0 : 1,
                 transformOrigin: 'center',
               }}>
-                <ResponsiveContainer width="100%" height={310}>
-                  <BarChart data={top15} layout="vertical" margin={{top:0,right:32,left:0,bottom:0}}>
+                <ResponsiveContainer width="100%" height={Math.max(340, top15.length * 26 + 20)}>
+                  <BarChart data={top15} layout="vertical" margin={{top:0,right:52,left:4,bottom:0}}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false}/>
-                    <XAxis type="number" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}}/>
-                    <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#475569'}} width={56} interval={0}/>
+                    <XAxis type="number" tickFormatter={v=>fmtM(v)} tick={{fontSize:9}} axisLine={false} tickLine={false}/>
+                    <YAxis
+                      type="category" dataKey="name" interval={0}
+                      width={110}
+                      tick={({x,y,payload})=>(
+                        <text x={x} y={y} dy={4} textAnchor="end" fontSize={10} fill="#475569" style={{userSelect:'none'}}>
+                          {payload.value.length>14?payload.value.slice(0,13)+'…':payload.value}
+                        </text>
+                      )}
+                    />
                     <Tooltip contentStyle={TT} formatter={((v:number)=>[fmtM(v),'MB']) as any}/>
                     <ReferenceLine x={0} stroke="#94a3b8"/>
-                    <Bar dataKey="MB" radius={[0,4,4,0]} cursor="pointer" label={{position:'right',formatter:((v:number)=>fmtM(v)) as any,fontSize:9,fill:'#64748b'}}
+                    <Bar dataKey="MB" radius={[0,4,4,0]} cursor="pointer" maxBarSize={18}
+                      label={{position:'right',formatter:((v:number)=>fmtM(v)) as any,fontSize:9,fill:'#64748b'}}
                       onClick={(d:any)=>{const g=filtered.find(x=>x.lider===d.name);if(g)openGroup(g);}}>
                       {top15.map((d,i)=><Cell key={i} fill={dGroup?.lider===d.name?'#ea580c':d.MB>0?C.pos:C.neg}/>)}
                     </Bar>
