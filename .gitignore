@@ -1,7 +1,4 @@
-# Dependencies
 node_modules/
-
-# Build output
 dist/
 dist-ssr/
 
@@ -25,17 +22,20 @@ pnpm-debug.log*
 dev.log
 *.local
 
-# Playwright test artifacts (generated during development)
+# Playwright test artifacts
 verify*.mjs
 v[0-9]_*.png
 vA_s*.png
 vF_s*.png
 ux_s*.png
 
-# Environment files
+# Environment variables — NIGDY nie commituj plików z sekretami
+# .env.example jest OK do commitowania (nie zawiera sekretów)
 .env
 .env.local
 .env.*.local
+.env.development.local
+.env.production.local
 
 # Editor
 .vscode/*
@@ -50,3 +50,6 @@ ux_s*.png
 # OS
 .DS_Store
 Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
