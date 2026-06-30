@@ -523,6 +523,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'comp.sectionSalesSummary': 'Podsumowania sprzedaży i marży brutto',
     'comp.sectionCosts4xx': 'Koszty rodzajowe (4xx)',
     'comp.sectionFinResult': 'Wynik finansowy',
+    'comp.keyMetrics': 'Kluczowe pozycje P&L',
 
     // Suspense loading
     'loading': 'Ładowanie…',
@@ -1079,6 +1080,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'comp.sectionSalesSummary': 'Synthèses ventes et marge brute',
     'comp.sectionCosts4xx': 'Charges par nature (4xx)',
     'comp.sectionFinResult': 'Résultat financier',
+    'comp.keyMetrics': 'Indicateurs P&L clés',
 
     'loading': 'Chargement…',
 
@@ -1631,6 +1633,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'comp.sectionSalesSummary': 'Sales and gross margin summaries',
     'comp.sectionCosts4xx': 'Costs by nature (4xx)',
     'comp.sectionFinResult': 'Financial result',
+    'comp.keyMetrics': 'Key P&L metrics',
 
     'loading': 'Loading…',
 

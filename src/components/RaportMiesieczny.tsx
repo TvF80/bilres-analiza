@@ -1857,9 +1857,9 @@ function ComparisonSection({ section, items, filter, onRowClick, viewMode, revBy
                       {trLabel(lang, it)}
                     </span>
                   </td>
-                  <td className="px-3 py-1.5 text-right text-slate-400 w-24 tabular-nums">{fmtCell(it.values.y2023, 'y2023')}</td>
+                  <td className={`px-3 py-1.5 text-right font-bold w-24 tabular-nums ${viewMode === 'pct' ? 'text-slate-800' : diffClass(it.values.y2025)}`}>{fmtCell(it.values.y2025, 'y2025')}</td>
                   <td className="px-3 py-1.5 text-right text-slate-500 w-24 tabular-nums">{fmtCell(it.values.y2024, 'y2024')}</td>
-                  <td className={`px-3 py-1.5 text-right font-medium w-24 tabular-nums ${viewMode === 'pct' ? 'text-slate-700' : diffClass(it.values.y2025)}`}>{fmtCell(it.values.y2025, 'y2025')}</td>
+                  <td className="px-3 py-1.5 text-right text-slate-400 w-24 tabular-nums">{fmtCell(it.values.y2023, 'y2023')}</td>
                   <td className={`px-3 py-1.5 text-right font-semibold w-24 tabular-nums ${diffClass(it.deltaRY1)}`}>{formatDiff(it.deltaRY1)}</td>
                   <td className={`px-3 py-1.5 text-right w-16 tabular-nums ${it.deltaPctRY1 != null ? diffClass(it.deltaPctRY1) : 'text-slate-300'}`}>
                     {it.deltaPctRY1 != null ? `${(it.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
@@ -1893,17 +1893,21 @@ function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onC
       subtitle={`FY2025: ${formatPLN(item.values.y2025)} · Δ r/r: ${formatDiff(item.deltaRY1)}${item.deltaPctRY1 != null ? ` (${(item.deltaPctRY1 * 100).toFixed(1)}%)` : ''}`}
       onClose={onClose}
     >
-      {/* KPI row */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-center">
-          <p className="text-[9px] text-slate-400 uppercase font-semibold">FY 2025</p>
+      {/* KPI row — 2025 pierwszy */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-2.5 text-center">
+          <p className="text-[9px] text-blue-400 uppercase font-semibold">FY 2025</p>
           <p className={`text-sm font-bold ${diffClass(item.values.y2025)}`}>{formatPLN(item.values.y2025)}</p>
         </div>
         <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-center">
+          <p className="text-[9px] text-slate-400 uppercase font-semibold">FY 2024</p>
+          <p className="text-sm font-bold text-slate-600">{formatPLN(item.values.y2024)}</p>
+        </div>
+        <div className="rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 text-center">
           <p className="text-[9px] text-slate-400 uppercase font-semibold">Δ r/r</p>
           <p className={`text-sm font-bold ${diffClass(item.deltaRY1)}`}>{formatDiff(item.deltaRY1)}</p>
         </div>
-        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 text-center">
+        <div className="rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 text-center">
           <p className="text-[9px] text-slate-400 uppercase font-semibold">Δ%</p>
           <p className={`text-sm font-bold ${item.deltaPctRY1 != null ? diffClass(item.deltaPctRY1) : 'text-slate-300'}`}>
             {item.deltaPctRY1 != null ? `${(item.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
@@ -1911,7 +1915,7 @@ function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onC
         </div>
       </div>
 
-      {/* Grouped BarChart: FY2023 / FY2024 / FY2025 */}
+      {/* BarChart: 2025 / 2024 / 2023 */}
       <div>
         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t('report.trend3years')}</p>
         <ResponsiveContainer width="100%" height={180}>
@@ -1930,23 +1934,23 @@ function ComparisonItemDrawer({ item, onClose }: { item: YearComparisonItem; onC
         </ResponsiveContainer>
       </div>
 
-      {/* Tabela 3 lat */}
+      {/* Tabela: 2025 | 2024 | 2023 | Δ | Δ% */}
       <div className="rounded-xl border border-slate-100 overflow-hidden">
         <table className="w-full text-xs">
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
             <tr>
-              <th className="text-center px-3 py-2">FY 2023</th>
+              <th className="text-center px-3 py-2 font-bold text-slate-700">FY 2025</th>
               <th className="text-center px-3 py-2">FY 2024</th>
-              <th className="text-center px-3 py-2">FY 2025</th>
+              <th className="text-center px-3 py-2 text-slate-400">FY 2023</th>
               <th className="text-center px-3 py-2">Δ</th>
               <th className="text-center px-3 py-2">Δ%</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="text-center px-3 py-2 text-slate-500">{formatPLN(item.values.y2023)}</td>
+              <td className={`text-center px-3 py-2 font-bold ${diffClass(item.values.y2025)}`}>{formatPLN(item.values.y2025)}</td>
               <td className="text-center px-3 py-2 text-slate-500">{formatPLN(item.values.y2024)}</td>
-              <td className={`text-center px-3 py-2 font-semibold ${diffClass(item.values.y2025)}`}>{formatPLN(item.values.y2025)}</td>
+              <td className="text-center px-3 py-2 text-slate-400">{formatPLN(item.values.y2023)}</td>
               <td className={`text-center px-3 py-2 font-semibold ${diffClass(item.deltaRY1)}`}>{formatDiff(item.deltaRY1)}</td>
               <td className={`text-center px-3 py-2 ${item.deltaPctRY1 != null ? diffClass(item.deltaPctRY1) : 'text-slate-300'}`}>
                 {item.deltaPctRY1 != null ? `${(item.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
@@ -2019,7 +2023,10 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
       .slice(7),
     [allMarginDepts]);
 
-
+  // Kluczowe pozycje P&L — tylko summary rows z sekcji wynikowej (items 111-128)
+  const keyItems = useMemo(() =>
+    items.slice(111, Math.min(128, items.length)).filter(it => isSummaryRow(it.labelPl)),
+    [items]);
 
   return (
     <div className="space-y-4">
@@ -2064,11 +2071,61 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
         </div>
       </div>
 
+      {/* Kluczowe pozycje P&L — zawsze widoczna, bez rozwijania */}
+      {keyItems.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 pt-3 pb-2 border-b border-slate-100">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('comp.keyMetrics')}</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
+                <tr>
+                  <th className="text-left px-3 py-2 min-w-[180px]">{t('chart.position')}</th>
+                  <th className="text-right px-3 py-2 w-28 font-bold text-slate-700">2025</th>
+                  <th className="text-right px-3 py-2 w-28">2024</th>
+                  <th className="text-right px-3 py-2 w-28 text-slate-400">2023</th>
+                  <th className="text-right px-3 py-2 w-24">{t('comp.delta2024to2025')}</th>
+                  <th className="text-right px-3 py-2 w-16">{t('comp.pctChange')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {keyItems.map((it, i) => {
+                  const trendDir = it.deltaRY1 > 0 ? '▲' : it.deltaRY1 < 0 ? '▼' : '–';
+                  const trendColor = it.deltaRY1 > 0 ? 'text-emerald-500' : it.deltaRY1 < 0 ? 'text-rose-500' : 'text-slate-400';
+                  return (
+                    <tr
+                      key={it.id}
+                      onClick={() => setSelectedItem(it)}
+                      className={`border-t border-slate-100 cursor-pointer hover:bg-amber-50/40 font-semibold text-slate-800 ${i % 2 ? 'bg-slate-50/30' : ''}`}
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`text-[9px] ${trendColor}`}>{trendDir}</span>
+                          {trLabel(lang, it)}
+                        </span>
+                      </td>
+                      <td className={`px-3 py-2 text-right font-bold tabular-nums ${diffClass(it.values.y2025)}`}>{formatPLN(it.values.y2025)}</td>
+                      <td className="px-3 py-2 text-right text-slate-500 tabular-nums">{formatPLN(it.values.y2024)}</td>
+                      <td className="px-3 py-2 text-right text-slate-400 tabular-nums">{formatPLN(it.values.y2023)}</td>
+                      <td className={`px-3 py-2 text-right font-semibold tabular-nums ${diffClass(it.deltaRY1)}`}>{formatDiff(it.deltaRY1)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${it.deltaPctRY1 != null ? diffClass(it.deltaPctRY1) : 'text-slate-300'}`}>
+                        {it.deltaPctRY1 != null ? `${(it.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pełna tabela z sekcjami — zwijana */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 flex-wrap gap-y-2">
           <p className="text-[11px] text-slate-400">{comparisonLabel} · {t('comp.sectionsHint')}</p>
           <div className="flex items-center gap-2">
-            {/* Toggle PLN / % przychodów */}
             <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-medium">
               <button
                 onClick={() => setViewMode('pln')}
@@ -2092,9 +2149,9 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">{t('chart.position')}</th>
-              <th className="text-right px-3 py-2 w-24">2023</th>
+              <th className="text-right px-3 py-2 w-24 font-bold text-slate-700">2025</th>
               <th className="text-right px-3 py-2 w-24">2024</th>
-              <th className="text-right px-3 py-2 w-24 text-slate-700 font-bold">2025</th>
+              <th className="text-right px-3 py-2 w-24 text-slate-400">2023</th>
               <th className="text-right px-3 py-2 w-24">{t('comp.delta2024to2025')}</th>
               <th className="text-right px-3 py-2 w-16">{t('comp.pctChange')}</th>
             </tr>
