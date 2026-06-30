@@ -1140,165 +1140,41 @@ function costIntensityColor(p: number): string {
   return `hsl(${Math.round(120 - t * 120)}, 58%, 83%)`;
 }
 
-// Gap names removed — 8px gap too narrow for text; stage labels below are self-explanatory
-
-function CustomFunnel({ data, onStageClick, onStageHover }: {
-  data: FunnelStage[];
-  onStageClick: (i: number) => void;
-  onStageHover?: (i: number | null) => void;
-}) {
-  // Lejek odwrócony (szerszy na górze) — wzorowany na klasycznym funnel chart
-  const STAGE_H = 46;
-  const GAP = 8;           // przerwa między stopniami (przestrzeń na adnotacje)
-  const VIEW_W = 360;
-  const FUNNEL_X0 = 8;    // lewy margines lejka
-  const FUNNEL_W = 200;   // szerokość strefy lejka
-  const LABEL_X = FUNNEL_X0 + FUNNEL_W + 12; // start etykiet po prawej
-  const TOTAL_H = data.length * (STAGE_H + GAP) + 14;
-  const revenue = Math.abs(data[0]?.value ?? 1);
-  const cx = FUNNEL_X0 + FUNNEL_W / 2;
-
-  // Szerokości trapezów: max → min (co najmniej 18% szerokości lejka)
-  const MIN_W_FRAC = 0.18;
-  const widths = data.map(s =>
-    FUNNEL_W * Math.max(MIN_W_FRAC, Math.min(1, Math.abs(s.value) / revenue))
-  );
-
-  return (
-    <svg viewBox={`0 0 ${VIEW_W} ${TOTAL_H}`} className="w-full" style={{ height: TOTAL_H }}>
-      {data.map((stage, i) => {
-        const y0 = i * (STAGE_H + GAP) + 6;
-        const cw = widths[i];
-        const pw = i > 0 ? widths[i - 1] : cw;
-        const isNeg = stage.value < 0;
-        const fill = isNeg ? '#f87171' : stage.fill;
-
-        const tL = cx - pw / 2;
-        const tR = cx + pw / 2;
-        const bL = cx - cw / 2;
-        const bR = cx + cw / 2;
-
-        const shape = i === 0
-          ? `M ${bL},${y0+STAGE_H} L ${bL},${y0} L ${bR},${y0} L ${bR},${y0+STAGE_H} Z`
-          : `M ${tL},${y0} L ${tR},${y0} L ${bR},${y0+STAGE_H} L ${bL},${y0+STAGE_H} Z`;
-
-        // bevel highlight (top bright strip)
-        const bevelH = Math.min(10, STAGE_H * 0.24);
-        const bevelShape = i === 0
-          ? `M ${bL+1},${y0+1} L ${bR-1},${y0+1} L ${bR-1},${y0+bevelH} L ${bL+1},${y0+bevelH} Z`
-          : `M ${tL+1},${y0+1} L ${tR-1},${y0+1} L ${bR-2},${y0+bevelH} L ${bL+2},${y0+bevelH} Z`;
-
-        const pctOfPrevDelta = stage.pctOfPrev != null ? (stage.pctOfPrev - 1) * 100 : null;
-        const midW = (cw + pw) / 2; // średnia szerokość — czy jest miejsce na tekst
-
-        return (
-          <g key={i}>
-            <g onClick={() => onStageClick(i)} onMouseEnter={() => onStageHover?.(i)} onMouseLeave={() => onStageHover?.(null)} style={{ cursor: 'pointer' }}>
-              {/* cień (glow) przy hover */}
-              <path d={shape} fill={fill} fillOpacity={0.04} transform="translate(0,2)" />
-              {/* główny trapez */}
-              <path d={shape} fill={fill} fillOpacity={0.92}>
-                <title>{stage.name}: {plnM(stage.value)} ({(stage.pctOfRevenue * 100).toFixed(1)}%)</title>
-              </path>
-              {/* bevel */}
-              <path d={bevelShape} fill="white" fillOpacity={0.22} pointerEvents="none" />
-
-              {/* % wewnątrz — tylko gdy jest miejsce */}
-              {midW > 44 && (
-                <text x={cx} y={y0 + STAGE_H / 2}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontSize={midW > 80 ? 11 : 9} fontWeight="800" fill="white"
-                  pointerEvents="none" style={{ userSelect: 'none' }}>
-                  {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
-                </text>
-              )}
-
-              {/* linia łącząca do etykiety */}
-              <line
-                x1={bR + 2} y1={y0 + STAGE_H / 2}
-                x2={LABEL_X - 4} y2={y0 + STAGE_H / 2}
-                stroke="#e2e8f0" strokeWidth={0.8} pointerEvents="none"
-              />
-
-              {/* etykieta — PRAWA strona */}
-              <text x={LABEL_X} y={y0 + STAGE_H / 2 - (pctOfPrevDelta != null ? 6 : 0)}
-                textAnchor="start" dominantBaseline="middle"
-                fontSize={9.5} fontWeight="600" fill="#334155"
-                pointerEvents="none" style={{ userSelect: 'none' }}>
-                {stage.name.length > 16 ? stage.name.slice(0, 15) + '…' : stage.name}
-              </text>
-              <text x={LABEL_X} y={y0 + STAGE_H / 2 + (pctOfPrevDelta != null ? 6 : 7)}
-                textAnchor="start" dominantBaseline="middle"
-                fontSize={8.5} fill={isNeg ? '#dc2626' : '#64748b'}
-                pointerEvents="none" style={{ userSelect: 'none' }}>
-                {plnM(stage.value)}
-                {pctOfPrevDelta != null && (
-                  ` · ${pctOfPrevDelta >= 0 ? '↑' : '↓'}${Math.abs(pctOfPrevDelta).toFixed(1)}%`
-                )}
-              </text>
-            </g>
-            {/* Gap annotation showing % consumed going from prev stage to this one */}
-            {i > 0 && (() => {
-              const prevPct = data[i - 1].pctOfRevenue;
-              const thisPct = stage.pctOfRevenue;
-              const consumedPct = (prevPct - thisPct) * 100;
-              const gapY = i * (STAGE_H + GAP) + 6 - GAP / 2;
-              return (
-                <g key={`gap${i}`}>
-                  {consumedPct > 0.1 && (
-                    <text
-                      x={cx}
-                      y={gapY + 2}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize={7}
-                      fontWeight="600"
-                      fill="#f43f5e"
-                      pointerEvents="none"
-                      style={{ userSelect: 'none' }}
-                    >
-                      ↓ −{consumedPct.toFixed(1)}%
-                    </text>
-                  )}
-                </g>
-              );
-            })()}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 
 function WynikTab({ result, totals, periodLabels, costCategories, departments, onOpenAI }: { result: MonthlyReportLine[]; totals: MonthlyReportTotals; periodLabels: string[]; costCategories: CostCategory[]; departments: DepartmentMargin[]; onOpenAI: (data: Record<string, unknown>) => void }) {
   const { t, lang } = useLang();
   const find = (id: string) => result.find(x => x.id === id);
   const netLine = find('resultat_de_l_exercice');
   const [selected, setSelected] = useState<{ label: string; line: MonthlyReportLine } | null>(null);
-  const [hoveredStageIdx, setHoveredStageIdx] = useState<number | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
   const [hoveredFy, setHoveredFy] = useState<string | null>(null);
 
   const tableGroups = useMemo(() => {
-    // Przychód na górze — top-5 działów jako zwijane podpozycje
     const revDetails: MonthlyReportLine[] = [...departments]
       .sort((a, b) => b.revenue.total - a.revenue.total)
       .slice(0, 5)
       .map(d => ({ ...d.revenue, id: `__dept_${d.key}`, labelPl: d.label }));
 
-    const groups: { header: MonthlyReportLine; details: MonthlyReportLine[] }[] = [
+    const groups: { header: MonthlyReportLine; details: MonthlyReportLine[]; locked?: boolean }[] = [
       { header: { ...totals.revenue, id: '__revenue_hdr', labelPl: 'Przychód ogółem' }, details: revDetails },
     ];
     for (const line of result) {
       const isMain = line.labelPl === line.labelPl.toUpperCase();
       if (isMain) {
-        groups.push({ header: line, details: [] });
-      } else if (groups.length > 1) {
+        const isEkspl = line.labelPl.toLowerCase().includes('eksploatacyjne');
+        const details: MonthlyReportLine[] = isEkspl
+          ? [...costCategories]
+              .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+              .slice(0, 8)
+              .map(c => ({ ...c, id: `__cost_${c.id}` }))
+          : [];
+        groups.push({ header: line, details, locked: isEkspl });
+      } else if (groups.length > 1 && !groups[groups.length - 1].locked) {
         groups[groups.length - 1].details.push(line);
       }
     }
     return groups;
-  }, [result, totals, departments]);
+  }, [result, totals, departments, costCategories]);
 
   const stages = useMemo(() => FUNNEL_STAGE_IDS.map(s => s.id === '__revenue' ? totals.revenue : find(s.id)), [result, totals]);
 
@@ -1344,6 +1220,42 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
     return { id: c.id, label: trLabel(lang, c), cat: c, cells, avg, deltaAvg: prevAvg != null ? avg - prevAvg : null };
   }), [costCategories, periodLabels, totals, lang, prevFy]);
 
+  const costBlocks = useMemo(() => {
+    if (funnelData.length < 5) return [];
+    const topCosts = [...costCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    const taxVal = funnelData[3].value - funnelData[4].value;
+    return [
+      {
+        key: 'ekspl',
+        name: 'Koszty eksploatacyjne',
+        value: funnelData[0].value - funnelData[1].value,
+        pct: funnelData[0].pctOfRevenue - funnelData[1].pctOfRevenue,
+        color: '#ef4444',
+        breakdown: topCosts.slice(0, 5).map((c, i) => ({
+          label: trLabel(lang, c), value: c.total, color: COST_COLORS[i % COST_COLORS.length],
+        })),
+      },
+      {
+        key: 'inwest',
+        name: 'Koszty inwestycyjne',
+        value: funnelData[1].value - funnelData[2].value,
+        pct: funnelData[1].pctOfRevenue - funnelData[2].pctOfRevenue,
+        color: '#f97316',
+        breakdown: [] as { label: string; value: number; color: string }[],
+      },
+      {
+        key: 'pozostale',
+        name: 'Pozostałe koszty i przychody',
+        value: funnelData[2].value - funnelData[4].value,
+        pct: funnelData[2].pctOfRevenue - funnelData[4].pctOfRevenue,
+        color: '#eab308',
+        breakdown: taxVal !== 0
+          ? [{ label: 'Podatek dochodowy', value: -Math.abs(taxVal), color: '#f59e0b' }]
+          : [] as { label: string; value: number; color: string }[],
+      },
+    ];
+  }, [funnelData, costCategories, lang]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -1370,139 +1282,82 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
               🤖 AI
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 mb-1">{t('funnel.description')}</p>
-          <CustomFunnel
-            data={funnelData}
-            onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}
-            onStageHover={setHoveredStageIdx}
-          />
-          {/* Dynamic hover panel — only visible on hover */}
-          <div className="mt-3 min-h-[120px]">
-            {hoveredStageIdx == null ? (
-              <div className="h-full flex items-center justify-center py-6">
-                <p className="text-[10px] text-slate-300 italic text-center">↑ Najedź na fragment lejka<br/>aby zobaczyć szczegóły</p>
-              </div>
-            ) : (() => {
-              const stage = funnelData[hoveredStageIdx];
-              const stageMonthly = stages[hoveredStageIdx]?.monthly ?? [];
-              const maxM = Math.max(...stageMonthly.map(Math.abs), 1);
-              const prevStage = hoveredStageIdx > 0 ? funnelData[hoveredStageIdx - 1] : null;
-              const consumed = prevStage != null ? prevStage.value - stage.value : null;
-              const consumedPct = prevStage != null ? (prevStage.pctOfRevenue - stage.pctOfRevenue) * 100 : null;
-              const bestMonthIdx = stageMonthly.length > 0
-                ? stageMonthly.reduce((bi, v, i) => Math.abs(v) > Math.abs(stageMonthly[bi]) ? i : bi, 0)
-                : 0;
+          <p className="text-[10px] text-slate-400 mb-2">{t('funnel.description')}</p>
 
-              // Stage-specific breakdown
-              const isRevenue = hoveredStageIdx === 0;
-              const breakdown = isRevenue
-                ? departments
-                    .map(d => ({ label: d.label, value: d.revenue.total, color: COST_COLORS[departments.indexOf(d) % COST_COLORS.length] }))
-                    .sort((a, b) => b.value - a.value)
-                    .slice(0, 5)
-                : costCategories
-                    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-                    .slice(0, 5)
-                    .map((c, ci) => ({ label: trLabel(lang, c), value: c.total, color: COST_COLORS[ci % COST_COLORS.length] }));
-
-              const breakdownTotal = isRevenue ? totals.revenue.total : Math.abs(consumed ?? 0);
-
-              return (
-                <div
-                  className="rounded-xl border-2 p-3 transition-all duration-150"
-                  style={{ borderColor: stage.fill + '50', background: stage.fill + '08' }}
-                >
-                  {/* Header row */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: stage.fill }} />
-                    <span className="text-[11px] font-bold text-slate-700 truncate flex-1">{stage.name}</span>
-                    <span className="text-lg font-black tabular-nums shrink-0" style={{ color: stage.fill }}>
-                      {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
-                    </span>
-                  </div>
-
-                  {/* KPI row */}
-                  <div className="flex gap-3 mb-2.5 text-center">
-                    <div className="flex-1">
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Wartość</p>
-                      <p className={`text-sm font-bold tabular-nums ${stage.value < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{plnM(stage.value)}</p>
-                    </div>
-                    {consumedPct != null && consumedPct > 0.05 && (
-                      <div className="flex-1">
-                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Pochłonięto</p>
-                        <p className="text-sm font-bold text-rose-500 tabular-nums">−{consumedPct.toFixed(1)}%</p>
+          {/* Waterfall P&L cascade */}
+          {funnelData.length >= 5 && (
+            <div className="space-y-1.5">
+              {([0, 1, 2, 4] as const).map((stageIdx, si) => {
+                const stage = funnelData[stageIdx];
+                const widthPct = Math.max(16, Math.abs(stage.pctOfRevenue) * 100);
+                const block = si < costBlocks.length ? costBlocks[si] : null;
+                return (
+                  <Fragment key={stageIdx}>
+                    {/* Result bar */}
+                    <button
+                      onClick={() => { const line = stages[stageIdx]; if (line) setSelected({ label: stage.name, line }); }}
+                      className="w-full text-left flex items-center gap-2 group"
+                    >
+                      <div
+                        className="h-7 rounded-md flex items-center gap-1.5 px-2.5 shrink-0 transition-all group-hover:brightness-110"
+                        style={{ width: `${widthPct}%`, background: stage.fill }}
+                      >
+                        <span className="text-[10px] font-black text-white whitespace-nowrap">
+                          {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
+                        </span>
+                        {widthPct > 30 && (
+                          <span className="text-[8px] text-white/70 tabular-nums whitespace-nowrap">{plnM(stage.value)}</span>
+                        )}
                       </div>
-                    )}
-                    {stageMonthly.length > 0 && (
-                      <div className="flex-1">
-                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Najlepszy</p>
-                        <p className="text-sm font-bold text-slate-700">{periodLabels[bestMonthIdx] ?? `M${bestMonthIdx + 1}`}</p>
-                      </div>
-                    )}
-                  </div>
+                      <span className="text-[9px] font-semibold text-slate-600 truncate leading-tight">{stage.name}</span>
+                    </button>
 
-                  {/* Breakdown items */}
-                  {breakdown.length > 0 && (
-                    <div className="space-y-1 mb-2.5">
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">
-                        {isRevenue ? 'Główne działy' : 'Składniki kosztów'}
-                      </p>
-                      {breakdown.map((item, bi) => {
-                        const share = breakdownTotal !== 0 ? Math.abs(item.value) / Math.abs(breakdownTotal) : 0;
-                        return (
-                          <div key={bi} className="flex items-center gap-1.5 min-w-0">
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: item.color }} />
-                            <span className="text-[9px] text-slate-600 truncate flex-1 min-w-0">{item.label}</span>
-                            <span className="text-[9px] font-semibold text-slate-700 shrink-0 tabular-nums">{plnM(item.value)}</span>
-                            <div className="w-12 shrink-0">
-                              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: item.color }} />
-                              </div>
-                            </div>
+                    {/* Cost block */}
+                    {block && (
+                      <div className="flex gap-1.5 pl-1">
+                        <div className="flex flex-col items-center pt-2 pb-1">
+                          <div className="w-px flex-1 rounded-full" style={{ background: block.color + '60' }} />
+                        </div>
+                        <div
+                          className="flex-1 rounded-lg border p-2 min-w-0"
+                          style={{ borderColor: block.color + '35', background: block.color + '07' }}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[8px] font-bold shrink-0" style={{ color: block.color }}>↓</span>
+                            <span className="text-[9px] font-semibold text-slate-700 flex-1 truncate min-w-0">{block.name}</span>
+                            <span className="text-[10px] font-black tabular-nums shrink-0" style={{ color: block.color }}>
+                              −{(Math.abs(block.pct) * 100).toFixed(1)}%
+                            </span>
+                            <span className="text-[8px] text-slate-400 tabular-nums shrink-0">{plnM(Math.abs(block.value))}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Monthly sparkbars */}
-                  {stageMonthly.length > 0 && (
-                    <div>
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">Miesiące</p>
-                      <div className="flex items-end gap-px h-6">
-                        {stageMonthly.map((v, mi) => {
-                          const h = Math.max(2, Math.round((Math.abs(v) / maxM) * 20));
-                          const isBest = mi === bestMonthIdx;
-                          return (
-                            <div
-                              key={mi}
-                              className="flex-1 rounded-t-sm"
-                              title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}
-                              style={{
-                                height: h,
-                                background: v < 0 ? '#f87171' : stage.fill,
-                                opacity: isBest ? 1 : 0.55,
-                                alignSelf: 'flex-end',
-                                outline: isBest ? `1px solid ${stage.fill}` : 'none',
-                              }}
-                            />
-                          );
-                        })}
+                          {block.breakdown.length > 0 && (
+                            <div className="mt-1.5 pt-1.5 space-y-1 border-t" style={{ borderColor: block.color + '25' }}>
+                              {block.breakdown.map((item, ii) => {
+                                const share = Math.abs(block.value) > 0 ? Math.abs(item.value) / Math.abs(block.value) : 0;
+                                return (
+                                  <div key={ii} className="flex items-center gap-1.5 min-w-0">
+                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: item.color }} />
+                                    <span className="text-[7.5px] text-slate-500 truncate flex-1 min-w-0">{item.label}</span>
+                                    <span className="text-[7.5px] font-semibold text-slate-600 tabular-nums shrink-0">{plnM(Math.abs(item.value))}</span>
+                                    <div className="w-9 h-[3px] rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: item.color }} />
+                                    </div>
+                                    <span className="text-[7px] text-slate-400 tabular-nums shrink-0 w-6 text-right">
+                                      {(share * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-            {funnelData.map(s => (
-              <span key={s.name} className="inline-flex items-center gap-1 text-[9px] text-slate-400">
-                <span className="w-2 h-2 rounded-sm" style={{ background: s.fill }} />
-                {s.name}: <span className="font-semibold text-slate-500">{pct(s.pctOfRevenue)}</span> {t('funnel.ofRevenue')}
-              </span>
-            ))}
-          </div>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-3 space-y-4">
