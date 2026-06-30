@@ -9,6 +9,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'tab.analiza': 'Analiza',
     'tab.raportMies': 'Raport Miesięczny',
     'tab.grupyPracy': 'Grupy pracy',
+    'tab.raportOgolny': 'Raport Ogólny',
 
     // Header
     'header.editName': 'Kliknij aby edytować nazwę',
@@ -595,6 +596,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'tab.analiza': 'Analyse',
     'tab.raportMies': 'Rapport mens.',
     'tab.grupyPracy': 'Groupes de travail',
+    'tab.raportOgolny': 'Rapport Général',
 
     'header.editName': 'Cliquez pour modifier le nom',
     'header.zoomOut': 'Réduire',
@@ -1148,6 +1150,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'tab.analiza': 'Analysis',
     'tab.raportMies': 'Monthly Report',
     'tab.grupyPracy': 'Work Groups',
+    'tab.raportOgolny': 'General Report',
 
     'header.editName': 'Click to edit name',
     'header.zoomOut': 'Zoom out',

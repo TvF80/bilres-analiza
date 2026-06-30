@@ -1,5 +1,5 @@
 export type ReportType = 'bilans' | 'rzis';
-export type ViewType = ReportType | 'kontrola' | 'analiza' | 'raport_miesieczny' | 'raport_grupy';
+export type ViewType = ReportType | 'kontrola' | 'analiza' | 'raport_miesieczny' | 'raport_grupy' | 'raport_ogolny';
 
 export interface ReportRow {
   segment: string;

@@ -42,6 +42,8 @@ import MigrateLocalDataBanner from './components/MigrateLocalDataBanner';
 const RatioAnalysis = lazy(() => import('./components/RatioAnalysis'));
 const RaportMiesieczny = lazy(() => import('./components/RaportMiesieczny'));
 const RaportGrupy = lazy(() => import('./components/RaportGrupy'));
+const RaportPDF = lazy(() => import('./components/RaportPDF'));
+import BilansVisuals from './components/BilansVisuals';
 
 const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25, 1.5];
 
@@ -79,7 +81,7 @@ function MainApp() {
 
   const handleViewChange = useCallback((v: ViewType) => {
     setActiveView(v);
-    if (v !== 'kontrola' && v !== 'analiza' && v !== 'raport_miesieczny') {
+    if (v !== 'kontrola' && v !== 'analiza' && v !== 'raport_miesieczny' && v !== 'raport_grupy' && v !== 'raport_ogolny') {
       setReportType(v as ReportType);
       setSelectedRow(null);
       setSearch('');
@@ -167,26 +169,45 @@ function MainApp() {
                     </div>
                   </Suspense>
                 </ErrorBoundary>
+              ) : activeView === 'raport_ogolny' ? (
+                <ErrorBoundary>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{zoom}}>
+                      <RaportPDF />
+                    </div>
+                  </Suspense>
+                </ErrorBoundary>
               ) : (
                 <>
                   <div className="flex-1 overflow-y-auto flex flex-col">
                     {rows.length === 0 && !search ? (
                       <EmptyState onImport={() => setShowImport(true)} />
                     ) : (
-                      <div className="px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4 w-full">
-                        <div
-                          className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden origin-top"
-                          style={{ zoom }}
-                        >
-                          <ReportTable
-                            rows={rows}
-                            search={search}
-                            selectedRow={selectedRow}
-                            onRowClick={handleRowClick}
-                            periodLabels={activeCompany?.periodLabels}
+                      <>
+                        {activeCompany && (
+                          <BilansVisuals
+                            reportType={reportType}
+                            bilans={activeCompany.bilans}
+                            rzis={activeCompany.rzis}
+                            periodLabels={activeCompany.periodLabels}
+                            lang={lang}
                           />
+                        )}
+                        <div className="px-2 py-2 sm:px-3 sm:py-3 md:px-4 md:py-4 w-full">
+                          <div
+                            className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden origin-top"
+                            style={{ zoom }}
+                          >
+                            <ReportTable
+                              rows={rows}
+                              search={search}
+                              selectedRow={selectedRow}
+                              onRowClick={handleRowClick}
+                              periodLabels={activeCompany?.periodLabels}
+                            />
+                          </div>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
 

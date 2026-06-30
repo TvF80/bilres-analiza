@@ -160,6 +160,7 @@ export default function Header({
             ['analiza',         'tab.analiza',     'bg-emerald-600'],
             ['raport_miesieczny','tab.raportMies', 'bg-amber-600'],
             ['raport_grupy',    'tab.grupyPracy',  'bg-orange-600'],
+            ['raport_ogolny',   'tab.raportOgolny','bg-rose-600'],
           ] as [ViewType, string, string][]).map(([view, key, activeBg]) => (
             <button
               key={view}

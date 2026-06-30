@@ -1996,6 +1996,18 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
 
       {/* Wykres kluczowych pozycji P&L — 3 lata */}
       {keyItems.length > 0 && (
+        <div className="relative">
+          <div className="absolute top-3 right-3 z-10">
+            <button
+              onClick={() => onOpenAI({
+                section: 'kluczowe_pnl',
+                items: keyItems.map(it => ({ name: it.labelPl, y2025: it.values.y2025, y2024: it.values.y2024, y2023: it.values.y2023, delta: it.deltaRY1, deltaPct: it.deltaPctRY1 })),
+              })}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-white/90 hover:bg-violet-50 border border-violet-200 hover:border-violet-300 rounded-lg transition-all shadow-sm"
+            >
+              🤖 AI
+            </button>
+          </div>
         <ChartCard
           title="Kluczowe pozycje P&L — porównanie 3 lat"
           subtitle="Pozycje wynikowe · kliknij słupek, aby zobaczyć szczegóły"
@@ -2025,6 +2037,7 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
             ))}
           </BarChart>
         </ChartCard>
+        </div>
       )}
 
       {/* Ciekawe wykresy podsumowujące porównanie 3 lat */}
