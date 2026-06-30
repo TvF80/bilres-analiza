@@ -35,6 +35,9 @@ async function fetchAI(section: string, data: Record<string, unknown>): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ section, lang: 'pl', period: 'bieżący', data }),
   });
+  if (res.status === 404) {
+    throw new Error('Endpoint AI niedostępny lokalnie. Uruchom przez: vercel dev (zamiast npm run dev), lub użyj wersji produkcyjnej na exco-analiza.vercel.app');
+  }
   const raw = await res.text();
   if (!raw) throw new Error(`Pusta odpowiedź serwera (HTTP ${res.status})`);
   let json: any;

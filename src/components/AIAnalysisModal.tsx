@@ -39,7 +39,11 @@ export default function AIAnalysisModal({ section, sectionLabel, lang, period, d
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ section, lang, period, data }),
       });
-      const json = await res.json();
+      if (res.status === 404) throw new Error('AI niedostępne lokalnie — użyj "vercel dev" lub wersji produkcyjnej');
+      const raw = await res.text();
+      if (!raw) throw new Error(`Pusta odpowiedź serwera (HTTP ${res.status})`);
+      let json: any;
+      try { json = JSON.parse(raw); } catch { throw new Error('Nieprawidłowa odpowiedź z serwera AI'); }
       if (!res.ok) throw new Error(json.error ?? 'Nieznany błąd');
       sessionStorage.setItem(cacheKey, JSON.stringify({ text: json.text, ts: Date.now() }));
       setText(json.text);
