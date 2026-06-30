@@ -1122,8 +1122,9 @@ function KosztyTab({ costCategories, totals, period, onOpenAI }: { costCategorie
   );
 }
 
-// ── 4. Wynik — lejek wyniku + porównania r/r (zamiast klasycznej kaskady) ─────
+// ── 4. Wynik — lejek wyniku (stacked color bands, bez przerw) ─────────────────────────
 
+// Zachowane dla wykresu porównania 3-letniego (checkpointComparison)
 const FUNNEL_STAGE_IDS = [
   { id: '__revenue', tKey: 'funnel.revenue', color: '#3b82f6' },
   { id: 'marza_po_kosztach_eksploatacji', tKey: 'funnel.marginAfterExpl', color: '#06b6d4' },
@@ -1132,137 +1133,99 @@ const FUNNEL_STAGE_IDS = [
   { id: 'resultat_de_l_exercice', tKey: 'funnel.netResult', color: '#10b981' },
 ];
 
-interface FunnelStage { name: string; value: number; fill: string; pctOfRevenue: number; pctOfPrev: number | null }
-
+interface FunnelBand {
+  key: string;
+  name: string;
+  value: number;
+  pctOfRevenue: number;
+  widthTop: number;  // frakcja 0..1 z MAX_W na górnej krawędzi
+  widthBot: number;  // frakcja 0..1 z MAX_W na dolnej krawędzi
+  fill: string;
+  breakdown: { label: string; value: number; color: string }[];
+  line: MonthlyReportLine | null;
+}
 
 function costIntensityColor(p: number): string {
-  const t = Math.max(0, Math.min(1, p / 0.3)); // 0% → zieleń, 30%+ → czerwień
+  const t = Math.max(0, Math.min(1, p / 0.3));
   return `hsl(${Math.round(120 - t * 120)}, 58%, 83%)`;
 }
 
-// Gap names removed — 8px gap too narrow for text; stage labels below are self-explanatory
-
-function CustomFunnel({ data, onStageClick, onStageHover }: {
-  data: FunnelStage[];
-  onStageClick: (i: number) => void;
-  onStageHover?: (i: number | null) => void;
+function CustomFunnel({ bands, hoveredIdx, onHover, onClick }: {
+  bands: FunnelBand[];
+  hoveredIdx: number | null;
+  onHover: (idx: number | null) => void;
+  onClick: (idx: number) => void;
 }) {
-  // Lejek odwrócony (szerszy na górze) — wzorowany na klasycznym funnel chart
-  const STAGE_H = 46;
-  const GAP = 8;           // przerwa między stopniami (przestrzeń na adnotacje)
-  const VIEW_W = 360;
-  const FUNNEL_X0 = 8;    // lewy margines lejka
-  const FUNNEL_W = 200;   // szerokość strefy lejka
-  const LABEL_X = FUNNEL_X0 + FUNNEL_W + 12; // start etykiet po prawej
-  const TOTAL_H = data.length * (STAGE_H + GAP) + 14;
-  const revenue = Math.abs(data[0]?.value ?? 1);
-  const cx = FUNNEL_X0 + FUNNEL_W / 2;
-
-  // Szerokości trapezów: max → min (co najmniej 18% szerokości lejka)
-  const MIN_W_FRAC = 0.18;
-  const widths = data.map(s =>
-    FUNNEL_W * Math.max(MIN_W_FRAC, Math.min(1, Math.abs(s.value) / revenue))
-  );
+  const BAND_H = 72;
+  const TOTAL_H = bands.length * BAND_H;
+  const MAX_W = 188;
+  const cx = 100;
+  const LX = cx + MAX_W / 2 + 16;
+  const VW = 338;
 
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${TOTAL_H}`} className="w-full" style={{ height: TOTAL_H }}>
-      {data.map((stage, i) => {
-        const y0 = i * (STAGE_H + GAP) + 6;
-        const cw = widths[i];
-        const pw = i > 0 ? widths[i - 1] : cw;
-        const isNeg = stage.value < 0;
-        const fill = isNeg ? '#f87171' : stage.fill;
-
-        const tL = cx - pw / 2;
-        const tR = cx + pw / 2;
-        const bL = cx - cw / 2;
-        const bR = cx + cw / 2;
-
-        const shape = i === 0
-          ? `M ${bL},${y0+STAGE_H} L ${bL},${y0} L ${bR},${y0} L ${bR},${y0+STAGE_H} Z`
-          : `M ${tL},${y0} L ${tR},${y0} L ${bR},${y0+STAGE_H} L ${bL},${y0+STAGE_H} Z`;
-
-        // bevel highlight (top bright strip)
-        const bevelH = Math.min(10, STAGE_H * 0.24);
-        const bevelShape = i === 0
-          ? `M ${bL+1},${y0+1} L ${bR-1},${y0+1} L ${bR-1},${y0+bevelH} L ${bL+1},${y0+bevelH} Z`
-          : `M ${tL+1},${y0+1} L ${tR-1},${y0+1} L ${bR-2},${y0+bevelH} L ${bL+2},${y0+bevelH} Z`;
-
-        const pctOfPrevDelta = stage.pctOfPrev != null ? (stage.pctOfPrev - 1) * 100 : null;
-        const midW = (cw + pw) / 2; // średnia szerokość — czy jest miejsce na tekst
+    <svg viewBox={`0 0 ${VW} ${TOTAL_H + 20}`} className="w-full" style={{ height: TOTAL_H + 20 }}>
+      {/* nagłówek — 100% przychodu */}
+      <text x={cx} y={11} textAnchor="middle" fontSize={8} fill="#94a3b8" fontWeight="700"
+        style={{ userSelect: 'none' }}>
+        ← PRZYCHÓD 100% →
+      </text>
+      {bands.map((band, i) => {
+        const y0 = i * BAND_H + 17;
+        const y1 = y0 + BAND_H;
+        const wT = MAX_W * band.widthTop;
+        const wB = MAX_W * band.widthBot;
+        const xL0 = cx - wT / 2, xR0 = cx + wT / 2;
+        const xL1 = cx - wB / 2, xR1 = cx + wB / 2;
+        const hov = hoveredIdx === i;
+        const shape = `M ${xL0},${y0} L ${xR0},${y0} L ${xR1},${y1} L ${xL1},${y1} Z`;
+        // bevel: mały jaśniejszy pasek na górze każdej sekcji
+        const bH = Math.min(10, BAND_H * 0.18);
+        const bLx = xL0 + (xL1 - xL0) * (bH / BAND_H) + 2;
+        const bRx = xR0 + (xR1 - xR0) * (bH / BAND_H) - 2;
+        const bevel = `M ${xL0+2},${y0+1} L ${xR0-2},${y0+1} L ${bRx},${y0+bH} L ${bLx},${y0+bH} Z`;
+        const midW = (wT + wB) / 2;
 
         return (
-          <g key={i}>
-            <g onClick={() => onStageClick(i)} onMouseEnter={() => onStageHover?.(i)} onMouseLeave={() => onStageHover?.(null)} style={{ cursor: 'pointer' }}>
-              {/* cień (glow) przy hover */}
-              <path d={shape} fill={fill} fillOpacity={0.04} transform="translate(0,2)" />
-              {/* główny trapez */}
-              <path d={shape} fill={fill} fillOpacity={0.92}>
-                <title>{stage.name}: {plnM(stage.value)} ({(stage.pctOfRevenue * 100).toFixed(1)}%)</title>
-              </path>
-              {/* bevel */}
-              <path d={bevelShape} fill="white" fillOpacity={0.22} pointerEvents="none" />
+          <g key={band.key}
+            onClick={() => onClick(i)}
+            onMouseEnter={() => onHover(i)}
+            onMouseLeave={() => onHover(null)}
+            style={{ cursor: 'pointer' }}>
+            {/* cień na hover */}
+            <path d={shape} fill={band.fill} fillOpacity={0.07} transform="translate(0,3)" />
+            {/* główna sekcja */}
+            <path d={shape} fill={band.fill} fillOpacity={hov ? 1 : 0.86}
+              stroke="white" strokeWidth={hov ? 2 : 1.5} />
+            {/* bevel */}
+            <path d={bevel} fill="white" fillOpacity={0.19} pointerEvents="none" />
 
-              {/* % wewnątrz — tylko gdy jest miejsce */}
-              {midW > 44 && (
-                <text x={cx} y={y0 + STAGE_H / 2}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontSize={midW > 80 ? 11 : 9} fontWeight="800" fill="white"
-                  pointerEvents="none" style={{ userSelect: 'none' }}>
-                  {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
-                </text>
-              )}
-
-              {/* linia łącząca do etykiety */}
-              <line
-                x1={bR + 2} y1={y0 + STAGE_H / 2}
-                x2={LABEL_X - 4} y2={y0 + STAGE_H / 2}
-                stroke="#e2e8f0" strokeWidth={0.8} pointerEvents="none"
-              />
-
-              {/* etykieta — PRAWA strona */}
-              <text x={LABEL_X} y={y0 + STAGE_H / 2 - (pctOfPrevDelta != null ? 6 : 0)}
-                textAnchor="start" dominantBaseline="middle"
-                fontSize={9.5} fontWeight="600" fill="#334155"
-                pointerEvents="none" style={{ userSelect: 'none' }}>
-                {stage.name.length > 16 ? stage.name.slice(0, 15) + '…' : stage.name}
+            {/* % wewnątrz — gdy szerokość wystarczająca */}
+            {midW > 34 && (
+              <text x={cx} y={y0 + BAND_H / 2}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={midW > 80 ? 10.5 : 8.5} fontWeight="900"
+                fill="white" pointerEvents="none" style={{ userSelect: 'none' }}>
+                {(Math.abs(band.pctOfRevenue) * 100).toFixed(1)}%
               </text>
-              <text x={LABEL_X} y={y0 + STAGE_H / 2 + (pctOfPrevDelta != null ? 6 : 7)}
-                textAnchor="start" dominantBaseline="middle"
-                fontSize={8.5} fill={isNeg ? '#dc2626' : '#64748b'}
-                pointerEvents="none" style={{ userSelect: 'none' }}>
-                {plnM(stage.value)}
-                {pctOfPrevDelta != null && (
-                  ` · ${pctOfPrevDelta >= 0 ? '↑' : '↓'}${Math.abs(pctOfPrevDelta).toFixed(1)}%`
-                )}
-              </text>
-            </g>
-            {/* Gap annotation showing % consumed going from prev stage to this one */}
-            {i > 0 && (() => {
-              const prevPct = data[i - 1].pctOfRevenue;
-              const thisPct = stage.pctOfRevenue;
-              const consumedPct = (prevPct - thisPct) * 100;
-              const gapY = i * (STAGE_H + GAP) + 6 - GAP / 2;
-              return (
-                <g key={`gap${i}`}>
-                  {consumedPct > 0.1 && (
-                    <text
-                      x={cx}
-                      y={gapY + 2}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize={7}
-                      fontWeight="600"
-                      fill="#f43f5e"
-                      pointerEvents="none"
-                      style={{ userSelect: 'none' }}
-                    >
-                      ↓ −{consumedPct.toFixed(1)}%
-                    </text>
-                  )}
-                </g>
-              );
-            })()}
+            )}
+
+            {/* linia do etykiety */}
+            <line x1={xR0 + 2} y1={y0 + BAND_H / 2}
+              x2={LX - 4} y2={y0 + BAND_H / 2}
+              stroke="#e2e8f0" strokeWidth={0.8} pointerEvents="none" />
+            {/* etykieta prawa */}
+            <text x={LX} y={y0 + BAND_H / 2 - 5.5}
+              textAnchor="start" fontSize={9} fontWeight={hov ? '700' : '600'}
+              fill={hov ? '#1e293b' : '#475569'} pointerEvents="none"
+              style={{ userSelect: 'none' }}>
+              {band.name.length > 17 ? band.name.slice(0, 16) + '…' : band.name}
+            </text>
+            <text x={LX} y={y0 + BAND_H / 2 + 6.5}
+              textAnchor="start" fontSize={8} fill="#94a3b8"
+              pointerEvents="none" style={{ userSelect: 'none' }}>
+              {plnM(Math.abs(band.value))}
+            </text>
           </g>
         );
       })}
@@ -1275,7 +1238,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
   const find = (id: string) => result.find(x => x.id === id);
   const netLine = find('resultat_de_l_exercice');
   const [selected, setSelected] = useState<{ label: string; line: MonthlyReportLine } | null>(null);
-  const [hoveredStageIdx, setHoveredStageIdx] = useState<number | null>(null);
+  const [hoveredBandIdx, setHoveredBandIdx] = useState<number | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
   const [hoveredFy, setHoveredFy] = useState<string | null>(null);
 
@@ -1288,10 +1251,13 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
     const groups: { header: MonthlyReportLine; details: MonthlyReportLine[]; locked?: boolean }[] = [
       { header: { ...totals.revenue, id: '__revenue_hdr', labelPl: 'Przychód ogółem' }, details: revDetails },
     ];
+    const EKSPL_KEYS = ['eksploatacyjne', 'exploitation', 'operat'];
     for (const line of result) {
       const isMain = line.labelPl === line.labelPl.toUpperCase();
       if (isMain) {
-        const isEkspl = line.labelPl.toLowerCase().includes('eksploatacyjne');
+        const isEkspl = EKSPL_KEYS.some(k =>
+          line.labelPl.toLowerCase().includes(k) || line.id.includes(k)
+        );
         const details: MonthlyReportLine[] = isEkspl
           ? [...costCategories]
               .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
@@ -1306,20 +1272,68 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
     return groups;
   }, [result, totals, departments, costCategories]);
 
-  const stages = useMemo(() => FUNNEL_STAGE_IDS.map(s => s.id === '__revenue' ? totals.revenue : find(s.id)), [result, totals]);
-
-  const funnelData = useMemo<FunnelStage[]>(() => FUNNEL_STAGE_IDS.map((s, i) => {
-    const line = stages[i];
-    const value = line?.total ?? 0;
-    const prevValue = i > 0 ? (stages[i - 1]?.total ?? 0) : null;
-    return {
-      name: t(s.tKey),
-      value,
-      fill: s.color,
-      pctOfRevenue: totals.revenue.total !== 0 ? value / totals.revenue.total : 0,
-      pctOfPrev: prevValue != null && prevValue !== 0 ? value / prevValue : null,
-    };
-  }), [stages, totals, t]);
+  // Bands lejka: każdy pasek to partia kosztów pochłaniająca część przychodu
+  const funnelBands = useMemo<FunnelBand[]>(() => {
+    const rev = totals.revenue.total;
+    if (!rev) return [];
+    const marza = find('marza_po_kosztach_eksploatacji')?.total ?? 0;
+    const wynikPoK = find('wynik_po_kosztach')?.total ?? 0;
+    const wynikBrutto = find('wynik_brutto')?.total ?? 0;
+    const wynikNetto = find('resultat_de_l_exercice')?.total ?? 0;
+    const topCosts = [...costCategories]
+      .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+      .slice(0, 5)
+      .map((c, ci) => ({ label: trLabel(lang, c), value: c.total, color: COST_COLORS[ci % COST_COLORS.length] }));
+    const clamp = (v: number) => Math.max(0.04, v);
+    return [
+      {
+        key: 'ekspl',
+        name: 'Koszty eksploatacyjne',
+        value: rev - marza,
+        pctOfRevenue: (rev - marza) / rev,
+        widthTop: 1,
+        widthBot: clamp(marza / rev),
+        fill: '#ef4444',
+        breakdown: topCosts,
+        line: find('marza_po_kosztach_eksploatacji') ?? null,
+      },
+      {
+        key: 'inwest',
+        name: 'Koszty inwestycyjne',
+        value: marza - wynikPoK,
+        pctOfRevenue: (marza - wynikPoK) / rev,
+        widthTop: clamp(marza / rev),
+        widthBot: clamp(wynikPoK / rev),
+        fill: '#f97316',
+        breakdown: [],
+        line: find('wynik_po_kosztach') ?? null,
+      },
+      {
+        key: 'pozostale',
+        name: 'Pozostałe + podatek',
+        value: wynikPoK - wynikNetto,
+        pctOfRevenue: (wynikPoK - wynikNetto) / rev,
+        widthTop: clamp(wynikPoK / rev),
+        widthBot: clamp(wynikNetto / rev),
+        fill: '#f59e0b',
+        breakdown: wynikBrutto !== wynikNetto
+          ? [{ label: 'Podatek dochodowy', value: Math.abs(wynikBrutto - wynikNetto), color: '#f59e0b' }]
+          : [],
+        line: find('wynik_brutto') ?? null,
+      },
+      {
+        key: 'wynik',
+        name: 'Wynik netto',
+        value: wynikNetto,
+        pctOfRevenue: wynikNetto / rev,
+        widthTop: clamp(wynikNetto / rev),
+        widthBot: clamp(wynikNetto / rev),
+        fill: '#10b981',
+        breakdown: [],
+        line: find('resultat_de_l_exercice') ?? null,
+      },
+    ];
+  }, [result, totals, costCategories, lang]);
 
   // Porównanie checkpointów lejka między 3 latami obrachunkowymi (z historii)
   const checkpointComparison = useMemo(() => FUNNEL_STAGE_IDS.map(s => {
@@ -1350,57 +1364,20 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
     return { id: c.id, label: trLabel(lang, c), cat: c, cells, avg, deltaAvg: prevAvg != null ? avg - prevAvg : null };
   }), [costCategories, periodLabels, totals, lang, prevFy]);
 
-  // 3 kafelki kosztów do legendy lejka: luki między etapami wynikowymi
-  const costLegendBlocks = useMemo(() => {
-    if (funnelData.length < 5) return [];
-    const topCosts = [...costCategories].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
-    const taxVal = funnelData[3].value - funnelData[4].value;
-    return [
-      {
-        key: 'ekspl',
-        name: 'Koszty eksploatacyjne',
-        value: funnelData[0].value - funnelData[1].value,
-        pct: funnelData[0].pctOfRevenue - funnelData[1].pctOfRevenue,
-        color: '#ef4444',
-        breakdown: topCosts.slice(0, 5).map((c, i) => ({
-          label: trLabel(lang, c), value: c.total, color: COST_COLORS[i % COST_COLORS.length],
-        })),
-      },
-      {
-        key: 'inwest',
-        name: 'Koszty inwestycyjne',
-        value: funnelData[1].value - funnelData[2].value,
-        pct: funnelData[1].pctOfRevenue - funnelData[2].pctOfRevenue,
-        color: '#f97316',
-        breakdown: [] as { label: string; value: number; color: string }[],
-      },
-      {
-        key: 'pozostale',
-        name: 'Pozostałe koszty i przychody',
-        value: funnelData[2].value - funnelData[4].value,
-        pct: funnelData[2].pctOfRevenue - funnelData[4].pctOfRevenue,
-        color: '#eab308',
-        breakdown: taxVal !== 0
-          ? [{ label: 'Podatek dochodowy', value: -Math.abs(taxVal), color: '#f59e0b' }]
-          : [] as { label: string; value: number; color: string }[],
-      },
-    ];
-  }, [funnelData, costCategories, lang]);
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4" style={{ minHeight: 320 }}>
-          <div className="flex items-center justify-between gap-2 mb-0.5">
+        {/* ── Panel lejka ── */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{t('funnel.title')}</p>
             <button
               onClick={() => onOpenAI({
                 revenue_PLN: totals.revenue.total,
-                stages: funnelData.map(s => ({
-                  name: s.name,
-                  value_PLN: s.value,
-                  pct_of_revenue: Math.round(s.pctOfRevenue * 1000) / 10,
-                  pct_of_prev: s.pctOfPrev != null ? Math.round(s.pctOfPrev * 1000) / 10 : null,
+                bands: funnelBands.map(b => ({
+                  name: b.name,
+                  value_PLN: Math.round(b.value),
+                  pct_of_revenue: Math.round(b.pctOfRevenue * 1000) / 10,
                 })),
                 top_cost_categories: costCategories.slice(0, 4).map(c => ({
                   name: c.labelPl,
@@ -1413,167 +1390,75 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
               🤖 AI
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 mb-1">{t('funnel.description')}</p>
-          <CustomFunnel
-            data={funnelData}
-            onStageClick={(i) => { const line = stages[i]; if (line) setSelected({ label: funnelData[i].name, line }); }}
-            onStageHover={setHoveredStageIdx}
-          />
-          {/* Dynamic hover panel — only visible on hover */}
-          <div className="mt-3 min-h-[120px]">
-            {hoveredStageIdx == null ? (
-              <div className="h-full flex items-center justify-center py-6">
+          <p className="text-[10px] text-slate-400 mb-2">{t('funnel.description')}</p>
+
+          {funnelBands.length > 0 && (
+            <CustomFunnel
+              bands={funnelBands}
+              hoveredIdx={hoveredBandIdx}
+              onHover={setHoveredBandIdx}
+              onClick={(i) => {
+                const band = funnelBands[i];
+                if (band.line) setSelected({ label: band.name, line: band.line });
+              }}
+            />
+          )}
+
+          {/* Panel szczegółów — widoczny tylko po najechaniu */}
+          <div className="mt-3 min-h-[110px]">
+            {hoveredBandIdx == null ? (
+              <div className="flex items-center justify-center py-5">
                 <p className="text-[10px] text-slate-300 italic text-center">↑ Najedź na fragment lejka<br/>aby zobaczyć szczegóły</p>
               </div>
             ) : (() => {
-              const stage = funnelData[hoveredStageIdx];
-              const stageMonthly = stages[hoveredStageIdx]?.monthly ?? [];
-              const maxM = Math.max(...stageMonthly.map(Math.abs), 1);
-              const prevStage = hoveredStageIdx > 0 ? funnelData[hoveredStageIdx - 1] : null;
-              const consumed = prevStage != null ? prevStage.value - stage.value : null;
-              const consumedPct = prevStage != null ? (prevStage.pctOfRevenue - stage.pctOfRevenue) * 100 : null;
-              const bestMonthIdx = stageMonthly.length > 0
-                ? stageMonthly.reduce((bi, v, i) => Math.abs(v) > Math.abs(stageMonthly[bi]) ? i : bi, 0)
-                : 0;
-
-              // Stage-specific breakdown
-              const isRevenue = hoveredStageIdx === 0;
-              const breakdown = isRevenue
-                ? departments
-                    .map(d => ({ label: d.label, value: d.revenue.total, color: COST_COLORS[departments.indexOf(d) % COST_COLORS.length] }))
-                    .sort((a, b) => b.value - a.value)
-                    .slice(0, 5)
-                : costCategories
-                    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-                    .slice(0, 5)
-                    .map((c, ci) => ({ label: trLabel(lang, c), value: c.total, color: COST_COLORS[ci % COST_COLORS.length] }));
-
-              const breakdownTotal = isRevenue ? totals.revenue.total : Math.abs(consumed ?? 0);
-
+              const band = funnelBands[hoveredBandIdx];
+              const isWynik = band.key === 'wynik';
+              const bandTotal = Math.abs(band.value);
               return (
-                <div
-                  className="rounded-xl border-2 p-3 transition-all duration-150"
-                  style={{ borderColor: stage.fill + '50', background: stage.fill + '08' }}
-                >
-                  {/* Header row */}
+                <div className="rounded-xl border-2 p-3 transition-all duration-150"
+                  style={{ borderColor: band.fill + '55', background: band.fill + '08' }}>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: stage.fill }} />
-                    <span className="text-[11px] font-bold text-slate-700 truncate flex-1">{stage.name}</span>
-                    <span className="text-lg font-black tabular-nums shrink-0" style={{ color: stage.fill }}>
-                      {(Math.abs(stage.pctOfRevenue) * 100).toFixed(1)}%
+                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: band.fill }} />
+                    <span className="text-[11px] font-bold text-slate-700 truncate flex-1">{band.name}</span>
+                    <span className="text-base font-black tabular-nums shrink-0" style={{ color: band.fill }}>
+                      {(Math.abs(band.pctOfRevenue) * 100).toFixed(1)}%
                     </span>
                   </div>
-
-                  {/* KPI row */}
-                  <div className="flex gap-3 mb-2.5 text-center">
+                  <div className="flex gap-3 mb-2 text-center">
                     <div className="flex-1">
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold">Wartość</p>
-                      <p className={`text-sm font-bold tabular-nums ${stage.value < 0 ? 'text-rose-600' : 'text-slate-800'}`}>{plnM(stage.value)}</p>
-                    </div>
-                    {consumedPct != null && consumedPct > 0.05 && (
-                      <div className="flex-1">
-                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Pochłonięto</p>
-                        <p className="text-sm font-bold text-rose-500 tabular-nums">−{consumedPct.toFixed(1)}%</p>
-                      </div>
-                    )}
-                    {stageMonthly.length > 0 && (
-                      <div className="flex-1">
-                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Najlepszy</p>
-                        <p className="text-sm font-bold text-slate-700">{periodLabels[bestMonthIdx] ?? `M${bestMonthIdx + 1}`}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Breakdown items */}
-                  {breakdown.length > 0 && (
-                    <div className="space-y-1 mb-2.5">
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">
-                        {isRevenue ? 'Główne działy' : 'Składniki kosztów'}
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold">{isWynik ? 'Wynik' : 'Pochłonięto'}</p>
+                      <p className={`text-sm font-bold tabular-nums ${isWynik ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {isWynik ? '' : '−'}{plnM(bandTotal)}
                       </p>
-                      {breakdown.map((item, bi) => {
-                        const share = breakdownTotal !== 0 ? Math.abs(item.value) / Math.abs(breakdownTotal) : 0;
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold">% przychodu</p>
+                      <p className="text-sm font-bold" style={{ color: band.fill }}>
+                        {(Math.abs(band.pctOfRevenue) * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                  {band.breakdown.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-slate-100/60">
+                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1 mt-1">Główne składniki</p>
+                      {band.breakdown.map((item, bi) => {
+                        const share = bandTotal > 0 ? Math.abs(item.value) / bandTotal : 0;
                         return (
                           <div key={bi} className="flex items-center gap-1.5 min-w-0">
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: item.color }} />
-                            <span className="text-[9px] text-slate-600 truncate flex-1 min-w-0">{item.label}</span>
-                            <span className="text-[9px] font-semibold text-slate-700 shrink-0 tabular-nums">{plnM(item.value)}</span>
-                            <div className="w-12 shrink-0">
-                              <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: item.color }} />
-                              </div>
+                            <span className="text-[9px] text-slate-600 truncate flex-1">{item.label}</span>
+                            <span className="text-[9px] font-semibold text-slate-700 tabular-nums shrink-0">{plnM(Math.abs(item.value))}</span>
+                            <div className="w-14 h-1 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: item.color }} />
                             </div>
                           </div>
                         );
                       })}
                     </div>
                   )}
-
-                  {/* Monthly sparkbars */}
-                  {stageMonthly.length > 0 && (
-                    <div>
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold mb-1">Miesiące</p>
-                      <div className="flex items-end gap-px h-6">
-                        {stageMonthly.map((v, mi) => {
-                          const h = Math.max(2, Math.round((Math.abs(v) / maxM) * 20));
-                          const isBest = mi === bestMonthIdx;
-                          return (
-                            <div
-                              key={mi}
-                              className="flex-1 rounded-t-sm"
-                              title={`${periodLabels[mi] ?? ''}: ${plnM(v)}`}
-                              style={{
-                                height: h,
-                                background: v < 0 ? '#f87171' : stage.fill,
-                                opacity: isBest ? 1 : 0.55,
-                                alignSelf: 'flex-end',
-                                outline: isBest ? `1px solid ${stage.fill}` : 'none',
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })()}
-          </div>
-          {/* Kafelki kosztów — luki między etapami lejka */}
-          <div className="mt-3 space-y-1.5">
-            {costLegendBlocks.map(block => (
-              <div
-                key={block.key}
-                className="rounded-lg border p-2"
-                style={{ borderColor: block.color + '40', background: block.color + '08' }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] font-bold shrink-0" style={{ color: block.color }}>↓</span>
-                  <span className="text-[9px] font-semibold text-slate-700 flex-1 truncate">{block.name}</span>
-                  <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: block.color }}>
-                    −{(Math.abs(block.pct) * 100).toFixed(1)}%
-                  </span>
-                  <span className="text-[8.5px] text-slate-400 tabular-nums shrink-0">{plnM(Math.abs(block.value))}</span>
-                </div>
-                {block.breakdown.length > 0 && (
-                  <div className="mt-1.5 pt-1.5 space-y-1 border-t" style={{ borderColor: block.color + '25' }}>
-                    {block.breakdown.map((item, ii) => {
-                      const share = Math.abs(block.value) > 0 ? Math.abs(item.value) / Math.abs(block.value) : 0;
-                      return (
-                        <div key={ii} className="flex items-center gap-1.5 min-w-0">
-                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: item.color }} />
-                          <span className="text-[7.5px] text-slate-500 truncate flex-1 min-w-0">{item.label}</span>
-                          <span className="text-[7.5px] font-semibold text-slate-600 tabular-nums shrink-0">{plnM(Math.abs(item.value))}</span>
-                          <div className="w-10 h-[3px] rounded-full bg-slate-100 overflow-hidden shrink-0">
-                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, share * 100)}%`, background: item.color }} />
-                          </div>
-                          <span className="text-[7px] text-slate-400 tabular-nums shrink-0 w-5 text-right">{(share * 100).toFixed(0)}%</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         </div>
 
@@ -1601,7 +1486,7 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
                   key={fy} dataKey={`fy${fy}`} fill={HISTORY_COLORS[fy]} radius={[3, 3, 0, 0]} maxBarSize={20} cursor="pointer"
                   opacity={hoveredFy && hoveredFy !== fy ? 0.3 : 1}
                   shape={Bar3DShape}
-                  onClick={(_, idx) => { const line = stages[idx]; if (line) setSelected({ label: t(FUNNEL_STAGE_IDS[idx].tKey), line }); }}
+                  onClick={(_, idx) => { const s = FUNNEL_STAGE_IDS[idx]; const line = s.id === '__revenue' ? totals.revenue : find(s.id); if (line) setSelected({ label: t(s.tKey), line }); }}
                 />
               ))}
             </BarChart>
@@ -1787,94 +1672,8 @@ function WynikTab({ result, totals, periodLabels, costCategories, departments, o
 // sprzedaży/marży → koszty rodzajowe (4xx) → linie wyniku. Pozwala to zwijać szczegóły
 // do wierszy podsumowujących (zapisanych WIELKIMI LITERAMI w źródle) bez budowania
 // pełnego drzewa — każda sekcja chowa swoje pozycje liściowe za przełącznikiem.
-const COMPARISON_SECTIONS: { tKey: string; from: number; to: number }[] = [
-  { tKey: 'comp.sectionMargins', from: 0, to: 39 },
-  { tKey: 'comp.sectionSalesSummary', from: 39, to: 44 },
-  { tKey: 'comp.sectionCosts4xx', from: 44, to: 111 },
-  { tKey: 'comp.sectionFinResult', from: 111, to: 128 },
-];
-
 function isSummaryRow(label: string): boolean {
   return /[A-ZĄĆĘŁŃÓŚŹŻ]/.test(label) && label === label.toUpperCase();
-}
-
-function ComparisonSection({ section, items, filter, onRowClick, viewMode, revByYear }: {
-  section: { tKey: string; from: number; to: number };
-  items: YearComparisonItem[];
-  filter: string;
-  onRowClick?: (item: YearComparisonItem) => void;
-  viewMode: 'pln' | 'pct';
-  revByYear: { y2025: number; y2024: number; y2023: number };
-}) {
-  const { t, lang } = useLang();
-  const [expanded, setExpanded] = useState(false);
-  const all = items.slice(section.from, section.to);
-  const summaries = all.filter(it => isSummaryRow(it.labelPl));
-  const q = filter.trim().toLowerCase();
-  const visible = q
-    ? all.filter(it => it.labelPl.toLowerCase().includes(q))
-    : (expanded ? all : summaries);
-  const hiddenCount = all.length - summaries.length;
-
-  function fmtCell(val: number, fy: 'y2025' | 'y2024' | 'y2023'): string {
-    if (viewMode === 'pct') {
-      const rev = revByYear[fy];
-      return rev !== 0 ? `${((val / rev) * 100).toFixed(1)}%` : '—';
-    }
-    return formatPLN(val);
-  }
-
-  return (
-    <div className="border-t border-slate-100 first:border-t-0">
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-slate-50/70 hover:bg-slate-100/70 transition-colors text-left"
-      >
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
-          <span className={`inline-block w-3 text-slate-400 transition-transform ${expanded ? '' : '-rotate-90'}`}>▾</span>
-          {t(section.tKey)}
-          <span className="text-[10px] font-normal text-slate-400">({all.length} {t('comp.items')}{hiddenCount > 0 ? `, ${summaries.length} ${t('comp.summaries')}` : ''})</span>
-        </span>
-        <span className="text-[10px] text-slate-400">{expanded || q ? t('comp.collapseToSummaries') : `${t('comp.expand')} (+${hiddenCount})`}</span>
-      </button>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <tbody>
-            {visible.map((it, i) => {
-              const summary = isSummaryRow(it.labelPl);
-              const trendDir = it.deltaRY1 > 0 ? '▲' : it.deltaRY1 < 0 ? '▼' : '–';
-              const trendColor = it.deltaRY1 > 0 ? 'text-emerald-500' : it.deltaRY1 < 0 ? 'text-rose-500' : 'text-slate-400';
-              return (
-                <tr
-                  key={it.id}
-                  onClick={() => onRowClick?.(it)}
-                  title={onRowClick ? 'Kliknij, aby zobaczyć szczegóły i porównanie 3 lat' : undefined}
-                  className={`border-t border-slate-100 hover:bg-amber-50/40 ${onRowClick ? 'cursor-pointer' : ''} ${summary ? 'bg-slate-50/50 font-semibold text-slate-800' : `text-slate-600 ${i % 2 ? 'bg-slate-50/30' : ''}`}`}
-                >
-                  <td className="py-1.5 whitespace-nowrap" style={{ paddingLeft: summary ? 12 : 28 }}>
-                    <span className="inline-flex items-center gap-1.5">
-                      {summary && <span className={`text-[9px] ${trendColor}`}>{trendDir}</span>}
-                      {trLabel(lang, it)}
-                    </span>
-                  </td>
-                  <td className={`px-3 py-1.5 text-right font-bold w-24 tabular-nums ${viewMode === 'pct' ? 'text-slate-800' : diffClass(it.values.y2025)}`}>{fmtCell(it.values.y2025, 'y2025')}</td>
-                  <td className="px-3 py-1.5 text-right text-slate-500 w-24 tabular-nums">{fmtCell(it.values.y2024, 'y2024')}</td>
-                  <td className="px-3 py-1.5 text-right text-slate-400 w-24 tabular-nums">{fmtCell(it.values.y2023, 'y2023')}</td>
-                  <td className={`px-3 py-1.5 text-right font-semibold w-24 tabular-nums ${diffClass(it.deltaRY1)}`}>{formatDiff(it.deltaRY1)}</td>
-                  <td className={`px-3 py-1.5 text-right w-16 tabular-nums ${it.deltaPctRY1 != null ? diffClass(it.deltaPctRY1) : 'text-slate-300'}`}>
-                    {it.deltaPctRY1 != null ? `${(it.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
-                  </td>
-                </tr>
-              );
-            })}
-            {visible.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-4 text-center text-slate-400 text-[11px]">{t('comp.noFilterMatch')}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 }
 
 // ── ComparisonItemDrawer — szczegóły pozycji z zakładki Porównanie ─────────────
@@ -2121,46 +1920,112 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
         </div>
       )}
 
-      {/* Pełna tabela z sekcjami — zwijana */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 flex-wrap gap-y-2">
-          <p className="text-[11px] text-slate-400">{comparisonLabel} · {t('comp.sectionsHint')}</p>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-medium">
-              <button
-                onClick={() => setViewMode('pln')}
-                className={`px-2.5 py-1 transition-colors ${viewMode === 'pln' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
-              >PLN</button>
-              <button
-                onClick={() => setViewMode('pct')}
-                className={`px-2.5 py-1 transition-colors ${viewMode === 'pct' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
-              >% przych.</button>
+      {/* Uproszczona tabela — tylko wiersze podsumowujące ze wszystkich sekcji */}
+      {(() => {
+        const q = filter.trim().toLowerCase();
+        const allSummaries = items.filter(it => isSummaryRow(it.labelPl));
+        const visible = q
+          ? items.filter(it => it.labelPl.toLowerCase().includes(q))
+          : allSummaries;
+        function fmtC(val: number, fy: 'y2025' | 'y2024' | 'y2023'): string {
+          if (viewMode === 'pct') { const r = revByYear[fy]; return r !== 0 ? `${((val / r) * 100).toFixed(1)}%` : '—'; }
+          return formatPLN(val);
+        }
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 flex-wrap gap-y-2">
+              <div>
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{comparisonLabel}</p>
+                <p className="text-[10px] text-slate-400">Podstawowe pozycje · kliknij wiersz po szczegóły</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-medium">
+                  <button onClick={() => setViewMode('pln')} className={`px-2.5 py-1 transition-colors ${viewMode === 'pln' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>PLN</button>
+                  <button onClick={() => setViewMode('pct')} className={`px-2.5 py-1 transition-colors ${viewMode === 'pct' ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>% przych.</button>
+                </div>
+                <input type="search" value={filter} onChange={e => setFilter(e.target.value)}
+                  placeholder="Szukaj…"
+                  className="w-36 px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" />
+              </div>
             </div>
-            <input
-              type="search"
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              placeholder={t('comp.filterPlaceholder')}
-              className="w-44 px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:border-amber-400 focus:bg-white transition-colors"
-            />
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
+                  <tr>
+                    <th className="text-left px-3 py-2 min-w-[160px]">{t('chart.position')}</th>
+                    <th className="text-right px-3 py-2 w-24 font-bold text-slate-700">2025</th>
+                    <th className="text-right px-3 py-2 w-24">2024</th>
+                    <th className="text-right px-3 py-2 w-24 text-slate-400">2023</th>
+                    <th className="text-right px-3 py-2 w-24">{t('comp.delta2024to2025')}</th>
+                    <th className="text-right px-3 py-2 w-16">{t('comp.pctChange')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((it, i) => {
+                    const trendDir = it.deltaRY1 > 0 ? '▲' : it.deltaRY1 < 0 ? '▼' : '–';
+                    const trendColor = it.deltaRY1 > 0 ? 'text-emerald-500' : it.deltaRY1 < 0 ? 'text-rose-500' : 'text-slate-400';
+                    const isSum = isSummaryRow(it.labelPl);
+                    return (
+                      <tr key={it.id} onClick={() => setSelectedItem(it)}
+                        className={`border-t border-slate-100 cursor-pointer hover:bg-amber-50/40 ${isSum ? 'font-semibold text-slate-800' : `text-slate-600 ${i % 2 ? 'bg-slate-50/25' : ''}`}`}>
+                        <td className="px-3 py-1.5 whitespace-nowrap" style={{ paddingLeft: isSum ? 12 : 24 }}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className={`text-[9px] ${trendColor}`}>{trendDir}</span>
+                            {trLabel(lang, it)}
+                          </span>
+                        </td>
+                        <td className={`px-3 py-1.5 text-right font-bold tabular-nums ${diffClass(it.values.y2025)}`}>{fmtC(it.values.y2025, 'y2025')}</td>
+                        <td className="px-3 py-1.5 text-right text-slate-500 tabular-nums">{fmtC(it.values.y2024, 'y2024')}</td>
+                        <td className="px-3 py-1.5 text-right text-slate-400 tabular-nums">{fmtC(it.values.y2023, 'y2023')}</td>
+                        <td className={`px-3 py-1.5 text-right font-semibold tabular-nums ${diffClass(it.deltaRY1)}`}>{formatDiff(it.deltaRY1)}</td>
+                        <td className={`px-3 py-1.5 text-right tabular-nums ${it.deltaPctRY1 != null ? diffClass(it.deltaPctRY1) : 'text-slate-300'}`}>
+                          {it.deltaPctRY1 != null ? `${(it.deltaPctRY1 * 100).toFixed(1)}%` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {visible.length === 0 && (
+                    <tr><td colSpan={6} className="px-3 py-4 text-center text-slate-400 text-[11px]">{t('comp.noFilterMatch')}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wide">
-            <tr>
-              <th className="text-left px-3 py-2">{t('chart.position')}</th>
-              <th className="text-right px-3 py-2 w-24 font-bold text-slate-700">2025</th>
-              <th className="text-right px-3 py-2 w-24">2024</th>
-              <th className="text-right px-3 py-2 w-24 text-slate-400">2023</th>
-              <th className="text-right px-3 py-2 w-24">{t('comp.delta2024to2025')}</th>
-              <th className="text-right px-3 py-2 w-16">{t('comp.pctChange')}</th>
-            </tr>
-          </thead>
-        </table>
-        {COMPARISON_SECTIONS.map(section => (
-          <ComparisonSection key={section.tKey} section={section} items={items} filter={filter} onRowClick={setSelectedItem} viewMode={viewMode} revByYear={revByYear} />
-        ))}
-      </div>
+        );
+      })()}
+
+      {/* Wykres kluczowych pozycji P&L — 3 lata */}
+      {keyItems.length > 0 && (
+        <ChartCard
+          title="Kluczowe pozycje P&L — porównanie 3 lat"
+          subtitle="Pozycje wynikowe · kliknij słupek, aby zobaczyć szczegóły"
+          height={260}
+        >
+          <BarChart
+            data={keyItems.map(it => ({
+              name: trLabel(lang, it).length > 22 ? trLabel(lang, it).slice(0, 21) + '…' : trLabel(lang, it),
+              y2025: it.values.y2025,
+              y2024: it.values.y2024,
+              y2023: it.values.y2023,
+              _item: it,
+            }))}
+            margin={{ left: 8, right: 8, top: 4, bottom: 64 }}
+            barCategoryGap="20%"
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 8.5, fill: '#64748b' }} angle={-32} textAnchor="end" height={72} interval={0} />
+            <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => plnM(Number(v))} />
+            <Tooltip {...makeTooltip((v, name) => [`${formatPLN(v)} PLN`, `FY ${String(name).replace('y', '')}`])} />
+            <Legend formatter={v => `FY ${String(v).replace('y', '')}`} wrapperStyle={{ fontSize: 10 }} />
+            <ReferenceLine y={0} stroke="#e2e8f0" />
+            {(['2025', '2024', '2023'] as const).map(fy => (
+              <Bar key={fy} dataKey={`y${fy}`} name={fy} fill={HISTORY_COLORS[fy]}
+                radius={[3, 3, 0, 0]} maxBarSize={18} shape={Bar3DShape} cursor="pointer"
+                onClick={(data: any) => { if (data?._item) setSelectedItem(data._item); }} />
+            ))}
+          </BarChart>
+        </ChartCard>
+      )}
 
       {/* Ciekawe wykresy podsumowujące porównanie 3 lat */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
