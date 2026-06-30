@@ -156,7 +156,6 @@ export default function Header({
           ))}
           <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
           {([
-            ['kontrola',        'tab.kontrola',    'bg-violet-600'],
             ['analiza',         'tab.analiza',     'bg-emerald-600'],
             ['raport_miesieczny','tab.raportMies', 'bg-amber-600'],
             ['raport_grupy',    'tab.grupyPracy',  'bg-orange-600'],
@@ -174,6 +173,17 @@ export default function Header({
               {tr(key)}
             </button>
           ))}
+          <div className="w-px h-4 bg-slate-200 mx-0.5 shrink-0" />
+          <button
+            onClick={() => onViewChange('kontrola')}
+            className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium transition-all duration-100 whitespace-nowrap ${
+              activeView === 'kontrola'
+                ? 'bg-slate-600 text-white shadow-[0_4px_0_0_rgba(0,0,0,0.2)] translate-y-0 hover:translate-y-0.5 hover:shadow-[0_2px_0_0_rgba(0,0,0,0.2)]'
+                : 'text-slate-400 hover:bg-slate-100 shadow-[0_2px_0_0_#e2e8f0] hover:translate-y-0.5 hover:shadow-[0_1px_0_0_#e2e8f0]'
+            }`}
+          >
+            {tr('tab.kontrola')}
+          </button>
         </div>
       </div>
     </header>

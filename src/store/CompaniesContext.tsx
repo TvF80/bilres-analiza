@@ -3,7 +3,7 @@ import {
 } from 'react';
 import type { Company, JournalEntry, MonthlyReportData, GrpData, ReportRow, AccountRow } from '../types';
 import { useAuth } from './AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseConfigured } from '../lib/supabase';
 
 // Per-user storage keys (localStorage cache)
 const companyKey  = (uid: string) => `exco_companies_${uid}`;
@@ -146,7 +146,8 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     setIsLoaded(true);
     zapisyLoadedRef.current.clear();
 
-    // Fetch from Supabase in background
+    // Fetch from Supabase in background (only when configured)
+    if (!supabaseConfigured) return;
     supabase.from('companies').select('*').eq('user_id', uid)
       .then(({ data, error }) => {
         if (error || !data) return; // Keep localStorage data on error
@@ -222,7 +223,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     setActiveId(company.id);
 
     // Background sync — optimistic update (UI doesn't wait)
-    if (uid) {
+    if (supabaseConfigured && uid) {
       supabase.from('companies').insert(companyToRow(company, uid))
         .then(({ error }) => { if (error) console.error('Supabase insert:', error.message); });
     }
@@ -255,7 +256,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       );
 
       // Background sync
-      if (uid) {
+      if (supabaseConfigured && uid) {
         const updated = next.find(c => c.id === id);
         if (updated) {
           supabase.from('companies').upsert(companyToRow(updated, uid))
@@ -270,7 +271,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   const updateCompanyName = useCallback((id: string, name: string) => {
     setCompanies(prev => prev.map(c => c.id === id ? { ...c, name } : c));
 
-    if (uid) {
+    if (supabaseConfigured && uid) {
       supabase.from('companies')
         .update({ name, updated_at: new Date().toISOString() })
         .eq('id', id).eq('user_id', uid)
@@ -286,7 +287,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
-    if (uid) {
+    if (supabaseConfigured && uid) {
       supabase.from('companies').delete().eq('id', id).eq('user_id', uid)
         .then(({ error }) => { if (error) console.error('Supabase delete:', error.message); });
     }
@@ -302,8 +303,10 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     setHasMigratableData(false);
     zapisyLoadedRef.current.clear();
 
-    supabase.from('companies').delete().eq('user_id', uid)
-      .then(({ error }) => { if (error) console.error('Supabase clearAll:', error.message); });
+    if (supabaseConfigured) {
+      supabase.from('companies').delete().eq('user_id', uid)
+        .then(({ error }) => { if (error) console.error('Supabase clearAll:', error.message); });
+    }
   }, [uid, companies]);
 
   const migrateLocalData = useCallback(async () => {
@@ -314,6 +317,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (toMigrate.length === 0) { setHasMigratableData(false); return; }
 
     const rows = toMigrate.map(c => companyToRow(c, uid));
+    if (!supabaseConfigured) { setHasMigratableData(false); return; }
     const { error } = await supabase.from('companies').insert(rows);
     if (!error) {
       setCompanies(prev => [...prev, ...toMigrate]);

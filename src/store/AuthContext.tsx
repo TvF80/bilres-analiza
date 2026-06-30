@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseConfigured } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 export const USER_COLORS = [
@@ -41,6 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    if (!supabaseConfigured) {
+      // Brak Supabase — tryb lokalny bez auth
+      setCurrentUser({ id: 'local', name: 'Użytkownik lokalny', email: 'local@localhost', color: USER_COLORS[0] });
+      setAuthLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUser(session?.user ? userFromSupabase(session.user) : null);
       setAuthLoading(false);
