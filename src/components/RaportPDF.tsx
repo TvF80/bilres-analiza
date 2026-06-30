@@ -35,10 +35,15 @@ async function fetchAI(section: string, data: Record<string, unknown>): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ section, lang: 'pl', period: 'bieżący', data }),
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? 'Błąd AI');
+  const raw = await res.text();
+  if (!raw) throw new Error(`Pusta odpowiedź serwera (HTTP ${res.status})`);
+  let json: any;
+  try { json = JSON.parse(raw); } catch {
+    throw new Error(`Nieprawidłowa odpowiedź (HTTP ${res.status}): ${raw.slice(0, 120)}`);
+  }
+  if (!res.ok) throw new Error(json?.error ?? `Błąd AI (HTTP ${res.status})`);
   sessionStorage.setItem(cacheKey, JSON.stringify({ text: json.text, ts: Date.now() }));
-  return json.text;
+  return json.text ?? '';
 }
 
 const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
