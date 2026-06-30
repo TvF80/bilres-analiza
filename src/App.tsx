@@ -39,11 +39,11 @@ import ImportModal from './components/ImportModal';
 import EmptyState from './components/EmptyState';
 import ControlSheet from './components/ControlSheet';
 import MigrateLocalDataBanner from './components/MigrateLocalDataBanner';
+import BilansVisuals from './components/BilansVisuals';
 const RatioAnalysis = lazy(() => import('./components/RatioAnalysis'));
 const RaportMiesieczny = lazy(() => import('./components/RaportMiesieczny'));
 const RaportGrupy = lazy(() => import('./components/RaportGrupy'));
 const RaportPDF = lazy(() => import('./components/RaportPDF'));
-import BilansVisuals from './components/BilansVisuals';
 
 const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25, 1.5];
 
