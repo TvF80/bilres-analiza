@@ -3,7 +3,7 @@
 Aplikacja webowa do interaktywnej analizy Bilansu i RZiS.  
 Stack: **React 19 · Vite 8 (Rolldown) · TypeScript · Tailwind CSS v4 · Recharts 3.8.1**  
 Lokalizacja: `C:\Users\tvf19\exco-analiza`  
-Online: **https://exco-analiza.vercel.app** (Vercel, projekt `prj_srrB8xUokhZAqCffWRYJyFJI81N9`)
+Online: **https://finscopepl.vercel.app** (Vercel, projekt `prj_bEJ0HCxkKhHinCj8F5yslghrAvcj`, team `tv-f80-s-projects`)
 
 ---
 
@@ -37,11 +37,9 @@ Supabase jest **opcjonalne**. Gdy brak env vars (`VITE_SUPABASE_URL` / `VITE_SUP
 - `MigrateLocalDataBanner.tsx` — amber baner z przyciskiem migracji localStorage → konto
 
 ### Tabele SQL (Supabase)
-```sql
-create table companies (...)   -- dane firm (bez zapisy, za duże)
-create table user_preferences (...) -- preferencje użytkownika
--- RLS: auth.uid() = user_id
-```
+Pełny, zwersjonowany schemat + RLS policies: **`supabase/schema.sql`** (jedyna
+tabela `companies`, zgodna 1:1 z `rowToCompany`/`companyToRow` w
+`CompaniesContext.tsx`). RLS: `auth.uid() = user_id` na select/insert/update/delete.
 
 ---
 
@@ -140,6 +138,14 @@ używa tych samych kluczy co przyciski w zakładkach → dwukierunkowe udostępn
 Body: `{ section, lang, period, data }`  
 Response: `{ text: string }`  
 Błąd 404 lokalnie = "użyj vercel dev" (przyjazny komunikat, nie crash).
+
+**Hardening (2026-07):**
+- Limit rozmiaru `data` — max 20 000 znaków JSON (413 gdy przekroczone)
+- Rate limiting per-IP w pamięci procesu — max 15 żądań/60s (429 + `Retry-After`).
+  Best-effort: licznik nie jest współdzielony między cold-startami/równoległymi
+  instancjami funkcji. Dla twardej gwarancji potrzebny Upstash/Vercel KV.
+- Endpoint nie weryfikuje tożsamości (brak przekazywanego tokenu Supabase) —
+  celowe, żeby AI działało też w trybie lokalnym/guest bez Supabase.
 
 ---
 

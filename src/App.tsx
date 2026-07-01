@@ -1,5 +1,6 @@
 import { useState, useCallback, lazy, Suspense, Component } from 'react';
 import type { ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 import type { ReportType, ViewType, ReportRow } from './types';
 import type { Lang } from './i18n';
 
@@ -9,6 +10,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     this.state = { error: null };
   }
   static getDerivedStateFromError(e: Error) { return { error: e }; }
+  componentDidCatch(error: Error) { Sentry.captureException(error); }
   render() {
     if (this.state.error) {
       return (
