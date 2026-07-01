@@ -9,7 +9,7 @@ import {
 } from './AnalysisCharts';
 import AIAnalysisModal from './AIAnalysisModal';
 import { MACRO_DATA } from './ControlSheet';
-import type { JournalEntry } from '../types';
+import type { JournalEntry, ReportRow } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, ComposedChart, Line,
 } from 'recharts';
@@ -27,6 +27,7 @@ type SubTab =
   | 'beneish'
   | 'anomalie'
   | 'koncentracja'
+  | 'wiekowanie'
   | 'podsumowanie'
   | 'bilans_str'
   | 'rzis_str';
@@ -2543,6 +2544,150 @@ function ConcentrationTab({ zapisy, zapisyLoading, onOpenAI }: { zapisy: Journal
   );
 }
 
+// ── Wiekowanie należności/zobowiązań ──────────────────────────────────────────
+// Uwaga metodologiczna: dziennik księgowań nie zawiera statusu rozliczenia
+// (open item / termin płatności), więc "wiek" to proxy liczony jako liczba dni
+// od OSTATNIEJ księgowanej operacji na koncie danego kontrahenta do najnowszej
+// daty w dzienniku — nie jest to wiekowanie prawdziwych otwartych pozycji.
+function AgingTab({ bilans, zapisy, zapisyLoading, onOpenAI }: { bilans: ReportRow[]; zapisy: JournalEntry[]; zapisyLoading: boolean; onOpenAI: (data: Record<string, unknown>) => void }) {
+  const { t } = useLang();
+
+  const analysis = useMemo(() => {
+    if (!zapisy.length) return null;
+    const lo = (r: ReportRow) => r.name.toLowerCase();
+
+    const rowNaleznosci = bilans.find(r => {
+      const s = lo(r);
+      if (s.includes('należności krótkoterminow')) return true;
+      if (s.includes('należności') && s.includes('odbiorcó')) return true;
+      return false;
+    }) ?? bilans.find(r => lo(r).includes('należności') && !lo(r).includes('długoterminow'));
+    const rowZobowiazania = bilans.find(r => lo(r).includes('zobowiązania krótkoterminow'));
+
+    const receivableAccounts = rowNaleznosci?.drilldownAccounts ?? [];
+    const payableAccounts = rowZobowiazania?.drilldownAccounts ?? [];
+    if (!receivableAccounts.length && !payableAccounts.length) return null;
+
+    let asOf = new Date(0);
+    for (const z of zapisy) {
+      if (!z.dataKsiegowania) continue;
+      const d = new Date(z.dataKsiegowania);
+      if (!isNaN(d.getTime()) && d > asOf) asOf = d;
+    }
+
+    const buildBuckets = (accounts: string[], sign: 1 | -1) => {
+      type C = { name: string; balance: number; lastDate: Date | null };
+      const byContractor = new Map<string, C>();
+      const inAccounts = (konto: string) => accounts.some(a => konto === a || konto.startsWith(a + '-'));
+      for (const z of zapisy) {
+        if (!inAccounts(z.konto)) continue;
+        const key = z.podmiot || z.konto;
+        const delta = sign === 1 ? (z.kwotaWn - z.kwotaMa) : (z.kwotaMa - z.kwotaWn);
+        const entry = byContractor.get(key) ?? { name: z.nazwaPodmiotu || key, balance: 0, lastDate: null as Date | null };
+        entry.balance += delta;
+        if (z.dataKsiegowania) {
+          const d = new Date(z.dataKsiegowania);
+          if (!isNaN(d.getTime()) && (!entry.lastDate || d > entry.lastDate)) entry.lastDate = d;
+        }
+        byContractor.set(key, entry);
+      }
+      const buckets = { b0_30: 0, b31_60: 0, b61_90: 0, b90plus: 0 };
+      let total = 0;
+      let openCount = 0;
+      for (const c of byContractor.values()) {
+        if (Math.abs(c.balance) < 0.01) continue;
+        openCount++;
+        total += c.balance;
+        const days = c.lastDate ? Math.floor((asOf.getTime() - c.lastDate.getTime()) / 86400000) : 9999;
+        if (days <= 30) buckets.b0_30 += c.balance;
+        else if (days <= 60) buckets.b31_60 += c.balance;
+        else if (days <= 90) buckets.b61_90 += c.balance;
+        else buckets.b90plus += c.balance;
+      }
+      return { buckets, total, openCount };
+    };
+
+    const receivables = receivableAccounts.length ? buildBuckets(receivableAccounts, 1) : null;
+    const payables = payableAccounts.length ? buildBuckets(payableAccounts, -1) : null;
+
+    return { asOf, receivables, payables };
+  }, [bilans, zapisy]);
+
+  if (zapisyLoading) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('anomaly.loading')}</div>;
+  }
+  if (!analysis) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('aging.noData')}</div>;
+  }
+
+  const fmtK = (v: number) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(v) + ' PLN';
+
+  const AgingBlock = ({ title, data, colorOver90 }: { title: string; data: { buckets: { b0_30: number; b31_60: number; b61_90: number; b90plus: number }; total: number; openCount: number } | null; colorOver90: boolean }) => {
+    if (!data) return null;
+    const chartData = [
+      { bucket: t('aging.b0_30'), value: data.buckets.b0_30 },
+      { bucket: t('aging.b31_60'), value: data.buckets.b31_60 },
+      { bucket: t('aging.b61_90'), value: data.buckets.b61_90 },
+      { bucket: t('aging.b90plus'), value: data.buckets.b90plus },
+    ];
+    const over90Pct = data.total !== 0 ? (data.buckets.b90plus / data.total) * 100 : 0;
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700">{title}</h3>
+            <p className="text-[11px] text-slate-400">{t('aging.contractorsCount', { count: data.openCount })}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-black text-slate-700">{fmtK(data.total)}</p>
+            {colorOver90 && over90Pct > 0 && (
+              <p className={`text-[10px] font-semibold ${over90Pct > 20 ? 'text-rose-600' : over90Pct > 10 ? 'text-amber-600' : 'text-slate-400'}`}>
+                {t('aging.over90pct', { pct: over90Pct.toFixed(1) })}
+              </p>
+            )}
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={chartData} margin={{ left: -16, right: 8, top: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={48} />
+            <Tooltip formatter={((v: any) => [fmtK(Number(v)), '']) as any} />
+            <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={40}>
+              {chartData.map((_, i) => (
+                <Cell key={i} fill={i === 3 ? '#ef4444' : i === 2 ? '#f59e0b' : i === 1 ? '#facc15' : '#22c55e'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI({
+            section: 'wiekowanie',
+            receivables_total: analysis.receivables?.total.toFixed(0),
+            receivables_over_90: analysis.receivables?.buckets.b90plus.toFixed(0),
+            payables_total: analysis.payables?.total.toFixed(0),
+            payables_over_90: analysis.payables?.buckets.b90plus.toFixed(0),
+          })}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
+        >🤖 Analiza AI</button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <AgingBlock title={t('aging.receivablesTitle')} data={analysis.receivables} colorOver90 />
+        <AgingBlock title={t('aging.payablesTitle')} data={analysis.payables} colorOver90={false} />
+      </div>
+      <p className="text-[10px] text-slate-400 italic">{t('aging.disclaimer')}</p>
+    </div>
+  );
+}
+
 // ── Narracja auto-analityczna ─────────────────────────────────────────────────
 
 function NarrativeBlock({
@@ -3217,6 +3362,7 @@ export default function RatioAnalysis() {
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
     { key: 'anomalie',         label: t('anomaly.tabLabel'),        group: t('ratio.indicators') },
     { key: 'koncentracja',     label: t('conc.tabLabel'),           group: t('ratio.indicators') },
+    { key: 'wiekowanie',       label: t('aging.tabLabel'),          group: t('ratio.indicators') },
     { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
     { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
   ], [t]);
@@ -3337,6 +3483,7 @@ export default function RatioAnalysis() {
         {activeTab === 'beneish'         && <BeneishTab           result={beneish} onOpenAI={openAI('beneish', t('beneish.tabLabel'))} />}
         {activeTab === 'anomalie'        && <AnomalieTab          zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('anomalie', t('anomaly.tabLabel'))} />}
         {activeTab === 'koncentracja'    && <ConcentrationTab     zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('koncentracja', t('conc.tabLabel'))} />}
+        {activeTab === 'wiekowanie'      && <AgingTab             bilans={activeCompany.bilans} zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('wiekowanie', t('aging.tabLabel'))} />}
         {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} onOpenAI={openAI('podsumowanie', t('analysis.summary'))} />}
         {activeTab === 'bilans_str'      && <BilansStruktura      bilans={activeCompany.bilans} f1={f1} f2={f2} f3={f3} />}
         {activeTab === 'rzis_str'        && <RZiSStruktura        rzis={activeCompany.rzis}    f1={f1} f2={f2} f3={f3} />}
