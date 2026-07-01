@@ -51,4 +51,29 @@ body {
     size: A4 landscape;
     margin: 12mm;
   }
+
+  /* Raport Ogólny (RaportPDF) — zawsze pionowo, niezależnie od domyślnego
+     @page powyżej (landscape jest dla szerokich tabel Bilans/RZiS/RZiS).
+     Named page (CSS Paged Media) — wspierane przez Chromium/Playwright. */
+  .pdf-report-page { page: pdfreport; }
+  .pdf-report-wrap {
+    /* max-width NIE jest tu zmieniany — musi być identyczny jak na ekranie
+       (zob. komentarz przy max-w-[672px] w RaportPDF.tsx), żeby wykresy
+       Recharts nie przeliczały szerokości w locie przy przejściu do druku. */
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Neutralizuje odstępy Tailwind `space-y-4` (16px) między stronami —
+     w druku każda strona i tak zaczyna się na nowej fizycznej stronie A4;
+     przy stronach o wysokości dokładnie 297mm te odstępy sumowały się i
+     wypychały dodatkową, prawie pustą stronę na końcu dokumentu. */
+  .pdf-report-wrap > * {
+    margin-block-start: 0 !important;
+    margin-block-end: 0 !important;
+  }
+}
+
+@page pdfreport {
+  size: A4 portrait;
+  margin: 0;
 }

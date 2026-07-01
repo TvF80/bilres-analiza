@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -20,7 +20,7 @@ const CA = ['#3b82f6', '#93c5fd'];
 const CP = ['#10b981', '#f59e0b', '#ef4444'];
 
 // ── AI fetch with shared sessionStorage cache ─────────────────────────────────
-async function fetchAI(section: string, cacheKey: string, data: Record<string, unknown>): Promise<string> {
+async function fetchAI(section: string, cacheKey: string, data: Record<string, unknown>, lang: string): Promise<string> {
   const cached = sessionStorage.getItem(cacheKey);
   if (cached) {
     try { const p = JSON.parse(cached); if (p.text) return p.text; } catch {}
@@ -28,7 +28,7 @@ async function fetchAI(section: string, cacheKey: string, data: Record<string, u
   const res = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ section, lang: 'pl', period: 'bieżący', data }),
+    body: JSON.stringify({ section, lang, period: 'bieżący', data }),
   });
   if (res.status === 404) throw new Error('Endpoint AI niedostępny lokalnie — użyj "vercel dev" lub wersji produkcyjnej');
   const raw = await res.text();
@@ -51,12 +51,16 @@ const PieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) 
 };
 
 // ── PrintPage wrapper ─────────────────────────────────────────────────────────
-function PrintPage({ children, num, total }: { children: React.ReactNode; num: number; total: number }) {
+function PrintPage({ children, num, total, last }: { children: React.ReactNode; num: number; total: number; last?: boolean }) {
+  const { t } = useLang();
   return (
-    <div className="bg-white shadow-lg print:shadow-none" style={{ width: '100%', minHeight: '297mm', padding: '14mm 16mm', boxSizing: 'border-box', pageBreakAfter: 'always', position: 'relative' }}>
+    <div
+      className="pdf-report-page bg-white shadow-lg print:shadow-none"
+      style={{ width: '100%', minHeight: '297mm', padding: '14mm 16mm', boxSizing: 'border-box', pageBreakAfter: last ? 'auto' : 'always', position: 'relative' }}
+    >
       {children}
       <div style={{ position: 'absolute', bottom: '10mm', right: '16mm', fontSize: 8, color: '#94a3b8' }}>
-        Strona {num} z {total} · FinScope PL · {today}
+        {t('pdf.pageOf').replace('{num}', String(num)).replace('{total}', String(total))} · FinScope PL · {today}
       </div>
     </div>
   );
@@ -111,12 +115,36 @@ function RiskBadge({ ok, lowLabel, highLabel }: { ok: boolean; lowLabel?: string
   );
 }
 
+// ── Score gauge (CSS, nie Recharts — spójne z Beneish/dyskryminacyjne) ─────────
+function ScoreGauge({ value, min, max, zones, label }: {
+  value: number; min: number; max: number;
+  zones: { from: number; to: number; color: string }[];
+  label: string;
+}) {
+  const toPct = (v: number) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
+  return (
+    <div>
+      <div className="flex justify-between text-[8px] text-slate-400 mb-0.5">
+        <span>{min}</span>
+        <span className="font-semibold text-slate-500">{label}</span>
+        <span>{max}</span>
+      </div>
+      <div className="relative h-4 rounded-full overflow-hidden bg-slate-100 border border-slate-200">
+        {zones.map((z, i) => (
+          <div key={i} style={{ position: 'absolute', left: `${toPct(z.from)}%`, width: `${toPct(z.to) - toPct(z.from)}%`, top: 0, bottom: 0, background: z.color, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties} />
+        ))}
+        <div style={{ position: 'absolute', left: `calc(${toPct(value)}% - 3px)`, top: -3, bottom: -3, width: 6, background: '#1e293b', borderRadius: 3, boxShadow: '0 0 0 1.5px white' }} />
+      </div>
+    </div>
+  );
+}
+
 type Phase = 'confirm' | 'loading' | 'preview';
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RaportPDF() {
   const { activeCompany } = useCompanies();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [phase, setPhase] = useState<Phase>('confirm');
   const [progress, setProgress] = useState(0);
   const [aiTexts, setAITexts] = useState<Record<string, string>>({});
@@ -130,9 +158,27 @@ export default function RaportPDF() {
   const period = activeCompany?.period ?? '';
   const p1 = activeCompany?.periodLabels?.[0] ?? 'Okres bieżący';
   const p2 = activeCompany?.periodLabels?.[1] ?? 'Okres poprzedni';
+  const p3 = activeCompany?.periodLabels?.[2] ?? null;
+
+  // Zapamiętanie wygenerowanego raportu — po powrocie na tę zakładkę (unmount/
+  // remount przy przełączaniu widoków) pokaż od razu gotowy podgląd zamiast
+  // ekranu generowania, jeśli raport dla tej firmy/okresu/języka już istnieje.
+  const generatedKey = `pdf_generated_${companyId}_${period}_${lang}`;
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(generatedKey);
+      if (saved) {
+        const { aiTexts: savedTexts } = JSON.parse(saved);
+        setAITexts(savedTexts ?? {});
+        setPhase('preview');
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedKey]);
 
   const f1 = useMemo(() => mapFields(bilans, rzis, 1), [bilans, rzis]);
   const f2 = useMemo(() => mapFields(bilans, rzis, 2), [bilans, rzis]);
+  const f3 = useMemo(() => (p3 ? mapFields(bilans, rzis, 3) : null), [bilans, rzis, p3]);
   const beneish = useMemo(() => computeBeneish(bilans, rzis), [bilans, rzis]);
 
   // ── Discriminant: Hołda Z_H (inline) ─────────────────────────────────────
@@ -199,7 +245,7 @@ export default function RaportPDF() {
         key: 'bilans_aktywa',
         label: t('pdf.s.bilansAktywa'),
         // Matches BilansVisuals button cacheKey
-        cacheKey: `ai_bilans_struktura_${p1}_pl`,
+        cacheKey: `ai_bilans_struktura_${p1}_${lang}`,
         skip: !bilans.length,
         dataFn: () => ({
           aktywaTrwale: f1.aktywaTrwale, aktywaObrotowe: f1.aktywaObrotowe,
@@ -212,7 +258,7 @@ export default function RaportPDF() {
       {
         key: 'bilans_pasywa',
         label: t('pdf.s.bilansPasywa'),
-        cacheKey: `ai_pdf_bilans_pasywa_${p1}_pl`,
+        cacheKey: `ai_pdf_bilans_pasywa_${p1}_${lang}`,
         skip: !bilans.length,
         dataFn: () => ({
           kapitalWlasny: f1.kapitalWlasny, zobowiazaniaDlugo: f1.zobowiazaniaDlugo,
@@ -225,7 +271,7 @@ export default function RaportPDF() {
         key: 'rzis_wyniki',
         label: t('pdf.s.rzisWyniki'),
         // Matches BilansVisuals button cacheKey for rzis_rentownosc
-        cacheKey: `ai_rzis_rentownosc_${p1}_pl`,
+        cacheKey: `ai_rzis_rentownosc_${p1}_${lang}`,
         skip: !rzis.length,
         dataFn: () => ({
           przychody: f1.przychody, kosztyOper: f1.kosztyOper, ebit: f1.ebit,
@@ -238,7 +284,7 @@ export default function RaportPDF() {
       {
         key: 'rzis_marze',
         label: t('pdf.s.rzisMarze'),
-        cacheKey: `ai_pdf_rzis_marze_${period}_pl`,
+        cacheKey: `ai_pdf_rzis_marze_${period}_${lang}`,
         skip: !rzis.length,
         dataFn: () => ({
           p1: { marza_netto: f1.przychody ? +((f1.zyskNetto / f1.przychody) * 100).toFixed(1) : null, przychody: f1.przychody, ebit: f1.ebit },
@@ -250,7 +296,7 @@ export default function RaportPDF() {
         key: 'beneish',
         label: t('pdf.s.beneish'),
         // Matches RatioAnalysis button cacheKey
-        cacheKey: `ai_ratio_${companyId}_beneish_${period}_pl`,
+        cacheKey: `ai_ratio_${companyId}_beneish_${period}_${lang}`,
         skip: !beneish,
         dataFn: () => ({
           mscore: beneish?.mscore?.toFixed(3), highRisk: beneish?.highRisk,
@@ -262,7 +308,7 @@ export default function RaportPDF() {
         key: 'dyskryminacyjne',
         label: t('pdf.s.dyskryminacyjne'),
         // Matches RatioAnalysis button cacheKey
-        cacheKey: `ai_ratio_${companyId}_dyskryminacyjne_${period}_pl`,
+        cacheKey: `ai_ratio_${companyId}_dyskryminacyjne_${period}_${lang}`,
         skip: !holda,
         dataFn: () => ({
           holda: holda ? { score: +r2(holda.score), ok: holda.ok, x1: +r2(holda.x1), x2: +r2(holda.x2), x3: +r2(holda.x3), x4: +r2(holda.x4) } : null,
@@ -275,7 +321,7 @@ export default function RaportPDF() {
         key: 'grupy',
         label: t('pdf.s.grupy'),
         // Matches RaportGrupy button cacheKey
-        cacheKey: `ai_grp_${companyId}_grupy_${period}_pl`,
+        cacheKey: `ai_grp_${companyId}_grupy_${period}_${lang}`,
         skip: !grpSummary,
         dataFn: () => ({
           total_revenue: grpSummary?.totalP, total_mb: grpSummary?.totalMB, mb_pct: grpSummary?.mbPct?.toFixed(1),
@@ -286,7 +332,7 @@ export default function RaportPDF() {
         key: 'raport_miesieczny',
         label: t('pdf.s.raportMies'),
         // Matches RaportMiesieczny kpi button cacheKey
-        cacheKey: `ai_${companyId}_kpi_${rm?.period ?? ''}_pl`,
+        cacheKey: `ai_${companyId}_kpi_${rm?.period ?? ''}_${lang}`,
         skip: !rmDepts,
         dataFn: () => ({
           period: rm?.period, total_revenue: rm?.totals.revenue.total,
@@ -296,7 +342,7 @@ export default function RaportPDF() {
       {
         key: 'podsumowanie',
         label: t('pdf.s.podsumowanie'),
-        cacheKey: `ai_pdf_podsumowanie_${period}_pl`,
+        cacheKey: `ai_pdf_podsumowanie_${period}_${lang}`,
         skip: false,
         dataFn: () => ({
           company: activeCompany?.name, period: p1,
@@ -310,7 +356,7 @@ export default function RaportPDF() {
       },
     ];
     return s.filter(sec => !sec.skip);
-  }, [f1, f2, p1, p2, period, companyId, beneish, holda, altman, grpSummary, rmDepts, rm, bilans, rzis, activeCompany]);
+  }, [f1, f2, p1, p2, period, companyId, beneish, holda, altman, grpSummary, rmDepts, rm, bilans, rzis, activeCompany, lang]);
 
   const TOTAL_PAGES = 1 + sections.length; // page 1 = title+TOC
 
@@ -322,16 +368,17 @@ export default function RaportPDF() {
     try {
       for (let i = 0; i < sections.length; i++) {
         const s = sections[i];
-        results[s.key] = await fetchAI(s.key, s.cacheKey, s.dataFn());
+        results[s.key] = await fetchAI(s.key, s.cacheKey, s.dataFn(), lang);
         setProgress(i + 1);
       }
       setAITexts(results);
       setPhase('preview');
+      try { sessionStorage.setItem(generatedKey, JSON.stringify({ aiTexts: results })); } catch { /* ignore */ }
     } catch (err: any) {
       setError(err.message ?? 'Błąd generowania raportu');
       setPhase('confirm');
     }
-  }, [sections]);
+  }, [sections, lang, generatedKey]);
 
   // ── Confirm ───────────────────────────────────────────────────────────────
   if (phase === 'confirm') {
@@ -396,9 +443,10 @@ export default function RaportPDF() {
   ].filter(d => d.value > 0);
 
   const trendData = [
-    { name: p1, przychody: f1.przychody, ebit: f1.ebit, zysk: f1.zyskNetto, aktywa: f1.aktywaRazem },
+    ...(f3 && p3 ? [{ name: p3, przychody: f3.przychody, ebit: f3.ebit, zysk: f3.zyskNetto, aktywa: f3.aktywaRazem }] : []),
     { name: p2, przychody: f2.przychody, ebit: f2.ebit, zysk: f2.zyskNetto, aktywa: f2.aktywaRazem },
-  ].reverse();
+    { name: p1, przychody: f1.przychody, ebit: f1.ebit, zysk: f1.zyskNetto, aktywa: f1.aktywaRazem },
+  ];
 
   const marginData = [
     {
@@ -436,7 +484,10 @@ export default function RaportPDF() {
       `}</style>
       {/* Toolbar */}
       <div className="print:hidden sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-3">
-        <button onClick={() => setPhase('confirm')} className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{t('pdf.back')}</button>
+        <button
+          onClick={() => { try { sessionStorage.removeItem(generatedKey); } catch { /* ignore */ } setPhase('confirm'); }}
+          className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+        >{t('pdf.back')}</button>
         <span className="text-xs text-slate-300">|</span>
         <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition-colors">
           {t('pdf.print')}
@@ -445,7 +496,11 @@ export default function RaportPDF() {
         <span className="text-xs text-slate-400 ml-auto">{TOTAL_PAGES} {t('pdf.pages')} · {activeCompany?.name}</span>
       </div>
 
-      <div className="space-y-4 p-4 max-w-[900px] mx-auto">
+      {/* max-w dopasowany do rzeczywistej szerokości druku (A4 portrait − padding
+          strony), żeby podgląd na ekranie = to co się wydrukuje — inaczej wykresy
+          Recharts (ResponsiveContainer) nie przeliczają szerokości na czas przy
+          przejściu do @media print i ostatnia kategoria/słupek bywa ucięty. */}
+      <div className="pdf-report-wrap space-y-4 p-4 max-w-[672px] mx-auto">
 
         {/* ── PAGE 1: Title + TOC ─────────────────────────────────────────── */}
         <PrintPage num={1} total={TOTAL_PAGES}>
@@ -455,7 +510,7 @@ export default function RaportPDF() {
               <div className="w-9 h-9 bg-violet-600 rounded-xl flex items-center justify-center text-white text-base font-black">F</div>
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">FinScope PL</p>
-                <p className="text-[9px] text-slate-300">Platforma analiz finansowych</p>
+                <p className="text-[9px] text-slate-300">{t('pdf.platformSubtitle')}</p>
               </div>
             </div>
 
@@ -463,11 +518,11 @@ export default function RaportPDF() {
             <div className="flex-1 flex flex-col justify-center text-center space-y-4 py-8">
               <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto text-3xl">📊</div>
               <div>
-                <h1 className="text-2xl font-black text-slate-800">{activeCompany?.name ?? 'Raport Finansowy'}</h1>
-                <p className="text-slate-400 text-sm mt-1">Raport Ogólny · Analiza Finansowa</p>
+                <h1 className="text-2xl font-black text-slate-800">{activeCompany?.name ?? t('pdf.defaultTitle')}</h1>
+                <p className="text-slate-400 text-sm mt-1">{t('pdf.coverSubtitle')}</p>
               </div>
               <div className="flex justify-center gap-8 pt-2">
-                {[['Okres', p1], ['Wygenerowano', today], ['Status', 'Poufny']].map(([l, v]) => (
+                {[[t('pdf.period'), p1], [t('pdf.generatedOn'), today], [t('pdf.status'), t('pdf.confidential')]].map(([l, v]) => (
                   <div key={l} className="text-center">
                     <p className="text-[9px] text-slate-400 uppercase tracking-wide">{l}</p>
                     <p className="text-sm font-bold text-slate-700 mt-0.5">{v}</p>
@@ -884,6 +939,21 @@ export default function RaportPDF() {
                   )}
                 </div>
               </div>
+              <div className="mb-2">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{t('pdf.beneishContribTitle')}</p>
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={beneish.indices.map(i => ({ name: i.key, value: +i.contribution.toFixed(3) }))} margin={{ top: 4, right: 4, left: 4, bottom: 2 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 9 }} />
+                    <YAxis tick={{ fontSize: 9 }} />
+                    <Tooltip formatter={(v: any) => v} />
+                    <ReferenceLine y={0} stroke="#94a3b8" />
+                    <Bar dataKey="value" radius={[2, 2, 0, 0]}>
+                      {beneish.indices.map((i, idx) => <Cell key={idx} fill={i.contribution > 0 ? '#f87171' : '#34d399'} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
               <AIBlock text={aiTexts['beneish']} label={t('pdf.aiComment')} />
             </PrintPage>
           );
@@ -907,6 +977,10 @@ export default function RaportPDF() {
                       <span className={`text-xl font-black ${holda.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{r2(holda.score)}</span>
                     </div>
                     <RiskBadge ok={holda.ok} lowLabel={t('pdf.lowRisk')} highLabel={t('pdf.highRisk')} />
+                    <div className="mt-2">
+                      <ScoreGauge value={holda.score} min={-2} max={4} label="Z_H"
+                        zones={[{ from: -2, to: 0, color: '#f87171' }, { from: 0, to: 4, color: '#34d399' }]} />
+                    </div>
                   </div>
 
                   {/* Altman Z' */}
@@ -920,6 +994,10 @@ export default function RaportPDF() {
                         <span className={`text-xl font-black ${altman.ok ? 'text-emerald-600' : altman.zone === 'szara strefa' ? 'text-amber-600' : 'text-rose-600'}`}>{r2(altman.score)}</span>
                       </div>
                       <RiskBadge ok={altman.ok} lowLabel={t('pdf.lowRisk')} highLabel={t('pdf.highRisk')} />
+                      <div className="mt-2">
+                        <ScoreGauge value={altman.score} min={0} max={5} label="Z'"
+                          zones={[{ from: 0, to: 1.23, color: '#f87171' }, { from: 1.23, to: 2.9, color: '#fbbf24' }, { from: 2.9, to: 5, color: '#34d399' }]} />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1048,7 +1126,7 @@ export default function RaportPDF() {
         {sections.find(s => s.key === 'podsumowanie') && (() => {
           const pg = getPage();
           return (
-            <PrintPage num={pg} total={TOTAL_PAGES}>
+            <PrintPage num={pg} total={TOTAL_PAGES} last>
               <SectionHeader num={String(pg)} title={t('pdf.s.podsumowanie')} sub={`${activeCompany?.name} · ${p1}`} />
               <div className="grid grid-cols-3 gap-2 mb-4">
                 <KPI label={t('vis.totalAssets')} val={fmt(f1.aktywaRazem)} color="blue" />
