@@ -11,7 +11,7 @@ import AIAnalysisModal from './AIAnalysisModal';
 import { MACRO_DATA } from './ControlSheet';
 import type { JournalEntry } from '../types';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, ComposedChart, Line,
 } from 'recharts';
 
 // ── Sub-tab type ──────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ type SubTab =
   | 'dyskryminacyjne'
   | 'beneish'
   | 'anomalie'
+  | 'koncentracja'
   | 'podsumowanie'
   | 'bilans_str'
   | 'rzis_str';
@@ -2436,6 +2437,112 @@ function AnomalieTab({ zapisy, zapisyLoading, onOpenAI }: { zapisy: JournalEntry
   );
 }
 
+// ── Koncentracja kontrahentów (Pareto / HHI) ─────────────────────────────────
+function ConcentrationTab({ zapisy, zapisyLoading, onOpenAI }: { zapisy: JournalEntry[]; zapisyLoading: boolean; onOpenAI: (data: Record<string, unknown>) => void }) {
+  const { t } = useLang();
+
+  const analysis = useMemo(() => {
+    const byContractor = new Map<string, { name: string; total: number }>();
+    let total = 0;
+    for (const z of zapisy) {
+      if (!z.podmiot) continue;
+      const amount = Math.abs(z.kwotaWn !== 0 ? z.kwotaWn : z.kwotaMa);
+      if (amount === 0) continue;
+      const key = z.podmiot;
+      const entry = byContractor.get(key);
+      if (entry) entry.total += amount;
+      else byContractor.set(key, { name: z.nazwaPodmiotu || key, total: amount });
+      total += amount;
+    }
+    if (!byContractor.size || total === 0) return null;
+
+    const sorted = [...byContractor.values()].sort((a, b) => b.total - a.total);
+    let cumulative = 0;
+    const withCumulative = sorted.map(c => {
+      cumulative += c.total;
+      return { ...c, share: (c.total / total) * 100, cumulativePct: (cumulative / total) * 100 };
+    });
+
+    const hhi = sorted.reduce((sum, c) => sum + Math.pow(c.total / total, 2), 0) * 10000;
+    const top5Pct = withCumulative.slice(0, 5).reduce((s, c) => s + c.share, 0);
+    const top10Pct = withCumulative.slice(0, 10).reduce((s, c) => s + c.share, 0);
+
+    return { contractors: withCumulative, count: sorted.length, hhi, top5Pct, top10Pct, total };
+  }, [zapisy]);
+
+  if (zapisyLoading) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('anomaly.loading')}</div>;
+  }
+  if (!analysis) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('conc.noData')}</div>;
+  }
+
+  const hhiLevel = analysis.hhi < 1500 ? 'low' : analysis.hhi < 2500 ? 'moderate' : 'high';
+  const hhiColor = hhiLevel === 'low' ? 'text-emerald-600' : hhiLevel === 'moderate' ? 'text-amber-600' : 'text-rose-600';
+  const hhiBg = hhiLevel === 'low' ? 'bg-emerald-50 border-emerald-200' : hhiLevel === 'moderate' ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200';
+  const hhiLabel = hhiLevel === 'low' ? t('conc.hhiLow') : hhiLevel === 'moderate' ? t('conc.hhiModerate') : t('conc.hhiHigh');
+
+  const top15 = analysis.contractors.slice(0, 15);
+  const fmtPct = (v: number) => v.toFixed(1) + '%';
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI({
+            section: 'koncentracja', contractors_count: analysis.count, hhi: analysis.hhi.toFixed(0),
+            hhi_level: hhiLevel, top5_share_pct: analysis.top5Pct.toFixed(1), top10_share_pct: analysis.top10Pct.toFixed(1),
+            top_contractors: top15.slice(0, 5).map(c => ({ name: c.name, share_pct: c.share.toFixed(1) })),
+          })}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
+        >🤖 Analiza AI</button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-700">{t('conc.title')}</h3>
+          <p className="text-[11px] text-slate-400">{t('conc.subtitle', { count: analysis.count })}</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className={`rounded-lg p-3 border ${hhiBg}`}>
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('conc.hhiLabel')}</p>
+            <p className={`text-lg font-black ${hhiColor}`}>{analysis.hhi.toFixed(0)}</p>
+            <p className="text-[9px] text-slate-400 mt-0.5">{hhiLabel}</p>
+          </div>
+          <div className="rounded-lg p-3 border bg-slate-50 border-slate-200">
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('conc.top5Label')}</p>
+            <p className="text-lg font-black text-slate-700">{fmtPct(analysis.top5Pct)}</p>
+            <p className="text-[9px] text-slate-400 mt-0.5">{t('conc.top5Hint')}</p>
+          </div>
+          <div className="rounded-lg p-3 border bg-slate-50 border-slate-200">
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('conc.top10Label')}</p>
+            <p className="text-lg font-black text-slate-700">{fmtPct(analysis.top10Pct)}</p>
+            <p className="text-[9px] text-slate-400 mt-0.5">{t('conc.top10Hint')}</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{t('conc.paretoTitle')}</p>
+          <p className="text-[10px] text-slate-400 mb-2">{t('conc.paretoHint')}</p>
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={top15} margin={{ left: -16, right: 8, top: 4, bottom: 32 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" interval={0} height={60} />
+              <YAxis yAxisId="left" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} width={36} />
+              <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} width={36} />
+              <Tooltip formatter={((v: any, name: any) => [`${Number(v).toFixed(1)}%`, name === 'share' ? t('conc.shareLabel') : t('conc.cumulativeLabel')]) as any} />
+              <Bar yAxisId="left" dataKey="share" fill="#8b5cf6" radius={[3, 3, 0, 0]} maxBarSize={28} />
+              <Line yAxisId="right" type="monotone" dataKey="cumulativePct" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-[10px] text-slate-400 italic">{t('conc.disclaimer')}</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Narracja auto-analityczna ─────────────────────────────────────────────────
 
 function NarrativeBlock({
@@ -3109,6 +3216,7 @@ export default function RatioAnalysis() {
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
     { key: 'anomalie',         label: t('anomaly.tabLabel'),        group: t('ratio.indicators') },
+    { key: 'koncentracja',     label: t('conc.tabLabel'),           group: t('ratio.indicators') },
     { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
     { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
   ], [t]);
@@ -3228,6 +3336,7 @@ export default function RatioAnalysis() {
         {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('dyskryminacyjne', t('analysis.discriminant'))} />}
         {activeTab === 'beneish'         && <BeneishTab           result={beneish} onOpenAI={openAI('beneish', t('beneish.tabLabel'))} />}
         {activeTab === 'anomalie'        && <AnomalieTab          zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('anomalie', t('anomaly.tabLabel'))} />}
+        {activeTab === 'koncentracja'    && <ConcentrationTab     zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('koncentracja', t('conc.tabLabel'))} />}
         {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} onOpenAI={openAI('podsumowanie', t('analysis.summary'))} />}
         {activeTab === 'bilans_str'      && <BilansStruktura      bilans={activeCompany.bilans} f1={f1} f2={f2} f3={f3} />}
         {activeTab === 'rzis_str'        && <RZiSStruktura        rzis={activeCompany.rzis}    f1={f1} f2={f2} f3={f3} />}
