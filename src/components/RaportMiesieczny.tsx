@@ -377,7 +377,7 @@ function KpiPanel({ totals, result, history, period, onOpenAI }: { totals: Month
 
 // ── Sub-tabs ─────────────────────────────────────────────────────────────────
 
-type SubTab = 'marza' | 'heatmapa' | 'koszty' | 'wynik' | 'porownanie';
+type SubTab = 'marza' | 'heatmapa' | 'koszty' | 'wynik' | 'porownanie' | 'sezonowosc';
 
 interface AIModalState { section: string; sectionLabel: string; data: Record<string, unknown> }
 
@@ -398,6 +398,7 @@ export default function RaportMiesieczny() {
     { key: 'koszty',     label: t('report.operatingCosts') },
     { key: 'wynik',      label: t('report.result') },
     { key: 'porownanie', label: t('report.yoyComparison') },
+    { key: 'sezonowosc', label: t('report.seasonality') },
   ], [t]);
 
   if (!data) {
@@ -451,6 +452,7 @@ export default function RaportMiesieczny() {
         {activeTab === 'koszty'     && <KosztyTab costCategories={data.costCategories} totals={data.totals} period={data.period} onOpenAI={openAI('koszty', `Koszty — ${data.period}`)} />}
         {activeTab === 'wynik'      && <WynikTab result={data.result} totals={data.totals} periodLabels={data.periodLabels} costCategories={data.costCategories} departments={data.departments} onOpenAI={openAI('wynik_lejek', `Lejek wyniku — ${data.period}`)} />}
         {activeTab === 'porownanie' && <PorownanieTab items={data.yearComparison} comparisonLabel={data.comparisonLabel} totals={data.totals} onOpenAI={openAI('porownanie', `Porównanie r/r — ${data.period}`)} />}
+        {activeTab === 'sezonowosc' && <SezonowoscTab totals={data.totals} />}
       </div>
 
       {/* AI Analysis Modal */}
@@ -2117,6 +2119,112 @@ function PorownanieTab({ items, comparisonLabel, totals, onOpenAI }: { items: Ye
       {selectedItem && (
         <ComparisonItemDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
+    </div>
+  );
+}
+
+// ── Sezonowość ────────────────────────────────────────────────────────────────
+// Nakłada dostępne lata obrachunkowe (już policzone w `.history` każdej linii
+// raportu) i liczy indeks sezonowy per miesiąc = średnia wartość tego miesiąca
+// przez wszystkie lata / średnia miesięczna ogółem × 100. Zero nowych danych —
+// wyłącznie reagregacja tego co już jest w MonthlyReportTotals.
+type SeasonMetric = 'revenue' | 'costOfSales' | 'grossMarginTotal';
+
+function SezonowoscTab({ totals }: { totals: MonthlyReportTotals }) {
+  const { t, lang } = useLang();
+  const months = MONTHS_SHORT[lang];
+  const [metric, setMetric] = useState<SeasonMetric>('revenue');
+
+  const line = totals[metric];
+
+  const seasonalIndex = useMemo(() => {
+    const history = line.history;
+    if (!history?.length) return null;
+    const monthAvg = months.map((_, i) => {
+      const vals = history.map(h => Math.abs(h.monthly[i] ?? 0));
+      return vals.reduce((s, v) => s + v, 0) / vals.length;
+    });
+    const overallAvg = monthAvg.reduce((s, v) => s + v, 0) / monthAvg.length;
+    if (overallAvg === 0) return null;
+    return monthAvg.map((v, i) => ({ month: months[i], index: (v / overallAvg) * 100 }));
+  }, [line, months]);
+
+  const { peak, trough } = useMemo(() => {
+    if (!seasonalIndex) return { peak: null, trough: null };
+    const sorted = [...seasonalIndex].sort((a, b) => b.index - a.index);
+    return { peak: sorted[0], trough: sorted[sorted.length - 1] };
+  }, [seasonalIndex]);
+
+  const METRICS: { key: SeasonMetric; label: string; color: string }[] = [
+    { key: 'revenue', label: t('report.revenueYTD'), color: '#3b82f6' },
+    { key: 'costOfSales', label: t('report.costToRevenue'), color: '#f97316' },
+    { key: 'grossMarginTotal', label: t('report.grossMargin'), color: '#10b981' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700">{t('seas.title')}</h3>
+            <p className="text-[11px] text-slate-400">{t('seas.subtitle')}</p>
+          </div>
+          <div className="flex gap-1">
+            {METRICS.map(m => (
+              <button
+                key={m.key}
+                onClick={() => setMetric(m.key)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                  metric === m.key ? 'text-white' : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                }`}
+                style={metric === m.key ? { background: m.color } : {}}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <HistoryComparisonChart history={line.history} height={220} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-700">{t('seas.indexTitle')}</h3>
+          <p className="text-[11px] text-slate-400">{t('seas.indexHint')}</p>
+        </div>
+        {!seasonalIndex ? (
+          <p className="text-xs text-slate-400 italic">{t('costs.noHistoryPosition')}</p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={seasonalIndex} margin={{ left: -16, right: 8, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}`} width={32} />
+                <Tooltip formatter={(v: any) => [`${Number(v).toFixed(0)}`, 'Indeks']} contentStyle={TOOLTIP_STYLE} />
+                <ReferenceLine y={100} stroke="#94a3b8" strokeDasharray="4 4" />
+                <Bar dataKey="index" radius={[3, 3, 0, 0]} maxBarSize={28}>
+                  {seasonalIndex.map((d, i) => (
+                    <Cell key={i} fill={d.index >= 110 ? C.pos : d.index <= 90 ? C.neg : '#94a3b8'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex gap-4 text-[11px]">
+              {peak && (
+                <span className="text-emerald-600">
+                  ▲ {t('seas.peakMonth')}: <strong>{peak.month}</strong> ({peak.index.toFixed(0)})
+                </span>
+              )}
+              {trough && (
+                <span className="text-rose-500">
+                  ▼ {t('seas.troughMonth')}: <strong>{trough.month}</strong> ({trough.index.toFixed(0)})
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
