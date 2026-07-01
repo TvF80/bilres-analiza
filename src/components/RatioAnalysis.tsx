@@ -8,6 +8,7 @@ import {
   BilansStruktura, RZiSStruktura,
 } from './AnalysisCharts';
 import AIAnalysisModal from './AIAnalysisModal';
+import { MACRO_DATA } from './ControlSheet';
 
 // ── Sub-tab type ──────────────────────────────────────────────────────────────
 
@@ -705,6 +706,107 @@ function ZadluzenieTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f
         onBarClick={idx => setChartInd(rows[[0, 2, 3, 1][idx] ?? 0] ?? null)} />
       <IndicatorCards rows={rows} labels={labels} />
       {chartInd && <IndicatorDrawer ind={chartInd} labels={labels} onClose={() => setChartInd(null)} />}
+      <WiborSensitivity f1={f1} />
+    </div>
+  );
+}
+
+// ── Wrażliwość na WIBOR ───────────────────────────────────────────────────────
+// Zmiana stopy procentowej o Δpp zastosowana do bieżącego zadłużenia
+// oprocentowanego — pokazuje wpływ na koszt odsetek, zysk netto i ICR.
+// Zakłada, że dług jest oprocentowany zmiennie (typowe dla kredytów obrotowych/
+// inwestycyjnych w PLN) — uproszczenie, bo appka nie zna marży banku ani
+// podziału na stałe/zmienne oprocentowanie per kredyt.
+function WiborSensitivity({ f1 }: { f1: FieldMap }) {
+  const { t } = useLang();
+
+  const currentWibor = useMemo(() => {
+    const series = MACRO_DATA.find(s => s.key === 'macro.wibor3m');
+    if (!series) return null;
+    const years = Object.keys(series.values).map(Number).sort((a, b) => b - a);
+    for (const y of years) {
+      const v = series.values[y as keyof typeof series.values];
+      if (v !== undefined) return v;
+    }
+    return null;
+  }, []);
+
+  const debtBase = f1.kredytDlugo + f1.kredytKrotko;
+  const scenarios = useMemo(() => {
+    if (debtBase <= 0) return [];
+    const deltas = [-2, -1, 0, 1, 2, 3];
+    const ebitda = f1.ebit + f1.amortyzacja;
+    const taxShield = f1.zyskBrutto > 0 ? f1.zyskNetto / f1.zyskBrutto : 1;
+    return deltas.map(delta => {
+      const deltaOdsetki = (delta / 100) * debtBase;
+      const newOdsetki = Math.max(0, f1.odsetki + deltaOdsetki);
+      const newZyskBrutto = f1.zyskBrutto - deltaOdsetki;
+      const newZyskNetto = newZyskBrutto * taxShield;
+      const newIcr = newOdsetki > 0 ? ebitda / newOdsetki : null;
+      return { delta, netProfit: newZyskNetto, icr: newIcr };
+    });
+  }, [debtBase, f1]);
+
+  const fmtK = (v: number) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(v) + ' PLN';
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-slate-700">{t('sens.title')}</h3>
+        <p className="text-[11px] text-slate-400">
+          {currentWibor !== null ? t('sens.subtitle', { wibor: currentWibor }) : t('sens.title')}
+        </p>
+      </div>
+
+      {debtBase <= 0 ? (
+        <p className="text-xs text-slate-400 italic">{t('sens.noDebt')}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('sens.debtBase')}</p>
+              <p className="text-sm font-black text-slate-700">{fmtK(debtBase)}</p>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('sens.currentRate')}</p>
+              <p className="text-sm font-black text-slate-700">{debtBase > 0 ? ((f1.odsetki / debtBase) * 100).toFixed(2) + '%' : '—'}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b-2 border-slate-200">
+                  <th className="text-left py-1.5 text-slate-500">{t('sens.scenario')}</th>
+                  {scenarios.map(s => (
+                    <th key={s.delta} className={`text-right py-1.5 px-2 ${s.delta === 0 ? 'text-violet-600 font-bold' : 'text-slate-500'}`}>
+                      {s.delta === 0 ? t('sens.current') : `${s.delta > 0 ? '+' : ''}${s.delta}pp`}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-slate-100">
+                  <td className="py-1.5 text-slate-600 font-medium">{t('sens.netProfit')}</td>
+                  {scenarios.map(s => (
+                    <td key={s.delta} className={`text-right py-1.5 px-2 tabular-nums font-semibold ${s.delta === 0 ? 'text-violet-700 bg-violet-50' : s.netProfit >= 0 ? 'text-slate-700' : 'text-red-600'}`}>
+                      {fmtK(s.netProfit)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td className="py-1.5 text-slate-600 font-medium">{t('sens.icr')}</td>
+                  {scenarios.map(s => (
+                    <td key={s.delta} className={`text-right py-1.5 px-2 tabular-nums font-semibold ${s.delta === 0 ? 'text-violet-700 bg-violet-50' : s.icr !== null && s.icr < 1.5 ? 'text-red-600' : 'text-slate-700'}`}>
+                      {s.icr !== null ? s.icr.toFixed(2) + 'x' : '—'}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

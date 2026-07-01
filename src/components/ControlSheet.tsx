@@ -27,7 +27,7 @@ interface MacroSeries {
   fmt?: 'pct' | 'pln' | 'num' | 'idx';
 }
 
-const MACRO_DATA: MacroSeries[] = [
+export const MACRO_DATA: MacroSeries[] = [
   {
     label: 'Wskaźnik inflacji (GUS)',
     key: 'macro.inflation',

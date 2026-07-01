@@ -289,6 +289,17 @@ const translations: Record<Lang, Record<string, string>> = {
     'dupont.equityMultiplierFormula': 'Aktywa razem / Kapitał własny',
     'dupont.resultRoe': 'ROE',
 
+    // Wrażliwość na WIBOR
+    'sens.title': 'Wrażliwość na zmianę stóp procentowych (WIBOR)',
+    'sens.subtitle': 'Wpływ zmiany oprocentowania na wynik i pokrycie odsetek — bieżący WIBOR 3M: {wibor}%',
+    'sens.debtBase': 'Baza: dług oprocentowany (kredyty)',
+    'sens.currentRate': 'Efektywne oprocentowanie (dziś)',
+    'sens.scenario': 'Scenariusz',
+    'sens.current': 'dziś',
+    'sens.netProfit': 'Zysk netto',
+    'sens.icr': 'ICR',
+    'sens.noDebt': 'Brak zadłużenia oprocentowanego — analiza wrażliwości niedostępna.',
+
     // Discriminant models
     'disc.periodP1': 'Okres P1',
     'disc.periodP2': 'Okres P2',
@@ -990,6 +1001,17 @@ const translations: Record<Lang, Record<string, string>> = {
     'dupont.equityMultiplierFormula': 'Total actif / Capitaux propres',
     'dupont.resultRoe': 'ROE',
 
+    // Sensibilité au WIBOR
+    'sens.title': 'Sensibilité aux variations de taux (WIBOR)',
+    'sens.subtitle': 'Impact d\'un changement de taux sur le résultat et la couverture des intérêts — WIBOR 3M actuel : {wibor}%',
+    'sens.debtBase': 'Base : dette portant intérêt (crédits)',
+    'sens.currentRate': 'Taux effectif (actuel)',
+    'sens.scenario': 'Scénario',
+    'sens.current': 'actuel',
+    'sens.netProfit': 'Résultat net',
+    'sens.icr': 'ICR',
+    'sens.noDebt': 'Aucune dette portant intérêt — analyse de sensibilité non disponible.',
+
     'disc.periodP1': 'Période P1',
     'disc.periodP2': 'Période P2',
     'disc.noBankruptcy': 'Pas de risque de faillite',
@@ -1674,6 +1696,17 @@ const translations: Record<Lang, Record<string, string>> = {
     'dupont.equityMultiplier': 'Financial leverage',
     'dupont.equityMultiplierFormula': 'Total assets / Equity',
     'dupont.resultRoe': 'ROE',
+
+    // WIBOR sensitivity
+    'sens.title': 'Interest rate sensitivity (WIBOR)',
+    'sens.subtitle': 'Impact of a rate change on result and interest coverage — current WIBOR 3M: {wibor}%',
+    'sens.debtBase': 'Base: interest-bearing debt (loans)',
+    'sens.currentRate': 'Effective rate (today)',
+    'sens.scenario': 'Scenario',
+    'sens.current': 'today',
+    'sens.netProfit': 'Net profit',
+    'sens.icr': 'ICR',
+    'sens.noDebt': 'No interest-bearing debt — sensitivity analysis unavailable.',
 
     'disc.periodP1': 'Period P1',
     'disc.periodP2': 'Period P2',
