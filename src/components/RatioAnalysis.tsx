@@ -17,6 +17,7 @@ type SubTab =
   | 'sprawnosc'
   | 'zadluzenie'
   | 'rentownosc'
+  | 'cashflow'
   | 'dyskryminacyjne'
   | 'beneish'
   | 'podsumowanie'
@@ -1062,6 +1063,132 @@ function DuPontPyramid({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMa
       )}
 
       {factorInd && <IndicatorDrawer ind={factorInd} labels={labels} onClose={() => setFactorInd(null)} />}
+    </div>
+  );
+}
+
+// ── Cash flow (metoda pośrednia, rekonstrukcja z różnic bilansowych) ─────────
+// Uproszczenie: zobowiązania krótkoterminowe traktujemy jako suma części
+// operacyjnej (handlowej) i finansowej (kredyty krótkoterminowe) — odejmujemy
+// kredytKrotko, żeby nie liczyć spłaty/zaciągnięcia kredytu podwójnie w CFO i CFF.
+// Różnica między realną Δśrodków pieniężnych a sumą CFO+CFI+CFF pokazana jest
+// jawnie jako "Inne pozycje bilansowe" — model nie zna zmian kapitału własnego
+// (dywidendy, dopłaty), rezerw ani innych pozycji spoza FieldMap.
+interface CashFlowStep { label: string; val: number; hint?: string }
+
+function CashFlowTab({ f1, f2, periodLabels, onOpenAI }: { f1: FieldMap; f2: FieldMap; periodLabels?: string[]; onOpenAI: (data: Record<string, unknown>) => void }) {
+  const { t } = useLang();
+  const pl = periodLabels ?? [];
+  const p1 = pl[0] ?? 'P1';
+  const p2 = pl[1] ?? 'P2';
+
+  const cf = useMemo(() => {
+    const deltaNaleznosci = f1.naleznosci - f2.naleznosci;
+    const deltaZapasy = f1.zapasy - f2.zapasy;
+    const opZobowKrotko1 = f1.zobowiazaniaKrotko - f1.kredytKrotko;
+    const opZobowKrotko2 = f2.zobowiazaniaKrotko - f2.kredytKrotko;
+    const deltaZobowOper = opZobowKrotko1 - opZobowKrotko2;
+
+    const operating: CashFlowStep[] = [
+      { label: t('cf.netProfit'), val: f1.zyskNetto },
+      { label: t('cf.depreciation'), val: f1.amortyzacja },
+      { label: t('cf.receivables'), val: -deltaNaleznosci },
+      { label: t('cf.inventory'), val: -deltaZapasy },
+      { label: t('cf.payables'), val: deltaZobowOper },
+    ];
+    const cfo = operating.reduce((s, x) => s + x.val, 0);
+
+    const deltaAktywaTrwale = f1.aktywaTrwale - f2.aktywaTrwale;
+    const investing: CashFlowStep[] = [
+      { label: t('cf.capex'), val: -deltaAktywaTrwale },
+    ];
+    const cfi = investing.reduce((s, x) => s + x.val, 0);
+
+    const financing: CashFlowStep[] = [
+      { label: t('cf.longTermDebt'), val: f1.kredytDlugo - f2.kredytDlugo },
+      { label: t('cf.shortTermDebt'), val: f1.kredytKrotko - f2.kredytKrotko },
+    ];
+    const cff = financing.reduce((s, x) => s + x.val, 0);
+
+    const realCashChange = f1.srodkiPieniezne - f2.srodkiPieniezne;
+    const other = realCashChange - (cfo + cfi + cff);
+
+    return { operating, cfo, investing, cfi, financing, cff, other, realCashChange };
+  }, [f1, f2, t]);
+
+  const fmtK = (v: number) => {
+    const sign = v > 0 ? '+' : '';
+    return sign + new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(v) + ' PLN';
+  };
+
+  const maxAbs = Math.max(
+    ...cf.operating.map(s => Math.abs(s.val)),
+    ...cf.investing.map(s => Math.abs(s.val)),
+    ...cf.financing.map(s => Math.abs(s.val)),
+    Math.abs(cf.other), 1,
+  );
+
+  const StepRow = ({ step, bold }: { step: CashFlowStep; bold?: boolean }) => (
+    <div className="flex items-center gap-3 py-1">
+      <span className={`flex-1 text-xs ${bold ? 'font-bold text-slate-700' : 'text-slate-600'}`}>{step.label}</span>
+      <div className="w-32 h-3 bg-slate-100 rounded-full overflow-hidden relative shrink-0">
+        <div
+          className={`h-full rounded-full ${step.val >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`}
+          style={{ width: `${Math.min(100, (Math.abs(step.val) / maxAbs) * 100)}%`, marginLeft: step.val >= 0 ? '50%' : `${50 - Math.min(50, (Math.abs(step.val) / maxAbs) * 50)}%` }}
+        />
+      </div>
+      <span className={`w-28 text-right text-xs tabular-nums font-semibold shrink-0 ${step.val >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtK(step.val)}</span>
+    </div>
+  );
+
+  const Section = ({ title, steps, subtotal, color }: { title: string; steps: CashFlowStep[]; subtotal: number; color: string }) => (
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>{title}</p>
+      {steps.map((s, i) => <StepRow key={i} step={s} />)}
+      <div className="flex items-center justify-between pt-1 mt-1 border-t border-slate-200">
+        <span className="text-xs font-bold text-slate-700">{t('cf.subtotal')}</span>
+        <span className={`text-sm font-black tabular-nums ${subtotal >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{fmtK(subtotal)}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI({
+            section: 'cashflow', period_p1: p1, period_p2: p2,
+            cfo: cf.cfo, cfi: cf.cfi, cff: cf.cff, other: cf.other, cash_change: cf.realCashChange,
+          })}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
+        >🤖 Analiza AI</button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-700">{t('cf.title')}</h3>
+          <p className="text-[11px] text-slate-400">{t('cf.subtitle', { p1, p2 })}</p>
+        </div>
+
+        <Section title={t('cf.operating')} steps={cf.operating} subtotal={cf.cfo} color="#059669" />
+        <Section title={t('cf.investing')} steps={cf.investing} subtotal={cf.cfi} color="#d97706" />
+        <Section title={t('cf.financing')} steps={cf.financing} subtotal={cf.cff} color="#7c3aed" />
+
+        <div className="space-y-0.5">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('cf.other')}</p>
+          <StepRow step={{ label: t('cf.otherHint'), val: cf.other }} />
+        </div>
+
+        <div className="flex items-center justify-between pt-3 border-t-2 border-slate-300">
+          <div>
+            <span className="text-sm font-black text-slate-800">{t('cf.cashChange')}</span>
+            <p className="text-[10px] text-emerald-600">✓ {t('cf.cashChangeCheck')}</p>
+          </div>
+          <span className={`text-lg font-black tabular-nums ${cf.realCashChange >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{fmtK(cf.realCashChange)}</span>
+        </div>
+
+        <p className="text-[10px] text-slate-400 italic pt-1">{t('cf.disclaimer')}</p>
+      </div>
     </div>
   );
 }
@@ -2697,6 +2824,7 @@ export default function RatioAnalysis() {
     { key: 'sprawnosc',        label: t('analysis.efficiency'),     group: t('ratio.indicators') },
     { key: 'zadluzenie',       label: t('analysis.debt'),           group: t('ratio.indicators') },
     { key: 'rentownosc',       label: t('analysis.profitability'),  group: t('ratio.indicators') },
+    { key: 'cashflow',         label: t('analysis.cashflow'),       group: t('ratio.indicators') },
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
     { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
@@ -2813,6 +2941,7 @@ export default function RatioAnalysis() {
         {activeTab === 'sprawnosc'       && <SprawnostTab         f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('sprawnosc', t('analysis.efficiency'))} />}
         {activeTab === 'zadluzenie'      && <ZadluzenieTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('zadluzenie', t('analysis.debt'))} />}
         {activeTab === 'rentownosc'      && <RentownoscTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('rentownosc', t('analysis.profitability'))} />}
+        {activeTab === 'cashflow'        && <CashFlowTab          f1={f1} f2={f2} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('cashflow', t('analysis.cashflow'))} />}
         {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('dyskryminacyjne', t('analysis.discriminant'))} />}
         {activeTab === 'beneish'         && <BeneishTab           result={beneish} onOpenAI={openAI('beneish', t('beneish.tabLabel'))} />}
         {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} onOpenAI={openAI('podsumowanie', t('analysis.summary'))} />}
