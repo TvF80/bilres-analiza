@@ -32,7 +32,17 @@ function getSheet(wb: XLSX.WorkBook, preferredName: string): XLSX.WorkSheet {
   return wb.Sheets[preferredName] ?? wb.Sheets[wb.SheetNames[0]];
 }
 
+export const MAX_IMPORT_FILE_BYTES = 50 * 1024 * 1024; // 50 MB — hojny margines dla arkuszy z dziennikiem FK
+export const ALLOWED_IMPORT_EXTENSIONS = ['.xlsx'];
+
 async function fileToWorkbook(file: File): Promise<XLSX.WorkBook> {
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+  if (!ALLOWED_IMPORT_EXTENSIONS.includes(ext)) {
+    throw new Error(`Nieobsługiwany format pliku: ${file.name} (dozwolone: ${ALLOWED_IMPORT_EXTENSIONS.join(', ')})`);
+  }
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error(`Plik ${file.name} jest zbyt duży (${(file.size / 1024 / 1024).toFixed(1)} MB, limit ${MAX_IMPORT_FILE_BYTES / 1024 / 1024} MB)`);
+  }
   const buffer = await file.arrayBuffer();
   return XLSX.read(buffer, { type: 'array' });
 }

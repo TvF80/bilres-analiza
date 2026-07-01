@@ -50,10 +50,20 @@ const RaportPDF = lazy(() => import('./components/RaportPDF'));
 const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25, 1.5];
 
 export default function App() {
-  const { currentUser, authLoading } = useAuth();
+  const { currentUser, authLoading, configError } = useAuth();
   if (authLoading) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
       <div className="text-slate-400 text-sm">Ładowanie…</div>
+    </div>
+  );
+  if (configError) return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-8">
+      <div className="max-w-md text-center space-y-3">
+        <span className="text-3xl">⚠️</span>
+        <p className="text-slate-200 font-semibold">Błąd konfiguracji</p>
+        <p className="text-slate-400 text-sm">{configError}</p>
+        <p className="text-slate-500 text-xs">Sprawdź zmienne środowiskowe Vercel (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) i wykonaj ponowny deploy.</p>
+      </div>
     </div>
   );
   if (!currentUser) return <LoginScreen />;

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useCompanies } from '../store/CompaniesContext';
-import { importFiles, detectRole, type FilesMap, type FileRole } from '../lib/xlsxParser';
+import { importFiles, detectRole, MAX_IMPORT_FILE_BYTES, ALLOWED_IMPORT_EXTENSIONS, type FilesMap, type FileRole } from '../lib/xlsxParser';
 import { useLang } from '../i18n/LanguageContext';
 
 interface ImportModalProps {
@@ -30,12 +30,24 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
   const [step, setStep] = useState<'form' | 'done'>('form');
   const [importedName, setImportedName] = useState('');
 
-  const assignFile = useCallback((file: File) => {
-    const role = detectRole(file.name);
-    if (role) {
-      setFilesMap(prev => ({ ...prev, [role]: file }));
+  function validateFile(file: File): string | null {
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!ALLOWED_IMPORT_EXTENSIONS.includes(ext)) {
+      return `Nieobsługiwany format: ${file.name} (dozwolone: ${ALLOWED_IMPORT_EXTENSIONS.join(', ')})`;
     }
-    return role;
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      return `Plik ${file.name} jest zbyt duży (${(file.size / 1024 / 1024).toFixed(1)} MB, limit ${MAX_IMPORT_FILE_BYTES / 1024 / 1024} MB)`;
+    }
+    return null;
+  }
+
+  // Zwraca rolę po przypisaniu, lub null jeśli plik odrzucony (niepoprawny lub nierozpoznany)
+  const assignFile = useCallback((file: File): { role: FileRole | null; invalid: string | null } => {
+    const invalid = validateFile(file);
+    if (invalid) return { role: null, invalid };
+    const role = detectRole(file.name);
+    if (role) setFilesMap(prev => ({ ...prev, [role]: file }));
+    return { role, invalid: null };
   }, []);
 
   function handleDrop(e: React.DragEvent) {
@@ -43,12 +55,22 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
     setDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     let unrecognized = 0;
-    files.forEach(f => { if (!assignFile(f)) unrecognized++; });
-    if (unrecognized > 0) setError(t('import.unrecognized', { count: unrecognized }));
+    let firstInvalid: string | null = null;
+    files.forEach(f => {
+      const { role, invalid } = assignFile(f);
+      if (invalid) firstInvalid ??= invalid;
+      else if (!role) unrecognized++;
+    });
+    if (firstInvalid) setError(firstInvalid);
+    else if (unrecognized > 0) setError(t('import.unrecognized', { count: unrecognized }));
+    else setError('');
   }
 
   function handleFileInput(role: FileRole, file: File | null) {
     if (!file) return;
+    const invalid = validateFile(file);
+    if (invalid) { setError(invalid); return; }
+    setError('');
     setFilesMap(prev => ({ ...prev, [role]: file }));
   }
 
@@ -169,8 +191,14 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
                   onChange={e => {
                     const files = Array.from(e.target.files ?? []);
                     let recognized = 0;
-                    files.forEach(f => { if (assignFile(f)) recognized++; });
-                    if (recognized === 0) setError('Nie rozpoznano żadnych plików Excel w katalogu.');
+                    let firstInvalid: string | null = null;
+                    files.forEach(f => {
+                      const { role, invalid } = assignFile(f);
+                      if (invalid) firstInvalid ??= invalid;
+                      else if (role) recognized++;
+                    });
+                    if (firstInvalid) setError(firstInvalid);
+                    else if (recognized === 0) setError('Nie rozpoznano żadnych plików Excel w katalogu.');
                     else setError('');
                     e.target.value = '';
                   }}

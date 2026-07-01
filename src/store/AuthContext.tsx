@@ -17,6 +17,10 @@ export interface AppUser {
 interface AuthContextValue {
   currentUser: AppUser | null;
   authLoading: boolean;
+  /** Ustawione, gdy w buildzie produkcyjnym brakuje konfiguracji Supabase —
+   *  zamiast cicho przechodzić w tryb gość (bez uwierzytelnienia), appka ma
+   *  to pokazać jako jawny błąd konfiguracji. W dev/local guest mode działa normalnie. */
+  configError: string | null;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<{ error: string | null }>;
@@ -39,10 +43,19 @@ function userFromSupabase(user: User): AppUser {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabaseConfigured) {
-      // Brak Supabase — tryb lokalny bez auth
+      // Build produkcyjny bez konfiguracji Supabase = błąd wdrożenia (brakujące
+      // env vary), nie zamierzony tryb gość — appka bez auth w produkcji przez
+      // pomyłkę byłaby niewidocznym ryzykiem. W dev/local guest mode zostaje.
+      if (import.meta.env.PROD) {
+        setConfigError('Brak konfiguracji Supabase (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) w środowisku produkcyjnym.');
+        setAuthLoading(false);
+        return;
+      }
+      // Brak Supabase w trybie lokalnym/dev — tryb gość bez auth
       setCurrentUser({ id: 'local', name: 'Użytkownik lokalny', email: 'local@localhost', color: USER_COLORS[0] });
       setAuthLoading(false);
       return;
@@ -86,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, authLoading, login, logout, signUp, resetPassword }}>
+    <AuthContext.Provider value={{ currentUser, authLoading, configError, login, logout, signUp, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
