@@ -22,6 +22,7 @@ type SubTab =
   | 'zadluzenie'
   | 'rentownosc'
   | 'cashflow'
+  | 'symulator'
   | 'dyskryminacyjne'
   | 'beneish'
   | 'anomalie'
@@ -1193,6 +1194,148 @@ function CashFlowTab({ f1, f2, periodLabels, onOpenAI }: { f1: FieldMap; f2: Fie
         </div>
 
         <p className="text-[10px] text-slate-400 italic pt-1">{t('cf.disclaimer')}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Symulator „co jeśli" ──────────────────────────────────────────────────────
+// Interaktywne suwaki przeliczające na żywo wynik/płynność/zadłużenie.
+// Uproszczenia: pozostałe pozycje operacyjne/finansowe (poza modelowanymi
+// dźwigniami) oraz efektywna stopa podatkowa traktowane jako stałe "plugi"
+// wyliczone z danych bieżących — sama STRUKTURA przesunięć (Δprzychody,
+// Δkoszty, ΔDSO, ΔWIBOR) jest modelowana, nie każda pozycja RZiS z osobna.
+function SimulatorTab({ f1, onOpenAI }: { f1: FieldMap; onOpenAI: (data: Record<string, unknown>) => void }) {
+  const { t } = useLang();
+  const [dRevenue, setDRevenue] = useState(0);
+  const [dCosts, setDCosts] = useState(0);
+  const [dDso, setDDso] = useState(0);
+  const [dWibor, setDWibor] = useState(0);
+
+  const scenario = useMemo(() => {
+    const newPrzychody = f1.przychody * (1 + dRevenue / 100);
+    const newKosztyOper = f1.kosztyOper * (1 + dCosts / 100);
+    const otherOperNet = f1.ebit - (f1.przychody - f1.kosztyOper);
+    const newEbit = (newPrzychody - newKosztyOper) + otherOperNet;
+
+    const debtBase = f1.kredytDlugo + f1.kredytKrotko;
+    const newOdsetki = debtBase > 0 ? Math.max(0, f1.odsetki + (dWibor / 100) * debtBase) : f1.odsetki;
+
+    const otherFinNet = f1.zyskBrutto - (f1.ebit - f1.odsetki);
+    const newZyskBrutto = (newEbit - newOdsetki) + otherFinNet;
+    const taxShield = f1.zyskBrutto > 0 ? f1.zyskNetto / f1.zyskBrutto : 1;
+    const newZyskNetto = newZyskBrutto * taxShield;
+
+    const dsoCurrent = f1.przychody !== 0 ? (f1.naleznosci / f1.przychody) * 365 : 0;
+    const newDso = Math.max(0, dsoCurrent + dDso);
+    const newNaleznosci = newPrzychody !== 0 ? (newDso / 365) * newPrzychody : f1.naleznosci;
+    const newAktywaObrotowe = f1.aktywaObrotowe + (newNaleznosci - f1.naleznosci);
+
+    const newCr = f1.zobowiazaniaKrotko !== 0 ? newAktywaObrotowe / f1.zobowiazaniaKrotko : null;
+    const newEbitda = newEbit + f1.amortyzacja;
+    const newIcr = newOdsetki > 0 ? newEbitda / newOdsetki : null;
+    const netDebt = f1.kredytDlugo + f1.kredytKrotko - f1.srodkiPieniezne;
+    const newNdEbitda = newEbitda !== 0 ? netDebt / newEbitda : null;
+
+    return { newPrzychody, newEbit, newZyskNetto, newCr, newIcr, newNdEbitda };
+  }, [f1, dRevenue, dCosts, dDso, dWibor]);
+
+  const baseline = useMemo(() => {
+    const cr = f1.zobowiazaniaKrotko !== 0 ? f1.aktywaObrotowe / f1.zobowiazaniaKrotko : null;
+    const ebitda = f1.ebit + f1.amortyzacja;
+    const icr = f1.odsetki > 0 ? ebitda / f1.odsetki : null;
+    const netDebt = f1.kredytDlugo + f1.kredytKrotko - f1.srodkiPieniezne;
+    const ndEbitda = ebitda !== 0 ? netDebt / ebitda : null;
+    return { przychody: f1.przychody, ebit: f1.ebit, zyskNetto: f1.zyskNetto, cr, icr, ndEbitda };
+  }, [f1]);
+
+  const fmtK = (v: number) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(v) + ' PLN';
+  const fmtX = (v: number | null) => v !== null && isFinite(v) ? v.toFixed(2) + 'x' : '—';
+  const isDirty = dRevenue !== 0 || dCosts !== 0 || dDso !== 0 || dWibor !== 0;
+
+  const Slider = ({ label, value, setValue, min, max, step, unit, invert }: {
+    label: string; value: number; setValue: (v: number) => void; min: number; max: number; step: number; unit: string; invert?: boolean;
+  }) => {
+    const favorable = invert ? value < 0 : value > 0;
+    return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-slate-600">{label}</span>
+        <span className={`text-xs font-bold tabular-nums ${value === 0 ? 'text-slate-400' : favorable ? 'text-emerald-600' : 'text-rose-600'}`}>
+          {value > 0 ? '+' : ''}{value}{unit}
+        </span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={e => setValue(Number(e.target.value))}
+        className="w-full accent-violet-600 cursor-pointer"
+      />
+    </div>
+    );
+  };
+
+  const CompareRow = ({ label, base, scen, fmt }: { label: string; base: number | null; scen: number | null; fmt: (v: number) => string }) => {
+    const changed = base !== null && scen !== null && Math.abs(base - scen) > 1e-6;
+    return (
+      <div className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0">
+        <span className="text-xs text-slate-600 flex-1">{label}</span>
+        <span className="text-xs text-slate-400 tabular-nums w-24 text-right">{base !== null ? fmt(base) : '—'}</span>
+        <span className="text-slate-300 mx-2">→</span>
+        <span className={`text-xs font-bold tabular-nums w-24 text-right ${changed ? (scen! > base! ? 'text-emerald-600' : 'text-rose-600') : 'text-slate-700'}`}>
+          {scen !== null ? fmt(scen) : '—'}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI({
+            section: 'symulator', delta_revenue_pct: dRevenue, delta_costs_pct: dCosts, delta_dso_days: dDso, delta_wibor_pp: dWibor,
+            scenario_net_profit: scenario.newZyskNetto.toFixed(0), scenario_cr: scenario.newCr?.toFixed(2), scenario_icr: scenario.newIcr?.toFixed(2),
+          })}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
+        >🤖 Analiza AI</button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700">{t('sim.title')}</h3>
+            <p className="text-[11px] text-slate-400">{t('sim.subtitle')}</p>
+          </div>
+          {isDirty && (
+            <button
+              onClick={() => { setDRevenue(0); setDCosts(0); setDDso(0); setDWibor(0); }}
+              className="text-[11px] text-violet-600 hover:text-violet-800 font-medium"
+            >{t('sim.reset')}</button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+          <Slider label={t('sim.revenue')} value={dRevenue} setValue={setDRevenue} min={-20} max={20} step={1} unit="%" />
+          <Slider label={t('sim.costs')} value={dCosts} setValue={setDCosts} min={-15} max={15} step={1} unit="%" invert />
+          <Slider label={t('sim.dso')} value={dDso} setValue={setDDso} min={-30} max={30} step={1} unit={t('sim.days')} invert />
+          <Slider label={t('sim.wibor')} value={dWibor} setValue={setDWibor} min={-3} max={3} step={0.25} unit="pp" invert />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">{t('sim.resultTitle')}</p>
+        <div className="flex items-center justify-end gap-2 text-[9px] text-slate-400 uppercase tracking-wide mb-1">
+          <span className="w-24 text-right">{t('sim.today')}</span>
+          <span className="w-6" />
+          <span className="w-24 text-right">{t('sim.scenario')}</span>
+        </div>
+        <CompareRow label={t('pnl.revenue')} base={baseline.przychody} scen={scenario.newPrzychody} fmt={fmtK} />
+        <CompareRow label={t('pnl.ebit')} base={baseline.ebit} scen={scenario.newEbit} fmt={fmtK} />
+        <CompareRow label={t('pnl.netProfit')} base={baseline.zyskNetto} scen={scenario.newZyskNetto} fmt={fmtK} />
+        <CompareRow label={t('sim.crLabel')} base={baseline.cr} scen={scenario.newCr} fmt={fmtX} />
+        <CompareRow label={t('debt.icr')} base={baseline.icr} scen={scenario.newIcr} fmt={fmtX} />
+        <CompareRow label={t('debt.netDebt')} base={baseline.ndEbitda} scen={scenario.newNdEbitda} fmt={fmtX} />
+        <p className="text-[10px] text-slate-400 italic pt-2">{t('sim.disclaimer')}</p>
       </div>
     </div>
   );
@@ -2962,6 +3105,7 @@ export default function RatioAnalysis() {
     { key: 'zadluzenie',       label: t('analysis.debt'),           group: t('ratio.indicators') },
     { key: 'rentownosc',       label: t('analysis.profitability'),  group: t('ratio.indicators') },
     { key: 'cashflow',         label: t('analysis.cashflow'),       group: t('ratio.indicators') },
+    { key: 'symulator',        label: t('analysis.simulator'),      group: t('ratio.indicators') },
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
     { key: 'anomalie',         label: t('anomaly.tabLabel'),        group: t('ratio.indicators') },
@@ -3080,6 +3224,7 @@ export default function RatioAnalysis() {
         {activeTab === 'zadluzenie'      && <ZadluzenieTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('zadluzenie', t('analysis.debt'))} />}
         {activeTab === 'rentownosc'      && <RentownoscTab        f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('rentownosc', t('analysis.profitability'))} />}
         {activeTab === 'cashflow'        && <CashFlowTab          f1={f1} f2={f2} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('cashflow', t('analysis.cashflow'))} />}
+        {activeTab === 'symulator'       && <SimulatorTab         f1={f1} onOpenAI={openAI('symulator', t('analysis.simulator'))} />}
         {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('dyskryminacyjne', t('analysis.discriminant'))} />}
         {activeTab === 'beneish'         && <BeneishTab           result={beneish} onOpenAI={openAI('beneish', t('beneish.tabLabel'))} />}
         {activeTab === 'anomalie'        && <AnomalieTab          zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('anomalie', t('anomaly.tabLabel'))} />}
