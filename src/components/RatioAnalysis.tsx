@@ -841,6 +841,125 @@ function RentownoscTab({ f1, f2, f3, periodLabels, onOpenAI }: { f1: FieldMap; f
         onBarClick={idx => setChartInd(rows[[0, 1, 3, 5, 6][idx] ?? 0] ?? null)} />
       <IndicatorCards rows={rows} labels={labels} />
       {chartInd && <IndicatorDrawer ind={chartInd} labels={labels} onClose={() => setChartInd(null)} />}
+      <DuPontPyramid f1={f1} f2={f2} f3={f3} periodLabels={periodLabels} />
+    </div>
+  );
+}
+
+// ── Piramida Du Ponta (dekompozycja ROE) ─────────────────────────────────────
+// ROE = Marża netto (ZN/Przychody) × Rotacja aktywów (Przychody/Aktywa) × Dźwignia (Aktywa/KW)
+function DuPontPyramid({ f1, f2, f3, periodLabels }: { f1: FieldMap; f2: FieldMap; f3: FieldMap | null; periodLabels?: string[] }) {
+  const { t } = useLang();
+  const pl = periodLabels ?? [];
+  const labels = [pl[0] ?? 'P1', pl[1] ?? 'P2', pl[2] ?? 'P3'];
+  const [factorInd, setFactorInd] = useState<Indicator | null>(null);
+
+  const factors = useMemo(() => {
+    const calc = (f: FieldMap) => {
+      const netMargin = safe(f.zyskNetto, f.przychody);
+      const turnover = safe(f.przychody, f.aktywaRazem);
+      const leverage = safe(f.aktywaRazem, f.kapitalWlasny);
+      const roe = netMargin !== null && turnover !== null && leverage !== null ? netMargin * turnover * leverage : null;
+      return { netMargin, turnover, leverage, roe };
+    };
+    return { p1: calc(f1), p2: calc(f2), p3: f3 ? calc(f3) : null };
+  }, [f1, f2, f3]);
+
+  const fmtX = (v: number | null) => v !== null && isFinite(v) ? v.toFixed(2) + 'x' : '—';
+
+  const factorRows: Indicator[] = useMemo(() => [
+    {
+      name: t('dupont.netMargin'), shortName: 'ROS',
+      formula: t('dupont.netMarginFormula'),
+      val1: fmtPct(factors.p1.netMargin !== null ? factors.p1.netMargin * 100 : null),
+      val2: fmtPct(factors.p2.netMargin !== null ? factors.p2.netMargin * 100 : null),
+      val3: factors.p3 ? fmtPct(factors.p3.netMargin !== null ? factors.p3.netMargin * 100 : null) : undefined,
+      norm: '> 5%',
+      grade1: gradeHigher(factors.p1.netMargin !== null ? factors.p1.netMargin * 100 : null, 5),
+      grade2: gradeHigher(factors.p2.netMargin !== null ? factors.p2.netMargin * 100 : null, 5),
+      grade3: factors.p3 ? gradeHigher(factors.p3.netMargin !== null ? factors.p3.netMargin * 100 : null, 5) : undefined,
+      descPL: 'Ile zysku netto zostaje ze 100 zł przychodu — czysta efektywność sprzedażowa, niezależna od struktury finansowania czy rotacji majątku.',
+      steps1: [{ label: 'Zysk netto', val: f1.zyskNetto }, { label: 'Przychody', val: f1.przychody }],
+      steps2: [{ label: 'Zysk netto', val: f2.zyskNetto }, { label: 'Przychody', val: f2.przychody }],
+      ...(f3 ? { steps3: [{ label: 'Zysk netto', val: f3.zyskNetto }, { label: 'Przychody', val: f3.przychody }] } : {}),
+    },
+    {
+      name: t('dupont.assetTurnover'), shortName: 'AT',
+      formula: t('dupont.assetTurnoverFormula'),
+      val1: fmtX(factors.p1.turnover), val2: fmtX(factors.p2.turnover),
+      val3: factors.p3 ? fmtX(factors.p3.turnover) : undefined,
+      norm: '> 1,0x',
+      grade1: gradeHigher(factors.p1.turnover, 1),
+      grade2: gradeHigher(factors.p2.turnover, 1),
+      grade3: factors.p3 ? gradeHigher(factors.p3.turnover, 1) : undefined,
+      descPL: 'Ile złotych przychodu generuje 1 zł aktywów — efektywność wykorzystania majątku firmy do generowania sprzedaży.',
+      steps1: [{ label: 'Przychody', val: f1.przychody }, { label: 'Aktywa razem', val: f1.aktywaRazem }],
+      steps2: [{ label: 'Przychody', val: f2.przychody }, { label: 'Aktywa razem', val: f2.aktywaRazem }],
+      ...(f3 ? { steps3: [{ label: 'Przychody', val: f3.przychody }, { label: 'Aktywa razem', val: f3.aktywaRazem }] } : {}),
+    },
+    {
+      name: t('dupont.equityMultiplier'), shortName: 'EM',
+      formula: t('dupont.equityMultiplierFormula'),
+      val1: fmtX(factors.p1.leverage), val2: fmtX(factors.p2.leverage),
+      val3: factors.p3 ? fmtX(factors.p3.leverage) : undefined,
+      norm: '< 3,0x',
+      grade1: gradeLower(factors.p1.leverage, 3),
+      grade2: gradeLower(factors.p2.leverage, 3),
+      grade3: factors.p3 ? gradeLower(factors.p3.leverage, 3) : undefined,
+      descPL: 'Ile razy aktywa przewyższają kapitał własny — miara dźwigni finansowej. Wyższa wartość oznacza więcej długu na złotówkę kapitału, co wzmacnia ROE, ale zwiększa ryzyko.',
+      steps1: [{ label: 'Aktywa razem', val: f1.aktywaRazem }, { label: 'Kapitał własny', val: f1.kapitalWlasny }],
+      steps2: [{ label: 'Aktywa razem', val: f2.aktywaRazem }, { label: 'Kapitał własny', val: f2.kapitalWlasny }],
+      ...(f3 ? { steps3: [{ label: 'Aktywa razem', val: f3.aktywaRazem }, { label: 'Kapitał własny', val: f3.kapitalWlasny }] } : {}),
+    },
+  ], [f1, f2, f3, factors, t]);
+
+  const roe1 = factors.p1.roe !== null ? factors.p1.roe * 100 : null;
+  const roe2 = factors.p2.roe !== null ? factors.p2.roe * 100 : null;
+  const roe3 = factors.p3?.roe !== null ? (factors.p3?.roe ?? 0) * 100 : null;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-slate-700">{t('dupont.title')}</h3>
+        <p className="text-[11px] text-slate-400">{t('dupont.subtitle')}</p>
+      </div>
+
+      <div className="flex flex-wrap items-stretch justify-center gap-2">
+        {factorRows.map((row, i) => (
+          <div key={row.shortName} className="flex items-center gap-2">
+            <button
+              onClick={() => setFactorInd(row)}
+              className={`text-left px-3 py-2.5 rounded-lg border transition-all hover:shadow-md min-w-[120px] ${
+                row.grade1 === 'B_DOBRY' ? 'bg-violet-50 border-violet-200 hover:border-violet-400'
+                : row.grade1 === 'DOBRY' ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'
+                : row.grade1 === 'UWAGA' ? 'bg-amber-50 border-amber-200 hover:border-amber-400'
+                : row.grade1 === 'SŁABY' ? 'bg-red-50 border-red-200 hover:border-red-400'
+                : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <p className="text-[9px] text-slate-500 uppercase tracking-wide">{row.shortName}</p>
+              <p className="text-sm font-black text-slate-700">{row.val1}</p>
+              <p className="text-[8px] text-slate-400 mt-0.5">▼ szczegóły</p>
+            </button>
+            {i < factorRows.length - 1 && <span className="text-lg font-black text-slate-300">×</span>}
+          </div>
+        ))}
+        <span className="text-lg font-black text-slate-300">=</span>
+        <div className="px-4 py-2.5 rounded-lg border-2 border-violet-400 bg-violet-100 min-w-[120px] flex flex-col justify-center">
+          <p className="text-[9px] text-violet-500 uppercase tracking-wide font-semibold">{t('dupont.resultRoe')}</p>
+          <p className="text-lg font-black text-violet-800">{fmtPct(roe1)}</p>
+        </div>
+      </div>
+
+      {(roe2 !== null || roe3 !== null) && (
+        <div className="flex justify-center gap-6 pt-1 text-[10px] text-slate-500">
+          {roe3 !== null && <span>{labels[2]}: <strong className="text-slate-700">{fmtPct(roe3)}</strong></span>}
+          {roe2 !== null && <span>{labels[1]}: <strong className="text-slate-700">{fmtPct(roe2)}</strong></span>}
+          <span className="text-violet-600">{labels[0]}: <strong>{fmtPct(roe1)}</strong></span>
+        </div>
+      )}
+
+      {factorInd && <IndicatorDrawer ind={factorInd} labels={labels} onClose={() => setFactorInd(null)} />}
     </div>
   );
 }

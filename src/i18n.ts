@@ -278,6 +278,17 @@ const translations: Record<Lang, Record<string, string>> = {
     'prof.ebitdaMargin': 'Marża EBITDA',
     'prof.ebitdaMarginFormula': '(EBIT + Amortyzacja) / Przychody × 100',
 
+    // Du Pont pyramid
+    'dupont.title': 'Piramida Du Ponta — dekompozycja ROE',
+    'dupont.subtitle': 'Skąd bierze się rentowność kapitału własnego',
+    'dupont.netMargin': 'Marża netto',
+    'dupont.netMarginFormula': 'Zysk netto / Przychody',
+    'dupont.assetTurnover': 'Rotacja aktywów',
+    'dupont.assetTurnoverFormula': 'Przychody / Aktywa razem',
+    'dupont.equityMultiplier': 'Dźwignia finansowa',
+    'dupont.equityMultiplierFormula': 'Aktywa razem / Kapitał własny',
+    'dupont.resultRoe': 'ROE',
+
     // Discriminant models
     'disc.periodP1': 'Okres P1',
     'disc.periodP2': 'Okres P2',
@@ -968,6 +979,17 @@ const translations: Record<Lang, Record<string, string>> = {
     'prof.ebitdaMargin': 'Marge EBITDA',
     'prof.ebitdaMarginFormula': '(EBIT + Amortissements) / CA × 100',
 
+    // Du Pont pyramid
+    'dupont.title': 'Pyramide Du Pont — décomposition du ROE',
+    'dupont.subtitle': 'D\'où vient la rentabilité des capitaux propres',
+    'dupont.netMargin': 'Marge nette',
+    'dupont.netMarginFormula': 'Résultat net / CA',
+    'dupont.assetTurnover': 'Rotation des actifs',
+    'dupont.assetTurnoverFormula': 'CA / Total actif',
+    'dupont.equityMultiplier': 'Levier financier',
+    'dupont.equityMultiplierFormula': 'Total actif / Capitaux propres',
+    'dupont.resultRoe': 'ROE',
+
     'disc.periodP1': 'Période P1',
     'disc.periodP2': 'Période P2',
     'disc.noBankruptcy': 'Pas de risque de faillite',
@@ -1641,6 +1663,17 @@ const translations: Record<Lang, Record<string, string>> = {
     'prof.ebitMarginFormula': 'EBIT / Revenue × 100',
     'prof.ebitdaMargin': 'EBITDA margin',
     'prof.ebitdaMarginFormula': '(EBIT + Depreciation) / Revenue × 100',
+
+    // Du Pont pyramid
+    'dupont.title': 'Du Pont pyramid — ROE decomposition',
+    'dupont.subtitle': 'Where return on equity comes from',
+    'dupont.netMargin': 'Net margin',
+    'dupont.netMarginFormula': 'Net profit / Revenue',
+    'dupont.assetTurnover': 'Asset turnover',
+    'dupont.assetTurnoverFormula': 'Revenue / Total assets',
+    'dupont.equityMultiplier': 'Financial leverage',
+    'dupont.equityMultiplierFormula': 'Total assets / Equity',
+    'dupont.resultRoe': 'ROE',
 
     'disc.periodP1': 'Period P1',
     'disc.periodP2': 'Period P2',
