@@ -142,7 +142,7 @@ function MainApp() {
 
             <div className="flex flex-1 overflow-hidden">
               {activeView === 'kontrola' ? (
-                <div className="flex-1 overflow-hidden" style={{ zoom }}>
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ zoom }}>
                   <ControlSheet />
                 </div>
               ) : activeView === 'analiza' ? (

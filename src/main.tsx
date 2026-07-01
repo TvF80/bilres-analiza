@@ -5,26 +5,6 @@ import App from './App.tsx';
 import { AuthProvider } from './store/AuthContext.tsx';
 import { CompaniesProvider } from './store/CompaniesContext.tsx';
 
-// ── Optional Sentry error monitoring ────────────────────────────────────────
-// Set VITE_SENTRY_DSN in Vercel env vars to activate.
-// Install: npm install @sentry/react
-// Docs: https://docs.sentry.io/platforms/javascript/guides/react/
-const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
-if (sentryDsn) {
-  // @ts-expect-error — optional peer dependency, not installed by default
-  import('@sentry/react').then((Sentry: any) => {
-    Sentry.init({
-      dsn: sentryDsn,
-      environment: import.meta.env.MODE,
-      tracesSampleRate: 0.1,
-      beforeSend(event: any) {
-        if (import.meta.env.DEV) return null;
-        return event;
-      },
-    });
-  });
-}
-
 // ── Global unhandled promise rejections (e.g. background Supabase sync) ─────
 window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
   const reason = event.reason;

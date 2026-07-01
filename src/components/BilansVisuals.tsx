@@ -6,6 +6,7 @@ import {
 import type { ReportRow } from '../types';
 import { mapFields } from '../lib/fieldMapping';
 import AIAnalysisModal from './AIAnalysisModal';
+import { useLang } from '../i18n/LanguageContext';
 
 interface Props {
   reportType: 'bilans' | 'rzis';
@@ -20,6 +21,11 @@ const fmt = (v: number) =>
 
 const pct = (v: number, total: number) =>
   total ? ((v / total) * 100).toFixed(1) + '%' : '—';
+
+const delta = (curr: number, prev: number) => {
+  if (!prev || !curr) return null;
+  return ((curr - prev) / Math.abs(prev) * 100).toFixed(1);
+};
 
 const COLORS_AKTYWA = ['#3b82f6', '#93c5fd'];
 const COLORS_PASYWA = ['#10b981', '#f59e0b', '#ef4444'];
@@ -62,11 +68,84 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
   );
 };
 
-// ── AI button helper ──────────────────────────────────────────────────────────
+// ── Detail panel ──────────────────────────────────────────────────────────────
+interface DetailState {
+  key: string;
+  label: string;
+  bars: { name: string; value: number }[];
+  total?: number;
+  isPercent?: boolean;
+}
+
+function DetailPanel({ d, onClose }: { d: DetailState; onClose: () => void }) {
+  const [v1, v2, v3] = [d.bars[0]?.value ?? 0, d.bars[1]?.value ?? 0, d.bars[2]?.value ?? 0];
+  const d12 = delta(v1, v2);
+  const d23 = delta(v2, v3);
+  const formatter = d.isPercent ? (v: number) => `${v.toFixed(1)}%` : (v: number) => fmt(v);
+
+  return (
+    <div className="mt-3 bg-violet-50 border border-violet-200 rounded-xl p-3 animate-in fade-in slide-in-from-top-1 duration-150">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-violet-700">📊 {d.label}</p>
+        <button onClick={onClose} className="w-5 h-5 rounded-full bg-violet-100 hover:bg-violet-200 text-violet-500 text-[10px] flex items-center justify-center transition-colors">✕</button>
+      </div>
+      <div className="grid grid-cols-5 gap-2 items-center">
+        <div className="col-span-3">
+          <ResponsiveContainer width="100%" height={110}>
+            <BarChart data={d.bars} margin={{ top: 2, right: 4, left: 0, bottom: 2 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ede9fe" />
+              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={d.isPercent ? (v => v + '%') : (v => (v / 1000).toFixed(0) + 'k')} width={36} />
+              <Tooltip formatter={(v: any) => formatter(v)} />
+              <Bar dataKey="value" fill="#7c3aed" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="col-span-2 space-y-1.5">
+          {d.bars.map((bar) => (
+            <div key={bar.name} className="bg-white rounded-lg px-2.5 py-1.5 border border-violet-100">
+              <p className="text-[9px] text-slate-400">{bar.name}</p>
+              <p className="text-xs font-bold text-violet-700">{formatter(bar.value)}</p>
+              {d.total && !d.isPercent && <p className="text-[9px] text-slate-400">{pct(bar.value, d.total)}</p>}
+            </div>
+          ))}
+          {d12 !== null && (
+            <div className={`text-[10px] font-semibold px-2 ${+d12 >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+              r/r {d12 >= '0' ? '+' : ''}{d12}%
+              {d23 !== null && <span className="text-slate-400 ml-1">/ {+d23 >= 0 ? '+' : ''}{d23}%</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Clickable KPI tile ────────────────────────────────────────────────────────
+function KpiTile({
+  label, val, color, active, onClick,
+}: { label: string; val: string; color: string; active?: boolean; onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left w-full bg-${color}-50 border rounded-lg px-3 py-2 transition-all duration-150 ${
+        active ? `border-${color}-400 ring-2 ring-${color}-200` : `border-${color}-100 hover:border-${color}-300`
+      } ${onClick ? 'cursor-pointer hover:shadow-sm' : 'cursor-default'}`}
+    >
+      <p className="text-[10px] text-slate-500">{label}</p>
+      <p className={`text-sm font-bold text-${color}-700`}>{val}</p>
+      {onClick && <p className="text-[8px] text-slate-400 mt-0.5">▼ szczegóły</p>}
+    </button>
+  );
+}
+
 interface AIState { open: boolean; section: string; label: string; data: Record<string, unknown> }
 
 export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, lang }: Props) {
+  const { t } = useLang();
   const [ai, setAI] = useState<AIState | null>(null);
+  const [detail, setDetail] = useState<DetailState | null>(null);
+  const [activeSlice, setActiveSlice] = useState<{ chart: string; idx: number } | null>(null);
 
   const p1 = periodLabels?.[0] ?? 'Okres 1';
   const p2 = periodLabels?.[1] ?? 'Okres 2';
@@ -80,25 +159,38 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
     setAI({ open: true, section, label, data });
   }
 
+  function toggleDetail(d: DetailState) {
+    setDetail(prev => prev?.key === d.key ? null : d);
+  }
+
+  function onPieClick(chart: string, idx: number, entry: { name?: string; value?: number }, bars: { name: string; value: number }[], total: number) {
+    const same = activeSlice?.chart === chart && activeSlice?.idx === idx;
+    setActiveSlice(same ? null : { chart, idx });
+    if (!same) {
+      setDetail({ key: `${chart}_${idx}`, label: entry.name ?? '', bars, total });
+    } else {
+      setDetail(null);
+    }
+  }
+
+  // ── BILANS ─────────────────────────────────────────────────────────────────
   if (reportType === 'bilans') {
-    // ── Donut: struktura aktywów ──────────────────────────────────────────
     const aktywaData = [
-      { name: 'Aktywa trwałe', value: f1.aktywaTrwale },
-      { name: 'Aktywa obrotowe', value: f1.aktywaObrotowe },
+      { name: t('bs.fixedAssets'), value: f1.aktywaTrwale },
+      { name: t('vis.currentAssets'), value: f1.aktywaObrotowe },
     ].filter(d => d.value > 0);
 
     const pasywaDData = [
-      { name: 'Kapitał własny', value: f1.kapitalWlasny },
-      { name: 'Zobow. długoterm.', value: f1.zobowiazaniaDlugo },
-      { name: 'Zobow. krótkoterm.', value: f1.zobowiazaniaKrotko },
+      { name: t('bs.equity'), value: f1.kapitalWlasny },
+      { name: t('bs.longTermLiab'), value: f1.zobowiazaniaDlugo },
+      { name: t('bs.shortTermLiab'), value: f1.zobowiazaniaKrotko },
     ].filter(d => d.value > 0);
 
-    // ── Bar: trendy bilansowe 3 okresy ────────────────────────────────────
     const barData = [
-      { name: 'Aktywa trwałe',    [p1]: f1.aktywaTrwale,    [p2]: f2.aktywaTrwale,    [p3]: f3.aktywaTrwale },
-      { name: 'Aktywa obrotowe',  [p1]: f1.aktywaObrotowe,  [p2]: f2.aktywaObrotowe,  [p3]: f3.aktywaObrotowe },
-      { name: 'Kapitał własny',   [p1]: f1.kapitalWlasny,   [p2]: f2.kapitalWlasny,   [p3]: f3.kapitalWlasny },
-      { name: 'Zobow. ogółem',    [p1]: f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko, [p2]: f2.zobowiazaniaDlugo + f2.zobowiazaniaKrotko, [p3]: f3.zobowiazaniaDlugo + f3.zobowiazaniaKrotko },
+      { name: t('bs.fixedAssets'),    [p1]: f1.aktywaTrwale,    [p2]: f2.aktywaTrwale,    [p3]: f3.aktywaTrwale },
+      { name: t('vis.currentAssets'), [p1]: f1.aktywaObrotowe,  [p2]: f2.aktywaObrotowe,  [p3]: f3.aktywaObrotowe },
+      { name: t('bs.equity'),         [p1]: f1.kapitalWlasny,   [p2]: f2.kapitalWlasny,   [p3]: f3.kapitalWlasny },
+      { name: t('vis.debtTotal'),     [p1]: f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko, [p2]: f2.zobowiazaniaDlugo + f2.zobowiazaniaKrotko, [p3]: f3.zobowiazaniaDlugo + f3.zobowiazaniaKrotko },
     ];
 
     const aiDataBilans = {
@@ -109,89 +201,158 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
       pctKapitalWlasny: +pct(f1.kapitalWlasny, f1.aktywaRazem),
     };
 
+    // KPI detail builders
+    const kpis = [
+      {
+        key: 'totalAssets', label: t('vis.totalAssets'), val: fmt(f1.aktywaRazem), color: 'blue',
+        bars: [{ name: p1, value: f1.aktywaRazem }, { name: p2, value: f2.aktywaRazem }, { name: p3, value: f3.aktywaRazem }],
+      },
+      {
+        key: 'equity', label: t('bs.equity'), val: fmt(f1.kapitalWlasny), color: 'emerald',
+        bars: [{ name: p1, value: f1.kapitalWlasny }, { name: p2, value: f2.kapitalWlasny }, { name: p3, value: f3.kapitalWlasny }],
+        total: f1.aktywaRazem,
+      },
+      {
+        key: 'debt', label: t('vis.totalDebt'), val: fmt(f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko), color: 'amber',
+        bars: [
+          { name: p1, value: f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko },
+          { name: p2, value: f2.zobowiazaniaDlugo + f2.zobowiazaniaKrotko },
+          { name: p3, value: f3.zobowiazaniaDlugo + f3.zobowiazaniaKrotko },
+        ],
+        total: f1.aktywaRazem,
+      },
+      {
+        key: 'cash', label: t('bs.cash'), val: fmt(f1.srodkiPieniezne), color: 'violet',
+        bars: [{ name: p1, value: f1.srodkiPieniezne }, { name: p2, value: f2.srodkiPieniezne }, { name: p3, value: f3.srodkiPieniezne }],
+        total: f1.aktywaRazem,
+      },
+    ];
+
     return (
       <div className="px-4 pt-4 pb-2">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-700">Struktura bilansu — {p1}</h3>
+            <h3 className="text-sm font-bold text-slate-700">{t('vis.bilansTitle')} — {p1}</h3>
             <button
-              onClick={() => openAI('bilans_struktura', 'Struktura bilansu', aiDataBilans)}
+              onClick={() => openAI('bilans_struktura', t('vis.bilansTitle'), aiDataBilans)}
               className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 border border-violet-200 rounded-md hover:bg-violet-50 transition-colors"
             >
-              🤖 Analiza AI
+              🤖 {t('vis.aiAnalysis')}
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Donut: Aktywa */}
             <div className="flex flex-col items-center">
-              <p className="text-[11px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Struktura aktywów</p>
+              <p className="text-[11px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">{t('vis.assetStructure')}</p>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={aktywaData} cx="50%" cy="50%" innerRadius={45} outerRadius={80}
-                    dataKey="value" labelLine={false} label={renderCustomLabel}>
-                    {aktywaData.map((_, i) => <Cell key={i} fill={COLORS_AKTYWA[i % COLORS_AKTYWA.length]} />)}
+                  <Pie
+                    data={aktywaData} cx="50%" cy="50%" innerRadius={45} outerRadius={80}
+                    dataKey="value" labelLine={false} label={renderCustomLabel}
+                    onClick={(entry, idx) => onPieClick('aktywa', idx, entry, [
+                      { name: p1, value: idx === 0 ? f1.aktywaTrwale : f1.aktywaObrotowe },
+                      { name: p2, value: idx === 0 ? f2.aktywaTrwale : f2.aktywaObrotowe },
+                      { name: p3, value: idx === 0 ? f3.aktywaTrwale : f3.aktywaObrotowe },
+                    ], f1.aktywaRazem)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {aktywaData.map((_, i) => (
+                      <Cell key={i} fill={COLORS_AKTYWA[i % COLORS_AKTYWA.length]}
+                        opacity={activeSlice && activeSlice.chart === 'aktywa' && activeSlice.idx !== i ? 0.4 : 1} />
+                    ))}
                   </Pie>
                   <Tooltip content={<CustomTooltipPie />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1 w-full max-w-[160px]">
                 {aktywaData.map((d, i) => (
-                  <div key={d.name} className="flex items-center justify-between text-[10px]">
+                  <button
+                    key={d.name}
+                    onClick={() => onPieClick('aktywa', i, d, [
+                      { name: p1, value: i === 0 ? f1.aktywaTrwale : f1.aktywaObrotowe },
+                      { name: p2, value: i === 0 ? f2.aktywaTrwale : f2.aktywaObrotowe },
+                      { name: p3, value: i === 0 ? f3.aktywaTrwale : f3.aktywaObrotowe },
+                    ], f1.aktywaRazem)}
+                    className="flex items-center justify-between text-[10px] w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors"
+                  >
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: COLORS_AKTYWA[i] }} />
                       <span className="text-slate-600">{d.name}</span>
                     </div>
                     <span className="font-semibold text-slate-700">{pct(d.value, f1.aktywaRazem)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
 
             {/* Donut: Pasywa */}
             <div className="flex flex-col items-center">
-              <p className="text-[11px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">Struktura pasywów</p>
+              <p className="text-[11px] font-semibold text-slate-500 mb-1 uppercase tracking-wide">{t('vis.liabStructure')}</p>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={pasywaDData} cx="50%" cy="50%" innerRadius={45} outerRadius={80}
-                    dataKey="value" labelLine={false} label={renderCustomLabel}>
-                    {pasywaDData.map((_, i) => <Cell key={i} fill={COLORS_PASYWA[i % COLORS_PASYWA.length]} />)}
+                  <Pie
+                    data={pasywaDData} cx="50%" cy="50%" innerRadius={45} outerRadius={80}
+                    dataKey="value" labelLine={false} label={renderCustomLabel}
+                    onClick={(entry, idx) => onPieClick('pasywa', idx, entry, [
+                      { name: p1, value: [f1.kapitalWlasny, f1.zobowiazaniaDlugo, f1.zobowiazaniaKrotko][idx] ?? 0 },
+                      { name: p2, value: [f2.kapitalWlasny, f2.zobowiazaniaDlugo, f2.zobowiazaniaKrotko][idx] ?? 0 },
+                      { name: p3, value: [f3.kapitalWlasny, f3.zobowiazaniaDlugo, f3.zobowiazaniaKrotko][idx] ?? 0 },
+                    ], f1.aktywaRazem)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {pasywaDData.map((_, i) => (
+                      <Cell key={i} fill={COLORS_PASYWA[i % COLORS_PASYWA.length]}
+                        opacity={activeSlice && activeSlice.chart === 'pasywa' && activeSlice.idx !== i ? 0.4 : 1} />
+                    ))}
                   </Pie>
                   <Tooltip content={<CustomTooltipPie />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1 w-full max-w-[160px]">
                 {pasywaDData.map((d, i) => (
-                  <div key={d.name} className="flex items-center justify-between text-[10px]">
+                  <button
+                    key={d.name}
+                    onClick={() => onPieClick('pasywa', i, d, [
+                      { name: p1, value: [f1.kapitalWlasny, f1.zobowiazaniaDlugo, f1.zobowiazaniaKrotko][i] ?? 0 },
+                      { name: p2, value: [f2.kapitalWlasny, f2.zobowiazaniaDlugo, f2.zobowiazaniaKrotko][i] ?? 0 },
+                      { name: p3, value: [f3.kapitalWlasny, f3.zobowiazaniaDlugo, f3.zobowiazaniaKrotko][i] ?? 0 },
+                    ], f1.aktywaRazem)}
+                    className="flex items-center justify-between text-[10px] w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors"
+                  >
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: COLORS_PASYWA[i] }} />
                       <span className="text-slate-600">{d.name}</span>
                     </div>
                     <span className="font-semibold text-slate-700">{pct(d.value, f1.aktywaRazem)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
 
             {/* KPI tiles */}
             <div className="flex flex-col justify-center gap-2">
-              {[
-                { label: 'Suma bilansowa', val: fmt(f1.aktywaRazem), color: 'blue' },
-                { label: 'Kapitał własny', val: fmt(f1.kapitalWlasny), color: 'emerald' },
-                { label: 'Zadłużenie', val: fmt(f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko), color: 'amber' },
-                { label: 'Środki pieniężne', val: fmt(f1.srodkiPieniezne), color: 'violet' },
-              ].map(kpi => (
-                <div key={kpi.label} className={`bg-${kpi.color}-50 border border-${kpi.color}-100 rounded-lg px-3 py-2`}>
-                  <p className="text-[10px] text-slate-500">{kpi.label}</p>
-                  <p className={`text-sm font-bold text-${kpi.color}-700`}>{kpi.val}</p>
-                </div>
+              {kpis.map(kpi => (
+                <KpiTile
+                  key={kpi.key}
+                  label={kpi.label}
+                  val={kpi.val}
+                  color={kpi.color}
+                  active={detail?.key === kpi.key}
+                  onClick={() => toggleDetail({ key: kpi.key, label: kpi.label, bars: kpi.bars, total: kpi.total })}
+                />
               ))}
             </div>
           </div>
 
+          {/* Detail panel */}
+          {detail && (
+            <DetailPanel d={detail} onClose={() => { setDetail(null); setActiveSlice(null); }} />
+          )}
+
           {/* Bar chart: trendy */}
           <div>
-            <p className="text-[11px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">Porównanie 3 okresów</p>
+            <p className="text-[11px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">{t('vis.compare3periods')}</p>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={barData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -223,30 +384,28 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
   }
 
   // ── RZiS view ─────────────────────────────────────────────────────────────
-  // Waterfall cascade: przychody → zysk ze sprzedaży → EBIT → zysk netto
   const cascade = [
-    { name: 'Przychody',      abs: f1.przychody,     color: '#3b82f6' },
-    { name: 'Zysk ze sprz.',  abs: f1.zyskZeSprz,    color: '#10b981' },
-    { name: 'EBIT',           abs: f1.ebit,           color: f1.ebit >= 0 ? '#f59e0b' : '#ef4444' },
-    { name: 'Zysk netto',     abs: f1.zyskNetto,      color: f1.zyskNetto >= 0 ? '#8b5cf6' : '#ef4444' },
+    { name: t('pnl.revenue'),    abs: f1.przychody,  color: '#3b82f6' },
+    { name: t('pnl.salesProfit'), abs: f1.zyskZeSprz, color: '#10b981' },
+    { name: t('pnl.ebit'),       abs: f1.ebit,        color: f1.ebit >= 0 ? '#f59e0b' : '#ef4444' },
+    { name: t('pnl.netProfit'),  abs: f1.zyskNetto,   color: f1.zyskNetto >= 0 ? '#8b5cf6' : '#ef4444' },
   ];
 
-  // Margin bar: marże 3 okresy
   const marginBar = [
     {
-      name: 'Marża ze sprzedaży',
+      name: t('vis.salesMargin'),
       [p1]: f1.przychody ? +((f1.zyskZeSprz / f1.przychody) * 100).toFixed(1) : 0,
       [p2]: f2.przychody ? +((f2.zyskZeSprz / f2.przychody) * 100).toFixed(1) : 0,
       [p3]: f3.przychody ? +((f3.zyskZeSprz / f3.przychody) * 100).toFixed(1) : 0,
     },
     {
-      name: 'Marża EBIT',
+      name: t('vis.ebitMargin'),
       [p1]: f1.przychody ? +((f1.ebit / f1.przychody) * 100).toFixed(1) : 0,
       [p2]: f2.przychody ? +((f2.ebit / f2.przychody) * 100).toFixed(1) : 0,
       [p3]: f3.przychody ? +((f3.ebit / f3.przychody) * 100).toFixed(1) : 0,
     },
     {
-      name: 'Marża netto',
+      name: t('vis.netMargin'),
       [p1]: f1.przychody ? +((f1.zyskNetto / f1.przychody) * 100).toFixed(1) : 0,
       [p2]: f2.przychody ? +((f2.zyskNetto / f2.przychody) * 100).toFixed(1) : 0,
       [p3]: f3.przychody ? +((f3.zyskNetto / f3.przychody) * 100).toFixed(1) : 0,
@@ -261,23 +420,55 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
     marzaNetto: f1.przychody ? +((f1.zyskNetto / f1.przychody) * 100).toFixed(1) : null,
   };
 
+  const rzisKpis = [
+    {
+      key: 'revenue', label: t('pnl.revenue'), val: fmt(f1.przychody), color: 'blue',
+      bars: [{ name: p1, value: f1.przychody }, { name: p2, value: f2.przychody }, { name: p3, value: f3.przychody }],
+    },
+    {
+      key: 'operCosts', label: t('vis.operCosts'), val: fmt(f1.kosztyOper), color: 'rose',
+      bars: [{ name: p1, value: f1.kosztyOper }, { name: p2, value: f2.kosztyOper }, { name: p3, value: f3.kosztyOper }],
+    },
+    {
+      key: 'ebit', label: t('pnl.ebit'), val: fmt(f1.ebit), color: f1.ebit >= 0 ? 'amber' : 'rose',
+      bars: [{ name: p1, value: f1.ebit }, { name: p2, value: f2.ebit }, { name: p3, value: f3.ebit }],
+    },
+    {
+      key: 'netProfit', label: t('pnl.netProfit'), val: fmt(f1.zyskNetto), color: f1.zyskNetto >= 0 ? 'emerald' : 'rose',
+      bars: [{ name: p1, value: f1.zyskNetto }, { name: p2, value: f2.zyskNetto }, { name: p3, value: f3.zyskNetto }],
+    },
+    {
+      key: 'depr', label: t('vis.depreciation'), val: fmt(f1.amortyzacja), color: 'slate',
+      bars: [{ name: p1, value: f1.amortyzacja }, { name: p2, value: f2.amortyzacja }, { name: p3, value: f3.amortyzacja }],
+    },
+    {
+      key: 'netMargin', label: t('vis.netMargin'), val: f1.przychody ? pct(f1.zyskNetto, f1.przychody) : '—', color: 'violet',
+      bars: [
+        { name: p1, value: f1.przychody ? +((f1.zyskNetto / f1.przychody) * 100).toFixed(1) : 0 },
+        { name: p2, value: f2.przychody ? +((f2.zyskNetto / f2.przychody) * 100).toFixed(1) : 0 },
+        { name: p3, value: f3.przychody ? +((f3.zyskNetto / f3.przychody) * 100).toFixed(1) : 0 },
+      ],
+      isPercent: true,
+    },
+  ];
+
   return (
     <div className="px-4 pt-4 pb-2">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700">Rachunek wyników — {p1}</h3>
+          <h3 className="text-sm font-bold text-slate-700">{t('vis.rzisTitle')} — {p1}</h3>
           <button
-            onClick={() => openAI('rzis_rentownosc', 'Analiza rentowności RZiS', aiDataRzis)}
+            onClick={() => openAI('rzis_rentownosc', t('vis.rzisTitle'), aiDataRzis)}
             className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 border border-violet-200 rounded-md hover:bg-violet-50 transition-colors"
           >
-            🤖 Analiza AI
+            🤖 {t('vis.aiAnalysis')}
           </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Cascade bars */}
           <div>
-            <p className="text-[11px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">Kaskada wyników — {p1}</p>
+            <p className="text-[11px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">{t('vis.cascadeTitle')} — {p1}</p>
             <div className="space-y-1.5">
               {cascade.map(item => {
                 const widthPct = f1.przychody > 0 ? Math.max(0, Math.min(100, (Math.abs(item.abs) / f1.przychody) * 100)) : 0;
@@ -299,27 +490,29 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
             </div>
           </div>
 
-          {/* KPI tiles */}
+          {/* KPI tiles — 2 columns */}
           <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Przychody', val: fmt(f1.przychody), color: 'blue' },
-              { label: 'Koszty operac.', val: fmt(f1.kosztyOper), color: 'rose' },
-              { label: 'EBIT', val: fmt(f1.ebit), color: f1.ebit >= 0 ? 'amber' : 'rose' },
-              { label: 'Zysk netto', val: fmt(f1.zyskNetto), color: f1.zyskNetto >= 0 ? 'emerald' : 'rose' },
-              { label: 'Amortyzacja', val: fmt(f1.amortyzacja), color: 'slate' },
-              { label: 'Marża netto', val: f1.przychody ? pct(f1.zyskNetto, f1.przychody) : '—', color: 'violet' },
-            ].map(kpi => (
-              <div key={kpi.label} className={`bg-${kpi.color}-50 border border-${kpi.color}-100 rounded-lg px-3 py-2`}>
-                <p className="text-[10px] text-slate-500">{kpi.label}</p>
-                <p className={`text-sm font-bold text-${kpi.color}-700`}>{kpi.val}</p>
-              </div>
+            {rzisKpis.map(kpi => (
+              <KpiTile
+                key={kpi.key}
+                label={kpi.label}
+                val={kpi.val}
+                color={kpi.color}
+                active={detail?.key === kpi.key}
+                onClick={() => toggleDetail({ key: kpi.key, label: kpi.label, bars: kpi.bars, isPercent: (kpi as any).isPercent })}
+              />
             ))}
           </div>
         </div>
 
+        {/* Detail panel */}
+        {detail && (
+          <DetailPanel d={detail} onClose={() => setDetail(null)} />
+        )}
+
         {/* Margin bar */}
         <div>
-          <p className="text-[11px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">Marże — porównanie 3 okresów (%)</p>
+          <p className="text-[11px] font-semibold text-slate-500 mb-2 uppercase tracking-wide">{t('vis.margins3periods')}</p>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={marginBar} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />

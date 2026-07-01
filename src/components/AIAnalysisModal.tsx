@@ -17,7 +17,7 @@ export default function AIAnalysisModal({ section, sectionLabel, lang, period, d
   const [fromCache, setFromCache] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const fetch_ = useCallback(async (force = false) => {
+  const runAI = useCallback(async (force = false) => {
     if (!force) {
       try {
         const cached = sessionStorage.getItem(cacheKey);
@@ -54,7 +54,7 @@ export default function AIAnalysisModal({ section, sectionLabel, lang, period, d
     }
   }, [section, lang, period, data, cacheKey]);
 
-  useEffect(() => { fetch_(); }, [fetch_]);
+  useEffect(() => { runAI(); }, [runAI]);
 
   function copy() {
     if (!text) return;
@@ -133,7 +133,7 @@ export default function AIAnalysisModal({ section, sectionLabel, lang, period, d
           <div className="flex gap-2">
             {(text || error) && !loading && (
               <button
-                onClick={() => fetch_(true)}
+                onClick={() => runAI(true)}
                 className="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 title="Generuj ponownie (ignoruje cache)"
               >
