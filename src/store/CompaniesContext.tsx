@@ -93,7 +93,8 @@ function saveToStorage(uid: string, companies: Company[]): void {
   try {
     localStorage.setItem(companyKey(uid), JSON.stringify(companies.map(toStorable)));
   } catch (e) {
-    console.error('Storage error:', e);
+    // Loguj tylko komunikat (np. QuotaExceededError), nigdy dane firm z localStorage
+    console.error('Storage error:', (e as Error)?.message ?? String(e));
   }
 }
 

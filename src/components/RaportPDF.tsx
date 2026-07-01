@@ -7,6 +7,7 @@ import { useCompanies } from '../store/CompaniesContext';
 import { mapFields } from '../lib/fieldMapping';
 import { computeBeneish } from '../lib/controlChecks';
 import { useLang } from '../i18n/LanguageContext';
+import { getAuthHeader } from '../lib/supabase';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt = (v: number) =>
@@ -25,9 +26,10 @@ async function fetchAI(section: string, cacheKey: string, data: Record<string, u
   if (cached) {
     try { const p = JSON.parse(cached); if (p.text) return p.text; } catch {}
   }
+  const authHeader = await getAuthHeader();
   const res = await fetch('/api/analyze', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeader },
     body: JSON.stringify({ section, lang, period: 'bieżący', data }),
   });
   if (res.status === 404) throw new Error('Endpoint AI niedostępny lokalnie — użyj "vercel dev" lub wersji produkcyjnej');

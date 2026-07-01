@@ -7,7 +7,7 @@
 -- zostaje wyłącznie w sessionStorage przeglądarki (patrz CLAUDE.md).
 
 create table if not exists companies (
-  id               text primary key,
+  id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null references auth.users(id) on delete cascade,
   name             text not null,
   period           text not null,
@@ -37,3 +37,25 @@ create policy "companies_update_own" on companies
 
 create policy "companies_delete_own" on companies
   for delete using (auth.uid() = user_id);
+
+-- ── Audit trail — analizy AI (tylko metadane, NIGDY treść danych/odpowiedzi) ──
+-- Append-only: brak polityk update/delete — log ma być niemodyfikowalny.
+create table if not exists ai_analysis_log (
+  id         bigint generated always as identity primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  section    text not null,
+  lang       text not null,
+  period     text not null,
+  model      text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists ai_analysis_log_user_id_idx on ai_analysis_log(user_id);
+
+alter table ai_analysis_log enable row level security;
+
+create policy "ai_analysis_log_insert_own" on ai_analysis_log
+  for insert with check (auth.uid() = user_id);
+
+create policy "ai_analysis_log_select_own" on ai_analysis_log
+  for select using (auth.uid() = user_id);

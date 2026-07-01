@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getAuthHeader } from '../lib/supabase';
 
 interface Props {
   section: string;
@@ -34,9 +35,10 @@ export default function AIAnalysisModal({ section, sectionLabel, lang, period, d
     setFromCache(false);
 
     try {
+      const authHeader = await getAuthHeader();
       const res = await fetch('/api/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ section, lang, period, data }),
       });
       if (res.status === 404) throw new Error('AI niedostępne lokalnie — użyj "vercel dev" lub wersji produkcyjnej');

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useCompanies } from '../store/CompaniesContext';
-import { importFiles, detectRole, MAX_IMPORT_FILE_BYTES, ALLOWED_IMPORT_EXTENSIONS, type FilesMap, type FileRole } from '../lib/xlsxParser';
+import { detectRole, MAX_IMPORT_FILE_BYTES, ALLOWED_IMPORT_EXTENSIONS, type FilesMap, type FileRole } from '../lib/xlsxParser';
+import { importFilesInWorker } from '../lib/importInWorker';
 import { useLang } from '../i18n/LanguageContext';
 
 interface ImportModalProps {
@@ -85,7 +86,7 @@ export default function ImportModal({ onClose, replaceCompanyId, replaceCompanyN
     setError('');
     setLoading(true);
     try {
-      const data = await importFiles(filesMap as FilesMap);
+      const data = await importFilesInWorker(filesMap as FilesMap);
       if (isReplaceMode && replaceCompanyId) {
         const hasBilans = !!(filesMap.bilansData || filesMap.bilansSchema);
         const hasRzis   = !!(filesMap.rzisData   || filesMap.rzisSchema);
