@@ -203,7 +203,7 @@ export default function RaportPDF() {
     const x4 = (f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko) ? f1.kapitalWlasny / (f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko) : 0;
     const x5 = f1.aktywaRazem ? f1.przychody / f1.aktywaRazem : 0;
     const score = 0.717 * x1 + 0.847 * x2 + 3.107 * x3 + 0.420 * x4 + 0.998 * x5;
-    const zone = score > 2.9 ? 'bezpieczna' : score > 1.23 ? 'szara strefa' : 'ryzyko';
+    const zone: 'safe' | 'grey' | 'risk' = score > 2.9 ? 'safe' : score > 1.23 ? 'grey' : 'risk';
     return { score, zone, ok: score > 2.9 };
   }, [f1]);
 
@@ -575,19 +575,19 @@ export default function RaportPDF() {
               </div>
               <table className="w-full text-[10px] mb-2">
                 <thead><tr className="border-b-2 border-slate-200">
-                  <th className="text-left py-1 text-slate-500">Pozycja</th>
+                  <th className="text-left py-1 text-slate-500">{t('pdf.position')}</th>
                   <th className="text-right py-1 text-slate-500">{p1}</th>
                   <th className="text-right py-1 text-slate-400">{p2}</th>
-                  <th className="text-right py-1 text-slate-400">% sumy</th>
+                  <th className="text-right py-1 text-slate-400">{t('pdf.pctOfTotal')}</th>
                 </tr></thead>
                 <tbody>
                   {[
-                    { l: 'Aktywa trwałe', v1: f1.aktywaTrwale, v2: f2.aktywaTrwale, bold: true },
-                    { l: '  Zapasy', v1: f1.zapasy, v2: f2.zapasy },
-                    { l: '  Należności', v1: f1.naleznosci, v2: f2.naleznosci },
-                    { l: '  Środki pieniężne', v1: f1.srodkiPieniezne, v2: f2.srodkiPieniezne },
-                    { l: 'Aktywa obrotowe', v1: f1.aktywaObrotowe, v2: f2.aktywaObrotowe, bold: true },
-                    { l: 'SUMA AKTYWÓW', v1: f1.aktywaRazem, v2: f2.aktywaRazem, bold: true },
+                    { l: t('bs.fixedAssets'), v1: f1.aktywaTrwale, v2: f2.aktywaTrwale, bold: true },
+                    { l: '  ' + t('bs.inventory'), v1: f1.zapasy, v2: f2.zapasy },
+                    { l: '  ' + t('bs.receivables'), v1: f1.naleznosci, v2: f2.naleznosci },
+                    { l: '  ' + t('bs.cash'), v1: f1.srodkiPieniezne, v2: f2.srodkiPieniezne },
+                    { l: t('vis.currentAssets'), v1: f1.aktywaObrotowe, v2: f2.aktywaObrotowe, bold: true },
+                    { l: t('pdf.sumAssets'), v1: f1.aktywaRazem, v2: f2.aktywaRazem, bold: true },
                   ].map(row => (
                     <tr key={row.l} className="border-b border-slate-100">
                       <td className={`py-0.5 text-slate-600 ${row.bold ? 'font-bold' : ''}`}>{row.l}</td>
@@ -600,29 +600,29 @@ export default function RaportPDF() {
               </table>
               {/* Wskaźniki płynności */}
               <div className="mt-2 mb-2">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Wskaźniki płynności i struktury</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('pdf.liquidityStructureTitle')}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {[
                     {
-                      l: 'Płynność bieżąca (CR)',
+                      l: t('pdf.currentRatio'),
                       v: f1.zobowiazaniaKrotko ? (f1.aktywaObrotowe / f1.zobowiazaniaKrotko).toFixed(2) : '—',
                       ok: f1.zobowiazaniaKrotko ? f1.aktywaObrotowe / f1.zobowiazaniaKrotko >= 1.2 : null,
-                      hint: '> 1,2 bezpieczny',
+                      hint: t('pdf.safe12'),
                     },
                     {
-                      l: 'Płynność szybka (QR)',
+                      l: t('pdf.quickRatio'),
                       v: f1.zobowiazaniaKrotko ? ((f1.aktywaObrotowe - f1.zapasy) / f1.zobowiazaniaKrotko).toFixed(2) : '—',
                       ok: f1.zobowiazaniaKrotko ? (f1.aktywaObrotowe - f1.zapasy) / f1.zobowiazaniaKrotko >= 1.0 : null,
-                      hint: '> 1,0 bezpieczny',
+                      hint: t('pdf.safe10'),
                     },
                     {
-                      l: 'Gotówkowa (Cash)',
+                      l: t('pdf.cashRatio'),
                       v: f1.zobowiazaniaKrotko ? (f1.srodkiPieniezne / f1.zobowiazaniaKrotko).toFixed(2) : '—',
                       ok: f1.zobowiazaniaKrotko ? f1.srodkiPieniezne / f1.zobowiazaniaKrotko >= 0.2 : null,
-                      hint: '> 0,2 bezpieczny',
+                      hint: t('pdf.safe02'),
                     },
                     {
-                      l: 'Udział AO w aktywach',
+                      l: t('pdf.aoShare'),
                       v: f1.aktywaRazem ? pct(f1.aktywaObrotowe, f1.aktywaRazem) : '—',
                       ok: null,
                       hint: p1,
@@ -669,18 +669,18 @@ export default function RaportPDF() {
               </div>
               <table className="w-full text-[10px] mb-2">
                 <thead><tr className="border-b-2 border-slate-200">
-                  <th className="text-left py-1 text-slate-500">Pozycja</th>
+                  <th className="text-left py-1 text-slate-500">{t('pdf.position')}</th>
                   <th className="text-right py-1 text-slate-500">{p1}</th>
                   <th className="text-right py-1 text-slate-400">{p2}</th>
-                  <th className="text-right py-1 text-slate-400">% sumy</th>
+                  <th className="text-right py-1 text-slate-400">{t('pdf.pctOfTotal')}</th>
                 </tr></thead>
                 <tbody>
                   {[
-                    { l: 'Kapitał własny', v1: f1.kapitalWlasny, v2: f2.kapitalWlasny, bold: true },
-                    { l: 'Zobow. długoterminowe', v1: f1.zobowiazaniaDlugo, v2: f2.zobowiazaniaDlugo },
-                    { l: 'Zobow. krótkoterminowe', v1: f1.zobowiazaniaKrotko, v2: f2.zobowiazaniaKrotko },
-                    { l: 'Zadłużenie ogółem', v1: f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko, v2: f2.zobowiazaniaDlugo + f2.zobowiazaniaKrotko, bold: true },
-                    { l: 'SUMA PASYWÓW', v1: f1.pasywaBilans || f1.aktywaRazem, v2: f2.pasywaBilans || f2.aktywaRazem, bold: true },
+                    { l: t('bs.equity'), v1: f1.kapitalWlasny, v2: f2.kapitalWlasny, bold: true },
+                    { l: t('bs.longTermLiab'), v1: f1.zobowiazaniaDlugo, v2: f2.zobowiazaniaDlugo },
+                    { l: t('bs.shortTermLiab'), v1: f1.zobowiazaniaKrotko, v2: f2.zobowiazaniaKrotko },
+                    { l: t('pdf.totalDebtRow'), v1: f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko, v2: f2.zobowiazaniaDlugo + f2.zobowiazaniaKrotko, bold: true },
+                    { l: t('pdf.sumLiab'), v1: f1.pasywaBilans || f1.aktywaRazem, v2: f2.pasywaBilans || f2.aktywaRazem, bold: true },
                   ].map(row => (
                     <tr key={row.l} className="border-b border-slate-100">
                       <td className={`py-0.5 text-slate-600 ${row.bold ? 'font-bold' : ''}`}>{row.l}</td>
@@ -693,7 +693,7 @@ export default function RaportPDF() {
               </table>
               {/* Wskaźniki zadłużenia */}
               <div className="mt-2 mb-2">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Wskaźniki zadłużenia i struktury kapitału</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('pdf.debtStructureTitle')}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {(() => {
                     const zadl = f1.aktywaRazem ? (f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko) / f1.aktywaRazem : 0;
@@ -701,10 +701,10 @@ export default function RaportPDF() {
                     const dlugNetto = (f1.zobowiazaniaDlugo + f1.kredytKrotko) - f1.srodkiPieniezne;
                     const eqRatio = f1.aktywaRazem ? f1.kapitalWlasny / f1.aktywaRazem : 0;
                     return [
-                      { l: 'Wskaźnik zadłużenia', v: (zadl * 100).toFixed(1) + '%', ok: zadl < 0.6, hint: '< 60% bezpieczny' },
-                      { l: 'Dług / Kapitał (D/E)', v: de.toFixed(2), ok: de < 1.5, hint: '< 1,5 bezpieczny' },
-                      { l: 'Dług netto', v: fmt(dlugNetto), ok: dlugNetto <= 0, hint: 'netto = kredyty − gotówka' },
-                      { l: 'Wskaźnik pokrycia EQ', v: (eqRatio * 100).toFixed(1) + '%', ok: eqRatio >= 0.4, hint: '> 40% bezpieczny' },
+                      { l: t('pdf.debtRatio'), v: (zadl * 100).toFixed(1) + '%', ok: zadl < 0.6, hint: t('pdf.safe60') },
+                      { l: t('pdf.debtToEquity'), v: de.toFixed(2), ok: de < 1.5, hint: t('pdf.safe15') },
+                      { l: t('pdf.netDebt'), v: fmt(dlugNetto), ok: dlugNetto <= 0, hint: t('pdf.netDebtHint') },
+                      { l: t('pdf.eqCoverage'), v: (eqRatio * 100).toFixed(1) + '%', ok: eqRatio >= 0.4, hint: t('pdf.safe40') },
                     ].map(r => (
                       <div key={r.l} className={`rounded-lg p-2.5 border ${r.ok === true ? 'bg-emerald-50 border-emerald-200' : r.ok === false ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
                         <p className="text-[8.5px] text-slate-500 leading-tight">{r.l}</p>
@@ -779,23 +779,23 @@ export default function RaportPDF() {
               {/* YoY comparison table */}
               {f2.przychody > 0 && (
                 <div className="mt-1 mb-2">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Dynamika rok do roku</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('pdf.yoyDynamics')}</p>
                   <table className="w-full text-[10px]">
                     <thead><tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-1 text-slate-500">Pozycja</th>
+                      <th className="text-left py-1 text-slate-500">{t('pdf.position')}</th>
                       <th className="text-right py-1 text-slate-500">{p1}</th>
                       <th className="text-right py-1 text-slate-400">{p2}</th>
-                      <th className="text-right py-1 text-slate-500">Zmiana r/r</th>
-                      <th className="text-right py-1 text-slate-400">Marża {p1}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.yoyChange')}</th>
+                      <th className="text-right py-1 text-slate-400">{t('pdf.marginOf').replace('{p1}', p1)}</th>
                     </tr></thead>
                     <tbody>
                       {[
-                        { l: 'Przychody netto', v1: f1.przychody, v2: f2.przychody, showPct: false },
-                        { l: 'Koszty operacyjne', v1: f1.kosztyOper, v2: f2.kosztyOper, showPct: true, pctOf: f1.przychody },
-                        { l: 'Zysk ze sprzedaży', v1: f1.zyskZeSprz, v2: f2.zyskZeSprz, showPct: true, pctOf: f1.przychody },
-                        { l: 'EBIT', v1: f1.ebit, v2: f2.ebit, showPct: true, pctOf: f1.przychody },
-                        { l: 'Zysk netto', v1: f1.zyskNetto, v2: f2.zyskNetto, showPct: true, pctOf: f1.przychody },
-                        { l: 'Amortyzacja', v1: f1.amortyzacja, v2: f2.amortyzacja, showPct: false },
+                        { l: t('pdf.netRevenue'), v1: f1.przychody, v2: f2.przychody, showPct: false },
+                        { l: t('pdf.operCostsRow'), v1: f1.kosztyOper, v2: f2.kosztyOper, showPct: true, pctOf: f1.przychody },
+                        { l: t('pnl.salesProfit'), v1: f1.zyskZeSprz, v2: f2.zyskZeSprz, showPct: true, pctOf: f1.przychody },
+                        { l: t('pnl.ebit'), v1: f1.ebit, v2: f2.ebit, showPct: true, pctOf: f1.przychody },
+                        { l: t('pnl.netProfit'), v1: f1.zyskNetto, v2: f2.zyskNetto, showPct: true, pctOf: f1.przychody },
+                        { l: t('field.amortyzacja'), v1: f1.amortyzacja, v2: f2.amortyzacja, showPct: false },
                       ].map(row => {
                         const chg = row.v2 ? ((row.v1 - row.v2) / Math.abs(row.v2) * 100) : null;
                         return (
@@ -845,10 +845,10 @@ export default function RaportPDF() {
                 </div>
                 <div className="flex flex-col gap-2 justify-center">
                   {[
-                    { l: 'Marża ze sprzedaży', v1: f1.przychody ? f1.zyskZeSprz / f1.przychody * 100 : 0, v2: f2.przychody ? f2.zyskZeSprz / f2.przychody * 100 : 0 },
-                    { l: 'Marża EBIT', v1: f1.przychody ? f1.ebit / f1.przychody * 100 : 0, v2: f2.przychody ? f2.ebit / f2.przychody * 100 : 0 },
-                    { l: 'Marża netto', v1: f1.przychody ? f1.zyskNetto / f1.przychody * 100 : 0, v2: f2.przychody ? f2.zyskNetto / f2.przychody * 100 : 0 },
-                    { l: 'ROA', v1: f1.aktywaRazem ? f1.zyskNetto / f1.aktywaRazem * 100 : 0, v2: f2.aktywaRazem ? f2.zyskNetto / f2.aktywaRazem * 100 : 0 },
+                    { l: t('vis.salesMargin'), v1: f1.przychody ? f1.zyskZeSprz / f1.przychody * 100 : 0, v2: f2.przychody ? f2.zyskZeSprz / f2.przychody * 100 : 0 },
+                    { l: t('vis.ebitMargin'), v1: f1.przychody ? f1.ebit / f1.przychody * 100 : 0, v2: f2.przychody ? f2.ebit / f2.przychody * 100 : 0 },
+                    { l: t('vis.netMargin'), v1: f1.przychody ? f1.zyskNetto / f1.przychody * 100 : 0, v2: f2.przychody ? f2.zyskNetto / f2.przychody * 100 : 0 },
+                    { l: t('pdf.roaShort'), v1: f1.aktywaRazem ? f1.zyskNetto / f1.aktywaRazem * 100 : 0, v2: f2.aktywaRazem ? f2.zyskNetto / f2.aktywaRazem * 100 : 0 },
                   ].map(row => (
                     <div key={row.l} className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
                       <p className="text-[9px] text-slate-500">{row.l}</p>
@@ -864,7 +864,7 @@ export default function RaportPDF() {
               </div>
               {/* Profitability & efficiency ratios */}
               <div className="mt-2 mb-2">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Wskaźniki rentowności i sprawności — {p1}</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t('pdf.profitabilityEfficiencyTitle').replace('{p1}', p1)}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {(() => {
                     const roa = f1.aktywaRazem ? f1.zyskNetto / f1.aktywaRazem * 100 : 0;
@@ -873,11 +873,12 @@ export default function RaportPDF() {
                     const roe2 = f2.kapitalWlasny ? f2.zyskNetto / f2.kapitalWlasny * 100 : 0;
                     const rotacjaAkt = f1.aktywaRazem ? f1.przychody / f1.aktywaRazem : 0;
                     const ebitda = f1.ebit + f1.amortyzacja;
+                    const prev = t('pdf.prevAbbrev');
                     return [
-                      { l: 'ROA (netto)', v: roa.toFixed(1) + '%', hint: `poprz. ${roa2.toFixed(1)}%`, ok: roa > roa2 },
-                      { l: 'ROE (netto)', v: roe.toFixed(1) + '%', hint: `poprz. ${roe2.toFixed(1)}%`, ok: roe > roe2 },
-                      { l: 'Rotacja aktywów', v: rotacjaAkt.toFixed(2) + 'x', hint: 'Przychody / Aktywa', ok: null },
-                      { l: 'EBITDA', v: fmt(ebitda), hint: 'EBIT + Amortyzacja', ok: ebitda > 0 },
+                      { l: t('pdf.roaNet'), v: roa.toFixed(1) + '%', hint: `${prev} ${roa2.toFixed(1)}%`, ok: roa > roa2 },
+                      { l: t('pdf.roeNet'), v: roe.toFixed(1) + '%', hint: `${prev} ${roe2.toFixed(1)}%`, ok: roe > roe2 },
+                      { l: t('pdf.assetTurnover'), v: rotacjaAkt.toFixed(2) + 'x', hint: t('pdf.revenueOverAssets'), ok: null },
+                      { l: t('pdf.ebitda'), v: fmt(ebitda), hint: t('pdf.ebitdaHint'), ok: ebitda > 0 },
                     ].map(r => (
                       <div key={r.l} className={`rounded-lg p-2.5 border ${r.ok === true ? 'bg-emerald-50 border-emerald-200' : r.ok === false ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
                         <p className="text-[8.5px] text-slate-500 leading-tight">{r.l}</p>
@@ -903,10 +904,10 @@ export default function RaportPDF() {
                 <div>
                   <table className="w-full text-[10px]">
                     <thead><tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-1 text-slate-500">Wskaźnik</th>
-                      <th className="text-right py-1 text-slate-500">Wartość</th>
-                      <th className="text-right py-1 text-slate-500">Waga</th>
-                      <th className="text-right py-1 text-slate-500">Składnik</th>
+                      <th className="text-left py-1 text-slate-500">{t('pdf.indicatorHeader')}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.valueHeader')}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.weightHeader')}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.componentHeader')}</th>
                     </tr></thead>
                     <tbody>
                       {beneish.indices.map(idx => (
@@ -922,7 +923,7 @@ export default function RaportPDF() {
                 </div>
                 <div className="flex flex-col gap-3 justify-center">
                   <div className={`rounded-xl p-4 text-center ${beneish.highRisk ? 'bg-rose-50 border-2 border-rose-200' : 'bg-emerald-50 border-2 border-emerald-200'}`}>
-                    <p className="text-[10px] text-slate-500 mb-1">M-Score</p>
+                    <p className="text-[10px] text-slate-500 mb-1">{t('pdf.mscoreLabel')}</p>
                     <p className={`text-3xl font-black ${beneish.highRisk ? 'text-rose-600' : 'text-emerald-600'}`}>{beneish.mscore.toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1">{t('pdf.beneishThreshold')}</p>
                     <div className="mt-2"><RiskBadge ok={!beneish.highRisk} lowLabel={t('pdf.lowRisk')} highLabel={t('pdf.highRisk')} /></div>
@@ -971,8 +972,8 @@ export default function RaportPDF() {
                   <div className={`rounded-xl p-4 ${holda.ok ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="text-xs font-bold text-slate-700">🇵🇱 Model Hołdy (Z_H)</p>
-                        <p className="text-[9px] text-slate-400">Próg: Z_H = 0</p>
+                        <p className="text-xs font-bold text-slate-700">🇵🇱 {t('pdf.holdaModel')}</p>
+                        <p className="text-[9px] text-slate-400">{t('pdf.holdaThreshold')}</p>
                       </div>
                       <span className={`text-xl font-black ${holda.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{r2(holda.score)}</span>
                     </div>
@@ -985,13 +986,13 @@ export default function RaportPDF() {
 
                   {/* Altman Z' */}
                   {altman && (
-                    <div className={`rounded-xl p-4 ${altman.ok ? 'bg-emerald-50 border border-emerald-200' : altman.zone === 'szara strefa' ? 'bg-amber-50 border border-amber-200' : 'bg-rose-50 border border-rose-200'}`}>
+                    <div className={`rounded-xl p-4 ${altman.ok ? 'bg-emerald-50 border border-emerald-200' : altman.zone === 'grey' ? 'bg-amber-50 border border-amber-200' : 'bg-rose-50 border border-rose-200'}`}>
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="text-xs font-bold text-slate-700">🇺🇸 Altman Z'-score</p>
-                          <p className="text-[9px] text-slate-400">Strefa: {altman.zone}</p>
+                          <p className="text-xs font-bold text-slate-700">🇺🇸 {t('pdf.altmanModel')}</p>
+                          <p className="text-[9px] text-slate-400">{t('pdf.zoneLabel').replace('{zone}', t(`pdf.zone.${altman.zone}`))}</p>
                         </div>
-                        <span className={`text-xl font-black ${altman.ok ? 'text-emerald-600' : altman.zone === 'szara strefa' ? 'text-amber-600' : 'text-rose-600'}`}>{r2(altman.score)}</span>
+                        <span className={`text-xl font-black ${altman.ok ? 'text-emerald-600' : altman.zone === 'grey' ? 'text-amber-600' : 'text-rose-600'}`}>{r2(altman.score)}</span>
                       </div>
                       <RiskBadge ok={altman.ok} lowLabel={t('pdf.lowRisk')} highLabel={t('pdf.highRisk')} />
                       <div className="mt-2">
@@ -1004,10 +1005,10 @@ export default function RaportPDF() {
                 <div className="flex flex-col gap-2 justify-center">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('pdf.keyRiskFactors')}</p>
                   {[
-                    { l: 'X₁ Płynność bieżąca', v: r2(holda.x1), ok: holda.x1 > 1.2 },
-                    { l: 'X₂ Zadłużenie × 100', v: r2(holda.x2), ok: holda.x2 < 60 },
-                    { l: 'X₃ Rotacja aktywów', v: r2(holda.x3), ok: holda.x3 > 0.5 },
-                    { l: 'X₄ ROA netto × 100', v: r2(holda.x4), ok: holda.x4 > 0 },
+                    { l: t('pdf.x1CurrentRatio'), v: r2(holda.x1), ok: holda.x1 > 1.2 },
+                    { l: t('pdf.x2Debt100'), v: r2(holda.x2), ok: holda.x2 < 60 },
+                    { l: t('pdf.x3AssetTurnover'), v: r2(holda.x3), ok: holda.x3 > 0.5 },
+                    { l: t('pdf.x4Roa100'), v: r2(holda.x4), ok: holda.x4 > 0 },
                   ].map(row => (
                     <div key={row.l} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-1.5">
                       <span className="text-[10px] text-slate-600">{row.l}</span>
@@ -1015,7 +1016,7 @@ export default function RaportPDF() {
                     </div>
                   ))}
                   <div className="mt-1 text-[9px] text-slate-400 leading-relaxed">
-                    Modele skalibowane na polskich przedsiębiorstwach — wyniki mają charakter orientacyjny. Pełna analiza dostępna w zakładce "Analiza finansowa".
+                    {t('pdf.discriminantDisclaimer')}
                   </div>
                 </div>
               </div>
@@ -1039,18 +1040,18 @@ export default function RaportPDF() {
                       <XAxis type="number" tick={{ fontSize: 8 }} tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
                       <YAxis type="category" dataKey="city" tick={{ fontSize: 9 }} />
                       <Tooltip formatter={(v: any) => fmt(v)} />
-                      <Bar dataKey="przychod" name="Przychód" fill="#f97316" radius={[0, 2, 2, 0]} />
-                      <Bar dataKey="mb" name="Marża" fill="#10b981" radius={[0, 2, 2, 0]} />
+                      <Bar dataKey="przychod" name={t('pdf.revenueCol')} fill="#f97316" radius={[0, 2, 2, 0]} />
+                      <Bar dataKey="mb" name={t('pdf.marginCol')} fill="#10b981" radius={[0, 2, 2, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
                 <div>
                   <table className="w-full text-[10px]">
                     <thead><tr className="border-b-2 border-slate-200">
-                      <th className="text-left py-1 text-slate-500">Miasto</th>
-                      <th className="text-right py-1 text-slate-500">Gr.</th>
-                      <th className="text-right py-1 text-slate-500">Przychód</th>
-                      <th className="text-right py-1 text-slate-500">MB%</th>
+                      <th className="text-left py-1 text-slate-500">{t('pdf.city')}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.groupsAbbrev')}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.revenueCol')}</th>
+                      <th className="text-right py-1 text-slate-500">{t('pdf.mbPct')}</th>
                     </tr></thead>
                     <tbody>
                       {grpSummary.rows.map(row => (
@@ -1094,17 +1095,17 @@ export default function RaportPDF() {
                     <YAxis tick={{ fontSize: 9 }} tickFormatter={v => (v / 1000).toFixed(0) + 'k'} />
                     <Tooltip formatter={(v: any) => fmt(v)} />
                     <Legend wrapperStyle={{ fontSize: 9 }} />
-                    <Bar dataKey="przychod" name="Przychód" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="mb" name="Marża brutto" fill="#10b981" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="przychod" name={t('pdf.revenueCol')} fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="mb" name={t('pdf.grossMarginCol')} fill="#10b981" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <table className="w-full text-[10px] mb-2">
                 <thead><tr className="border-b-2 border-slate-200">
-                  <th className="text-left py-1 text-slate-500">Dział</th>
-                  <th className="text-right py-1 text-slate-500">Przychód</th>
-                  <th className="text-right py-1 text-slate-500">Marża</th>
-                  <th className="text-right py-1 text-slate-500">MB%</th>
+                  <th className="text-left py-1 text-slate-500">{t('pdf.department')}</th>
+                  <th className="text-right py-1 text-slate-500">{t('pdf.revenueCol')}</th>
+                  <th className="text-right py-1 text-slate-500">{t('pdf.marginCol')}</th>
+                  <th className="text-right py-1 text-slate-500">{t('pdf.mbPct')}</th>
                 </tr></thead>
                 <tbody>
                   {rmDepts.map(d => (
@@ -1140,23 +1141,23 @@ export default function RaportPDF() {
                 <div className="flex gap-3 mb-4">
                   {beneish && (
                     <div className={`flex-1 rounded-xl p-3 text-center ${beneish.highRisk ? 'bg-rose-50 border border-rose-200' : 'bg-emerald-50 border border-emerald-200'}`}>
-                      <p className="text-[9px] text-slate-400 mb-1">Beneish M-Score</p>
+                      <p className="text-[9px] text-slate-400 mb-1">{t('pdf.beneishShort')}</p>
                       <p className={`text-lg font-black ${beneish.highRisk ? 'text-rose-600' : 'text-emerald-600'}`}>{beneish.mscore.toFixed(2)}</p>
                       <RiskBadge ok={!beneish.highRisk} lowLabel={t('pdf.lowRisk')} highLabel={t('pdf.highRisk')} />
                     </div>
                   )}
                   {holda && (
                     <div className={`flex-1 rounded-xl p-3 text-center ${holda.ok ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
-                      <p className="text-[9px] text-slate-400 mb-1">Model Hołdy Z_H</p>
+                      <p className="text-[9px] text-slate-400 mb-1">{t('pdf.holdaShort')}</p>
                       <p className={`text-lg font-black ${holda.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{r2(holda.score)}</p>
                       <RiskBadge ok={holda.ok} lowLabel={t('pdf.lowRisk')} highLabel={t('pdf.highRisk')} />
                     </div>
                   )}
                   {altman && (
-                    <div className={`flex-1 rounded-xl p-3 text-center ${altman.ok ? 'bg-emerald-50 border border-emerald-200' : altman.zone === 'szara strefa' ? 'bg-amber-50 border border-amber-200' : 'bg-rose-50 border border-rose-200'}`}>
-                      <p className="text-[9px] text-slate-400 mb-1">Altman Z'-score</p>
-                      <p className={`text-lg font-black ${altman.ok ? 'text-emerald-600' : altman.zone === 'szara strefa' ? 'text-amber-600' : 'text-rose-600'}`}>{r2(altman.score)}</p>
-                      <span className="text-[9px] text-slate-500">{altman.zone}</span>
+                    <div className={`flex-1 rounded-xl p-3 text-center ${altman.ok ? 'bg-emerald-50 border border-emerald-200' : altman.zone === 'grey' ? 'bg-amber-50 border border-amber-200' : 'bg-rose-50 border border-rose-200'}`}>
+                      <p className="text-[9px] text-slate-400 mb-1">{t('pdf.altmanModel')}</p>
+                      <p className={`text-lg font-black ${altman.ok ? 'text-emerald-600' : altman.zone === 'grey' ? 'text-amber-600' : 'text-rose-600'}`}>{r2(altman.score)}</p>
+                      <span className="text-[9px] text-slate-500">{t(`pdf.zone.${altman.zone}`)}</span>
                     </div>
                   )}
                 </div>

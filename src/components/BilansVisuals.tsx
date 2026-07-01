@@ -75,19 +75,27 @@ interface DetailState {
   bars: { name: string; value: number }[];
   total?: number;
   isPercent?: boolean;
+  color?: string;
 }
+
+// Mapowanie nazw kolorów Tailwind (używanych na kafelkach KPI) → hex dla Recharts
+const TAILWIND_HEX: Record<string, string> = {
+  blue: '#3b82f6', emerald: '#10b981', amber: '#f59e0b', violet: '#7c3aed',
+  rose: '#f43f5e', slate: '#64748b',
+};
 
 function DetailPanel({ d, onClose }: { d: DetailState; onClose: () => void }) {
   const [v1, v2, v3] = [d.bars[0]?.value ?? 0, d.bars[1]?.value ?? 0, d.bars[2]?.value ?? 0];
   const d12 = delta(v1, v2);
   const d23 = delta(v2, v3);
   const formatter = d.isPercent ? (v: number) => `${v.toFixed(1)}%` : (v: number) => fmt(v);
+  const color = d.color ?? '#7c3aed';
 
   return (
-    <div className="mt-3 bg-violet-50 border border-violet-200 rounded-xl p-3 animate-in fade-in slide-in-from-top-1 duration-150">
+    <div className="mt-3 border rounded-xl p-3 animate-in fade-in slide-in-from-top-1 duration-150" style={{ borderColor: `${color}40`, background: `${color}0d` }}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold text-violet-700">📊 {d.label}</p>
-        <button onClick={onClose} className="w-5 h-5 rounded-full bg-violet-100 hover:bg-violet-200 text-violet-500 text-[10px] flex items-center justify-center transition-colors">✕</button>
+        <p className="text-xs font-bold" style={{ color }}>📊 {d.label}</p>
+        <button onClick={onClose} className="w-5 h-5 rounded-full hover:opacity-70 text-[10px] flex items-center justify-center transition-colors text-white" style={{ background: color }}>✕</button>
       </div>
       <div className="grid grid-cols-5 gap-2 items-center">
         <div className="col-span-3">
@@ -97,15 +105,15 @@ function DetailPanel({ d, onClose }: { d: DetailState; onClose: () => void }) {
               <XAxis dataKey="name" tick={{ fontSize: 9 }} />
               <YAxis tick={{ fontSize: 9 }} tickFormatter={d.isPercent ? (v => v + '%') : (v => (v / 1000).toFixed(0) + 'k')} width={36} />
               <Tooltip formatter={(v: any) => formatter(v)} />
-              <Bar dataKey="value" fill="#7c3aed" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="col-span-2 space-y-1.5">
           {d.bars.map((bar) => (
-            <div key={bar.name} className="bg-white rounded-lg px-2.5 py-1.5 border border-violet-100">
+            <div key={bar.name} className="bg-white rounded-lg px-2.5 py-1.5 border" style={{ borderColor: `${color}30` }}>
               <p className="text-[9px] text-slate-400">{bar.name}</p>
-              <p className="text-xs font-bold text-violet-700">{formatter(bar.value)}</p>
+              <p className="text-xs font-bold" style={{ color }}>{formatter(bar.value)}</p>
               {d.total && !d.isPercent && <p className="text-[9px] text-slate-400">{pct(bar.value, d.total)}</p>}
             </div>
           ))}
@@ -163,11 +171,11 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
     setDetail(prev => prev?.key === d.key ? null : d);
   }
 
-  function onPieClick(chart: string, idx: number, entry: { name?: string; value?: number }, bars: { name: string; value: number }[], total: number) {
+  function onPieClick(chart: string, idx: number, entry: { name?: string; value?: number }, bars: { name: string; value: number }[], total: number, color: string) {
     const same = activeSlice?.chart === chart && activeSlice?.idx === idx;
     setActiveSlice(same ? null : { chart, idx });
     if (!same) {
-      setDetail({ key: `${chart}_${idx}`, label: entry.name ?? '', bars, total });
+      setDetail({ key: `${chart}_${idx}`, label: entry.name ?? '', bars, total, color });
     } else {
       setDetail(null);
     }
@@ -254,7 +262,7 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
                       { name: p1, value: idx === 0 ? f1.aktywaTrwale : f1.aktywaObrotowe },
                       { name: p2, value: idx === 0 ? f2.aktywaTrwale : f2.aktywaObrotowe },
                       { name: p3, value: idx === 0 ? f3.aktywaTrwale : f3.aktywaObrotowe },
-                    ], f1.aktywaRazem)}
+                    ], f1.aktywaRazem, COLORS_AKTYWA[idx % COLORS_AKTYWA.length])}
                     style={{ cursor: 'pointer' }}
                   >
                     {aktywaData.map((_, i) => (
@@ -273,7 +281,7 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
                       { name: p1, value: i === 0 ? f1.aktywaTrwale : f1.aktywaObrotowe },
                       { name: p2, value: i === 0 ? f2.aktywaTrwale : f2.aktywaObrotowe },
                       { name: p3, value: i === 0 ? f3.aktywaTrwale : f3.aktywaObrotowe },
-                    ], f1.aktywaRazem)}
+                    ], f1.aktywaRazem, COLORS_AKTYWA[i % COLORS_AKTYWA.length])}
                     className="flex items-center justify-between text-[10px] w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors"
                   >
                     <div className="flex items-center gap-1">
@@ -298,7 +306,7 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
                       { name: p1, value: [f1.kapitalWlasny, f1.zobowiazaniaDlugo, f1.zobowiazaniaKrotko][idx] ?? 0 },
                       { name: p2, value: [f2.kapitalWlasny, f2.zobowiazaniaDlugo, f2.zobowiazaniaKrotko][idx] ?? 0 },
                       { name: p3, value: [f3.kapitalWlasny, f3.zobowiazaniaDlugo, f3.zobowiazaniaKrotko][idx] ?? 0 },
-                    ], f1.aktywaRazem)}
+                    ], f1.aktywaRazem, COLORS_PASYWA[idx % COLORS_PASYWA.length])}
                     style={{ cursor: 'pointer' }}
                   >
                     {pasywaDData.map((_, i) => (
@@ -317,7 +325,7 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
                       { name: p1, value: [f1.kapitalWlasny, f1.zobowiazaniaDlugo, f1.zobowiazaniaKrotko][i] ?? 0 },
                       { name: p2, value: [f2.kapitalWlasny, f2.zobowiazaniaDlugo, f2.zobowiazaniaKrotko][i] ?? 0 },
                       { name: p3, value: [f3.kapitalWlasny, f3.zobowiazaniaDlugo, f3.zobowiazaniaKrotko][i] ?? 0 },
-                    ], f1.aktywaRazem)}
+                    ], f1.aktywaRazem, COLORS_PASYWA[i % COLORS_PASYWA.length])}
                     className="flex items-center justify-between text-[10px] w-full hover:bg-slate-50 rounded px-1 py-0.5 transition-colors"
                   >
                     <div className="flex items-center gap-1">
@@ -339,7 +347,7 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
                   val={kpi.val}
                   color={kpi.color}
                   active={detail?.key === kpi.key}
-                  onClick={() => toggleDetail({ key: kpi.key, label: kpi.label, bars: kpi.bars, total: kpi.total })}
+                  onClick={() => toggleDetail({ key: kpi.key, label: kpi.label, bars: kpi.bars, total: kpi.total, color: TAILWIND_HEX[kpi.color] })}
                 />
               ))}
             </div>
@@ -499,7 +507,7 @@ export default function BilansVisuals({ reportType, bilans, rzis, periodLabels, 
                 val={kpi.val}
                 color={kpi.color}
                 active={detail?.key === kpi.key}
-                onClick={() => toggleDetail({ key: kpi.key, label: kpi.label, bars: kpi.bars, isPercent: (kpi as any).isPercent })}
+                onClick={() => toggleDetail({ key: kpi.key, label: kpi.label, bars: kpi.bars, isPercent: (kpi as any).isPercent, color: TAILWIND_HEX[kpi.color] })}
               />
             ))}
           </div>
