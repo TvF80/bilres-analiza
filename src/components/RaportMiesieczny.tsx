@@ -2225,6 +2225,92 @@ function SezonowoscTab({ totals }: { totals: MonthlyReportTotals }) {
           </>
         )}
       </div>
+
+      <ForecastSection line={line} seasonalIndex={seasonalIndex} months={months} />
+    </div>
+  );
+}
+
+// ── Prognoza 12 miesięcy ─────────────────────────────────────────────────────
+// Ekstrapolacja: średnie tempo wzrostu r/r z dostępnej historii × suma roczna,
+// rozłożone na miesiące proporcjonalnie do już policzonego indeksu sezonowego
+// (zakładka Sezonowość). 3 scenariusze (±5pp wokół średniego tempa wzrostu).
+function ForecastSection({ line, seasonalIndex, months }: {
+  line: MonthlyReportLine; seasonalIndex: { month: string; index: number }[] | null; months: string[];
+}) {
+  const { t } = useLang();
+
+  const forecast = useMemo(() => {
+    const history = line.history;
+    if (!history?.length || history.length < 2 || !seasonalIndex) return null;
+    const sorted = [...history].sort((a, b) => a.fy.localeCompare(b.fy));
+    const growthRates: number[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = Math.abs(sorted[i - 1].total);
+      const cur = Math.abs(sorted[i].total);
+      if (prev > 0) growthRates.push((cur - prev) / prev);
+    }
+    if (!growthRates.length) return null;
+    const avgGrowth = growthRates.reduce((s, v) => s + v, 0) / growthRates.length;
+    const latestTotal = Math.abs(sorted[sorted.length - 1].total);
+    const latestFy = sorted[sorted.length - 1].fy;
+    const nextFy = String(Number(latestFy) + 1);
+
+    const scenarios = [
+      { key: 'pess', label: t('forecast.pessimistic'), growth: avgGrowth - 0.05, color: '#f43f5e' },
+      { key: 'base', label: t('forecast.base'), growth: avgGrowth, color: '#3b82f6' },
+      { key: 'opt', label: t('forecast.optimistic'), growth: avgGrowth + 0.05, color: '#10b981' },
+    ].map(s => {
+      const total = latestTotal * (1 + s.growth);
+      const monthly = seasonalIndex.map(si => (si.index / 100) * (total / 12));
+      return { ...s, total, monthly };
+    });
+
+    const chartData = months.map((m, i) => {
+      const row: Record<string, number | string> = { month: m };
+      scenarios.forEach(s => { row[s.key] = s.monthly[i]; });
+      return row;
+    });
+
+    return { scenarios, chartData, avgGrowth, latestFy, nextFy };
+  }, [line, seasonalIndex, months, t]);
+
+  if (!forecast) return null;
+
+  const fmtK = (v: number) => (v / 1000).toFixed(0) + 'k';
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-slate-700">{t('forecast.title')}</h3>
+        <p className="text-[11px] text-slate-400">
+          {t('forecast.subtitle', { nextFy: forecast.nextFy, growth: (forecast.avgGrowth * 100).toFixed(1) })}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {forecast.scenarios.map(s => (
+          <div key={s.key} className="rounded-lg p-2.5 border border-slate-200" style={{ background: `${s.color}0d` }}>
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{s.label}</p>
+            <p className="text-sm font-black" style={{ color: s.color }}>{formatPLN(s.total)} PLN</p>
+          </div>
+        ))}
+      </div>
+
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={forecast.chartData} margin={{ left: -16, right: 8, top: 6, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => fmtK(Number(v))} width={40} />
+          <Tooltip formatter={(v: any) => [`${formatPLN(Number(v))} PLN`]} contentStyle={TOOLTIP_STYLE} />
+          <Legend formatter={(v) => forecast.scenarios.find(s => s.key === v)?.label ?? v} wrapperStyle={{ fontSize: 10 }} />
+          {forecast.scenarios.map(s => (
+            <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} strokeWidth={s.key === 'base' ? 2.5 : 1.5}
+              strokeDasharray={s.key === 'base' ? undefined : '4 3'} dot={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="text-[10px] text-slate-400 italic">{t('forecast.disclaimer')}</p>
     </div>
   );
 }
