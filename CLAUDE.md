@@ -19,6 +19,15 @@ Online: **https://finscopepl.vercel.app** (Vercel, projekt `prj_bEJ0HCxkKhHinCj8
 
 - `zapisy` (42 MB dziennik FK) — **nigdy nie trafia do Supabase**, tylko `sessionStorage`
 - Klucze nie są hardcoded w kodzie ani nie trafiają do repo
+- **Vercel env vars**: tylko te 3 zmienne + żadnych innych. Projekt miał
+  wcześniej 16 nieużywanych zmiennych (service_role key, JWT secret, martwe
+  `POSTGRES_*`/`NEXT_PUBLIC_*` z auto-integracji Supabase↔Vercel zakładającej
+  Next.js) — usunięte 2026-07, patrz „Hardening bezpieczeństwa” niżej. Nowe
+  sekrety dodawaj świadomie i tylko do środowisk, gdzie są faktycznie potrzebne
+  (np. `ANTHROPIC_API_KEY` nie musi być w Development)
+- **Build produkcyjny bez konfiguracji Supabase = błąd, nie tryb gość** —
+  `AuthContext.tsx` sprawdza `import.meta.env.PROD`; cichy fallback do
+  guest mode zostaje tylko w dev/local (patrz sekcja Supabase niżej)
 
 ---
 
@@ -27,7 +36,10 @@ Online: **https://finscopepl.vercel.app** (Vercel, projekt `prj_bEJ0HCxkKhHinCj8
 Supabase jest **opcjonalne**. Gdy brak env vars (`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`):
 
 - `src/lib/supabase.ts` eksportuje `supabaseConfigured: boolean` — false gdy brak konfiguracji
-- `AuthContext.tsx`: gdy `!supabaseConfigured` → auto-login jako guest `{ id: 'local', name: 'Użytkownik lokalny', ... }`
+- `AuthContext.tsx`: gdy `!supabaseConfigured` **i dev/local** → auto-login jako guest
+  `{ id: 'local', name: 'Użytkownik lokalny', ... }`. W buildzie produkcyjnym
+  (`import.meta.env.PROD`) brak konfiguracji ustawia `configError` zamiast cichego
+  gościa — `App.tsx` renderuje wtedy pełnoekranowy błąd konfiguracji
 - `CompaniesContext.tsx`: wszystkie Supabase calls opatrzone `if (supabaseConfigured)` guard
 - Tryb lokalny: dane wyłącznie w `localStorage`, AI działa przez `/api/analyze` (Vercel serverless)
 
@@ -37,9 +49,56 @@ Supabase jest **opcjonalne**. Gdy brak env vars (`VITE_SUPABASE_URL` / `VITE_SUP
 - `MigrateLocalDataBanner.tsx` — amber baner z przyciskiem migracji localStorage → konto
 
 ### Tabele SQL (Supabase)
-Pełny, zwersjonowany schemat + RLS policies: **`supabase/schema.sql`** (jedyna
-tabela `companies`, zgodna 1:1 z `rowToCompany`/`companyToRow` w
-`CompaniesContext.tsx`). RLS: `auth.uid() = user_id` na select/insert/update/delete.
+Pełny, zwersjonowany schemat + RLS policies: **`supabase/schema.sql`**.
+- `companies` — zgodna 1:1 z `rowToCompany`/`companyToRow` w `CompaniesContext.tsx`.
+  `id` to `uuid` (nie `text` — poprawione po weryfikacji na żywej bazie 2026-07).
+  RLS: `auth.uid() = user_id` na select/insert/update/delete
+- `ai_analysis_log` — audit trail wywołań AI, **tylko metadane** (user_id, section,
+  lang, period, model, created_at) — nigdy treść `data` ani odpowiedzi modelu.
+  Append-only: RLS ma tylko insert/select (`auth.uid() = user_id`), brak
+  update/delete. Insert wykonywany z `api/analyze.ts` jako zalogowany użytkownik
+  (jego własny token z nagłówka `Authorization`, przekazywany opcjonalnie przez
+  `getAuthHeader()` w `lib/supabase.ts`) — serwer nigdy nie używa service_role
+
+---
+
+## Hardening bezpieczeństwa (2026-07)
+
+Pełny audyt + plan: zobacz historię sesji/pamięć projektu. Skrót zrealizowanych zmian:
+
+- **Vercel env vars** — usunięto 16 nieużywanych sekretów produkcyjnych
+  (`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, martwe `POSTGRES_*` i
+  `NEXT_PUBLIC_*`). Zostały tylko `ANTHROPIC_API_KEY`, `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY`
+- **`xlsx` (SheetJS)** — zaktualizowany z 0.18.5 (npm, porzucony przez
+  maintainera, niezałatane luki: prototype pollution + ReDoS) do 0.20.3 z
+  oficjalnego CDN SheetJS (`package.json`: `"xlsx": "https://cdn.sheetjs.com/..."`,
+  nie npm registry — to jedyny kanał z fixem)
+- **Web Worker do parsowania** — `src/lib/xlsxParser.worker.ts` +
+  `importInWorker.ts`. Izoluje ewentualny crash/prototype pollution od głównego
+  wątku; bonus: `xlsx` wyleciał z głównego bundla do osobnego chunka
+- **Limit importu** — 50 MB + walidacja rozszerzenia (`.xlsx`) w `ImportModal.tsx`
+  i `xlsxParser.ts` (`MAX_IMPORT_FILE_BYTES`, `ALLOWED_IMPORT_EXTENSIONS`)
+- **`/api/analyze`** — rate limiting per-IP w pamięci procesu (15 req/60s,
+  best-effort), limit rozmiaru `data` (20 000 znaków JSON), audit trail (patrz
+  wyżej), logowanie błędów tylko jako komunikat (nigdy pełny obiekt błędu SDK —
+  ryzyko echo requestu z danymi)
+- **Guest mode fail-loud w produkcji** — patrz sekcja Supabase wyżej
+- **Weryfikacja RLS na żywo** — konto testowe potwierdziło: izolacja odczytu
+  działa, insert ze sfałszowanym `user_id` odrzucony (42501), potwierdzenie
+  e-mail wymuszone przed logowaniem. Powtarzalny test: `scripts/test-rls.mjs`
+  (wymaga 2 potwierdzonych kont testowych w `.env.test`, gitignored)
+- **Strona logowania** (`LoginScreen.tsx`, `SecurityInfo`) — treść zaktualizowana
+  do stanu faktycznego: dane firm synchronizują się do Supabase (nie tylko
+  localStorage), analizy AI wysyłają zagregowane dane do Anthropic — wcześniejsza
+  wersja błędnie sugerowała, że dane „nie opuszczają przeglądarki”
+
+**Świadomie odłożone (wymagają decyzji/nowej infrastruktury, nie zrobione automatycznie):**
+- Cienki backend zamiast bezpośredniego PostgREST (RLS jako jedyna warstwa dostępu)
+- Rozproszony rate limiting (Upstash/Vercel KV) — obecny jest per-instancja, best-effort
+- Field-level/app-level encryption (Supabase Vault) — dopiero przy realnym wymogu
+  regulacyjnym/kontraktowym, nie proaktywnie
+- E2E szyfrowanie po stronie klienta — tylko na wyraźne żądanie klienta
 
 ---
 

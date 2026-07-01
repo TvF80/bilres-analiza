@@ -285,7 +285,8 @@ function ForgotForm({ onSwitch }: { onSwitch: (m: Mode) => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Security info — ZAKTUALIZOWANA (dane idą do Supabase)
+// Security info — zgodna ze stanem faktycznym po audycie bezpieczeństwa 2026-07
+// (companies synchronizowane do Supabase, AI wysyła zagregowane dane do Anthropic)
 // ---------------------------------------------------------------------------
 
 function SecurityInfo() {
@@ -302,9 +303,9 @@ function SecurityInfo() {
       </button>
       {open && (
         <div className="px-4 py-3 bg-white space-y-2 text-[11px] text-slate-500 leading-relaxed">
-          <p><strong className="text-slate-700">🔑 Konto i hasło</strong> — dane logowania są przechowywane w Supabase (szyfrowana baza PostgreSQL, EU). Hasła nigdy nie są przechowywane w postaci jawnej.</p>
-          <p><strong className="text-slate-700">📂 Dane finansowe</strong> — pliki Excel są parsowane lokalnie w Twojej przeglądarce. Dane firm przechowywane są w localStorage i sessionStorage na Twoim urządzeniu.</p>
-          <p><strong className="text-slate-700">🌐 Połączenie</strong> — komunikacja z serwerem tylko podczas logowania, rejestracji i resetowania hasła. Dane finansowe nie opuszczają Twojej przeglądarki.</p>
+          <p><strong className="text-slate-700">🔑 Konto i hasło</strong> — dane logowania przechowywane są w Supabase (szyfrowana baza PostgreSQL). Hasła nigdy nie są przechowywane w postaci jawnej, dostęp do konta chroniony jest wymuszonym potwierdzeniem adresu e-mail.</p>
+          <p><strong className="text-slate-700">📂 Dane finansowe</strong> — pliki Excel są parsowane lokalnie w Twojej przeglądarce, a wynikowe dane firm (bilans, RZiS, raporty) są zapisywane w Twoim koncie Supabase, żeby były dostępne z każdego urządzenia. Dostęp do nich mają wyłącznie zasady RLS (row-level security) ograniczające odczyt/zapis do właściciela konta — inny użytkownik nie zobaczy Twoich danych. Surowy dziennik księgowań (zapisy FK) jest wyjątkiem: zostaje wyłącznie w pamięci Twojej przeglądarki (sessionStorage) i nigdy nie trafia na serwer.</p>
+          <p><strong className="text-slate-700">🤖 Analiza AI</strong> — przyciski "Analiza AI" wysyłają zagregowane wskaźniki/sumy (nie surowe zapisy) do modelu Claude (Anthropic) w celu wygenerowania komentarza. To jedyne miejsce, w którym dane finansowe opuszczają naszą infrastrukturę i trafiają do zewnętrznego dostawcy. Każde takie wywołanie jest odnotowywane w dzienniku audytowym (kto/kiedy/która sekcja) — bez treści danych ani odpowiedzi.</p>
           <p><strong className="text-slate-700">🗑 Usuwanie danych</strong> — aby usunąć dane finansowe, użyj "Wyczyść dane" w sidebarze. Usunięcie konta możliwe poprzez kontakt z administratorem.</p>
         </div>
       )}
