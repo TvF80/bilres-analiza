@@ -11,7 +11,7 @@ import AIAnalysisModal from './AIAnalysisModal';
 import { MACRO_DATA } from './ControlSheet';
 import type { JournalEntry, ReportRow } from '../types';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, ComposedChart, Line,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, ComposedChart, Line, PieChart, Pie,
 } from 'recharts';
 
 // ── Sub-tab type ──────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ type SubTab =
   | 'anomalie'
   | 'koncentracja'
   | 'wiekowanie'
+  | 'kokpit'
   | 'podsumowanie'
   | 'bilans_str'
   | 'rzis_str';
@@ -2688,6 +2689,201 @@ function AgingTab({ bilans, zapisy, zapisyLoading, onOpenAI }: { bilans: ReportR
   );
 }
 
+// ── Kokpit zdrowia firmy ──────────────────────────────────────────────────────
+// Agreguje wskaźniki i sygnały z innych zakładek w pojedynczy wynik 0-100 + listę alertów.
+function KokpitTab({ f1, bilans, zapisy, zapisyLoading, onNavigate, onOpenAI }: {
+  f1: FieldMap; bilans: ReportRow[]; zapisy: JournalEntry[]; zapisyLoading: boolean;
+  onNavigate: (tab: SubTab) => void; onOpenAI: (data: Record<string, unknown>) => void;
+}) {
+  const { t } = useLang();
+
+  const ratios = useMemo(() => {
+    const ebitda = f1.ebit + f1.amortyzacja;
+    const totalDebt = f1.zobowiazaniaDlugo + f1.zobowiazaniaKrotko;
+    return {
+      cr: safe(f1.aktywaObrotowe, f1.zobowiazaniaKrotko),
+      da: safe(totalDebt, f1.aktywaRazem),
+      icr: f1.odsetki !== 0 ? safe(ebitda, f1.odsetki) : null,
+      roe: safe(f1.zyskNetto, f1.kapitalWlasny),
+      dso: f1.przychody !== 0 ? (f1.naleznosci / f1.przychody) * 360 : null,
+    };
+  }, [f1]);
+
+  const gCR = grade(ratios.cr, 1.2, 2.0, 'higher');
+  const gDA = grade(ratios.da, 0.4, 0.6, 'lower');
+  const gICR = ratios.icr !== null ? gradeHigher(ratios.icr, 3.0) : 'BRAK' as Grade;
+  const gROE = gradeHigher(ratios.roe !== null ? ratios.roe * 100 : null, 10);
+  const gDSO = grade(ratios.dso, 30, 60, 'lower');
+
+  const gradePoints = (g: Grade, max: number): number => {
+    if (g === 'B_DOBRY') return max;
+    if (g === 'DOBRY') return max * 0.85;
+    if (g === 'UWAGA') return max * 0.5;
+    if (g === 'SŁABY') return 0;
+    return max * 0.65; // BRAK — brak danych, nie karzemy jak za zły wynik
+  };
+
+  const anomaly = useMemo(() => {
+    if (!zapisy.length) return null;
+    const digitCounts = new Array(10).fill(0);
+    let weekend = 0, counted = 0;
+    for (const z of zapisy) {
+      const amount = z.kwotaWn !== 0 ? z.kwotaWn : z.kwotaMa;
+      if (amount === 0) continue;
+      const digit = firstSignificantDigit(amount);
+      if (digit !== null) { digitCounts[digit]++; counted++; }
+      if (z.dataKsiegowania) {
+        const d = new Date(z.dataKsiegowania);
+        if (!isNaN(d.getTime())) { const day = d.getDay(); if (day === 0 || day === 6) weekend++; }
+      }
+    }
+    if (!counted) return null;
+    const maxDeviation = Math.max(...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d, i) => Math.abs((digitCounts[d] / counted) * 100 - BENFORD_EXPECTED[i])));
+    const weekendPct = (weekend / zapisy.length) * 100;
+    return { maxDeviation, weekendPct };
+  }, [zapisy]);
+
+  const concentration = useMemo(() => {
+    if (!zapisy.length) return null;
+    const byContractor = new Map<string, number>();
+    let total = 0;
+    for (const z of zapisy) {
+      if (!z.podmiot) continue;
+      const amount = Math.abs(z.kwotaWn !== 0 ? z.kwotaWn : z.kwotaMa);
+      if (amount === 0) continue;
+      byContractor.set(z.podmiot, (byContractor.get(z.podmiot) ?? 0) + amount);
+      total += amount;
+    }
+    if (!byContractor.size || total === 0) return null;
+    const hhi = [...byContractor.values()].reduce((s, v) => s + Math.pow(v / total, 2), 0) * 10000;
+    return { hhi };
+  }, [zapisy]);
+
+  const aging = useMemo(() => {
+    if (!zapisy.length) return null;
+    const lo = (r: ReportRow) => r.name.toLowerCase();
+    const rowNaleznosci = bilans.find(r => {
+      const s = lo(r);
+      if (s.includes('należności krótkoterminow')) return true;
+      if (s.includes('należności') && s.includes('odbiorcó')) return true;
+      return false;
+    }) ?? bilans.find(r => lo(r).includes('należności') && !lo(r).includes('długoterminow'));
+    const accounts = rowNaleznosci?.drilldownAccounts ?? [];
+    if (!accounts.length) return null;
+
+    let asOf = new Date(0);
+    for (const z of zapisy) { if (z.dataKsiegowania) { const d = new Date(z.dataKsiegowania); if (!isNaN(d.getTime()) && d > asOf) asOf = d; } }
+    const inAccounts = (konto: string) => accounts.some(a => konto === a || konto.startsWith(a + '-'));
+    const byContractor = new Map<string, { balance: number; lastDate: Date | null }>();
+    for (const z of zapisy) {
+      if (!inAccounts(z.konto)) continue;
+      const key = z.podmiot || z.konto;
+      const entry = byContractor.get(key) ?? { balance: 0, lastDate: null as Date | null };
+      entry.balance += z.kwotaWn - z.kwotaMa;
+      if (z.dataKsiegowania) { const d = new Date(z.dataKsiegowania); if (!isNaN(d.getTime()) && (!entry.lastDate || d > entry.lastDate)) entry.lastDate = d; }
+      byContractor.set(key, entry);
+    }
+    let total = 0, over90 = 0;
+    for (const c of byContractor.values()) {
+      if (Math.abs(c.balance) < 0.01) continue;
+      total += c.balance;
+      const days = c.lastDate ? Math.floor((asOf.getTime() - c.lastDate.getTime()) / 86400000) : 9999;
+      if (days > 90) over90 += c.balance;
+    }
+    if (total === 0) return null;
+    return { over90Pct: (over90 / total) * 100 };
+  }, [bilans, zapisy]);
+
+  const alerts: { severity: 'red' | 'amber'; text: string; tab: SubTab }[] = [];
+  if (gCR === 'SŁABY') alerts.push({ severity: 'red', text: t('kokpit.alertCr'), tab: 'plynnosc' });
+  if (gDA === 'SŁABY') alerts.push({ severity: 'red', text: t('kokpit.alertDa'), tab: 'zadluzenie' });
+  if (ratios.icr !== null && ratios.icr < 1.5) alerts.push({ severity: 'red', text: t('kokpit.alertIcr'), tab: 'zadluzenie' });
+  if (gROE === 'SŁABY') alerts.push({ severity: 'amber', text: t('kokpit.alertRoe'), tab: 'rentownosc' });
+  if (gDSO === 'SŁABY') alerts.push({ severity: 'amber', text: t('kokpit.alertDso'), tab: 'sprawnosc' });
+  if (anomaly && anomaly.maxDeviation > 10) alerts.push({ severity: 'amber', text: t('kokpit.alertBenford'), tab: 'anomalie' });
+  if (anomaly && anomaly.weekendPct > 5) alerts.push({ severity: 'amber', text: t('kokpit.alertWeekend', { pct: anomaly.weekendPct.toFixed(1) }), tab: 'anomalie' });
+  if (concentration && concentration.hhi > 2500) alerts.push({ severity: 'red', text: t('kokpit.alertHhi', { hhi: concentration.hhi.toFixed(0) }), tab: 'koncentracja' });
+  else if (concentration && concentration.hhi > 1500) alerts.push({ severity: 'amber', text: t('kokpit.alertHhiModerate', { hhi: concentration.hhi.toFixed(0) }), tab: 'koncentracja' });
+  if (aging && aging.over90Pct > 20) alerts.push({ severity: 'red', text: t('kokpit.alertAging', { pct: aging.over90Pct.toFixed(1) }), tab: 'wiekowanie' });
+
+  const anomalyPts = anomaly ? Math.max(0, 15 - anomaly.maxDeviation * 0.8 - Math.max(0, anomaly.weekendPct - 2) * 0.5) : 10;
+  const concPts = concentration ? (concentration.hhi > 2500 ? 0 : concentration.hhi > 1500 ? 5 : 10) : 7;
+
+  const score = Math.round(
+    gradePoints(gCR, 20) * 0.5 + gradePoints(gDA, 20) * 0.25 + gradePoints(gICR, 20) * 0.25
+    + gradePoints(gROE, 20)
+    + gradePoints(gDSO, 15)
+    + Math.min(15, anomalyPts)
+    + Math.min(10, concPts),
+  );
+
+  const scoreColor = score >= 80 ? '#8b5cf6' : score >= 60 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+  const scoreLabel = score >= 80 ? t('kokpit.excellent') : score >= 60 ? t('kokpit.good') : score >= 40 ? t('kokpit.watch') : t('kokpit.risk');
+  const donutData = [{ value: score }, { value: 100 - score }];
+
+  if (zapisyLoading) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('anomaly.loading')}</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI({
+            section: 'kokpit', score, score_label: scoreLabel,
+            alerts: alerts.map(a => a.text),
+          })}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
+        >🤖 Analiza AI</button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="relative w-40 h-40 shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={donutData} dataKey="value" startAngle={90} endAngle={-270} innerRadius={55} outerRadius={72} stroke="none">
+                  <Cell fill={scoreColor} />
+                  <Cell fill="#f1f5f9" />
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-black" style={{ color: scoreColor }}>{score}</span>
+              <span className="text-[10px] text-slate-400">/ 100</span>
+            </div>
+          </div>
+          <div className="flex-1 text-center sm:text-left">
+            <h3 className="text-sm font-bold text-slate-700">{t('kokpit.title')}</h3>
+            <p className="text-lg font-bold mt-0.5" style={{ color: scoreColor }}>{scoreLabel}</p>
+            <p className="text-[11px] text-slate-400 mt-1">{t('kokpit.subtitle')}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-2">
+        <h3 className="text-sm font-bold text-slate-700 mb-1">{t('kokpit.alertsTitle')}</h3>
+        {alerts.length === 0 && (
+          <p className="text-xs text-emerald-600 font-medium py-2">{t('kokpit.noAlerts')}</p>
+        )}
+        {alerts.map((a, i) => (
+          <button
+            key={i}
+            onClick={() => onNavigate(a.tab)}
+            className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg border transition-colors ${
+              a.severity === 'red' ? 'bg-rose-50 border-rose-200 hover:bg-rose-100' : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <span className={`text-xs ${a.severity === 'red' ? 'text-rose-700' : 'text-amber-700'}`}>{a.text}</span>
+            <span className={`text-[10px] font-semibold whitespace-nowrap ${a.severity === 'red' ? 'text-rose-500' : 'text-amber-500'}`}>{t('kokpit.viewDetails')} →</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-slate-400 italic">{t('kokpit.disclaimer')}</p>
+    </div>
+  );
+}
+
 // ── Narracja auto-analityczna ─────────────────────────────────────────────────
 
 function NarrativeBlock({
@@ -3351,6 +3547,7 @@ export default function RatioAnalysis() {
   }, []);
 
   const subTabs: { key: SubTab; label: string; group: string }[] = useMemo(() => [
+    { key: 'kokpit',           label: t('kokpit.tabLabel'),         group: t('ratio.indicators') },
     { key: 'podsumowanie',     label: t('analysis.summary'),        group: t('ratio.indicators') },
     { key: 'plynnosc',         label: t('analysis.liquidity'),      group: t('ratio.indicators') },
     { key: 'sprawnosc',        label: t('analysis.efficiency'),     group: t('ratio.indicators') },
@@ -3484,6 +3681,7 @@ export default function RatioAnalysis() {
         {activeTab === 'anomalie'        && <AnomalieTab          zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('anomalie', t('anomaly.tabLabel'))} />}
         {activeTab === 'koncentracja'    && <ConcentrationTab     zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('koncentracja', t('conc.tabLabel'))} />}
         {activeTab === 'wiekowanie'      && <AgingTab             bilans={activeCompany.bilans} zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('wiekowanie', t('aging.tabLabel'))} />}
+        {activeTab === 'kokpit'          && <KokpitTab            f1={f1} bilans={activeCompany.bilans} zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onNavigate={setActiveTab} onOpenAI={openAI('kokpit', t('kokpit.tabLabel'))} />}
         {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} onOpenAI={openAI('podsumowanie', t('analysis.summary'))} />}
         {activeTab === 'bilans_str'      && <BilansStruktura      bilans={activeCompany.bilans} f1={f1} f2={f2} f3={f3} />}
         {activeTab === 'rzis_str'        && <RZiSStruktura        rzis={activeCompany.rzis}    f1={f1} f2={f2} f3={f3} />}
