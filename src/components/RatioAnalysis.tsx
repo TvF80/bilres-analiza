@@ -9,6 +9,10 @@ import {
 } from './AnalysisCharts';
 import AIAnalysisModal from './AIAnalysisModal';
 import { MACRO_DATA } from './ControlSheet';
+import type { JournalEntry } from '../types';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
+} from 'recharts';
 
 // ── Sub-tab type ──────────────────────────────────────────────────────────────
 
@@ -20,6 +24,7 @@ type SubTab =
   | 'cashflow'
   | 'dyskryminacyjne'
   | 'beneish'
+  | 'anomalie'
   | 'podsumowanie'
   | 'bilans_str'
   | 'rzis_str';
@@ -2156,6 +2161,138 @@ function BeneishTab({ result, onOpenAI }: { result: BeneishResult | null; onOpen
   );
 }
 
+// ── Detekcja anomalii w dzienniku FK (Prawo Benforda + heurystyki) ───────────
+// Liczone WYŁĄCZNIE lokalnie w przeglądarce — zapisy FK nigdy nie trafiają na
+// serwer (patrz CLAUDE.md). Prawo Benforda: naturalne dane finansowe (kwoty
+// niebędące efektem zaokrągleń/limitów) mają pierwszą cyfrę rozłożoną wg
+// log10(1+1/d), nie równomiernie — silne odchylenie jest sygnałem do sprawdzenia,
+// nie dowodem manipulacji.
+const BENFORD_EXPECTED = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => Math.log10(1 + 1 / d) * 100);
+
+function firstSignificantDigit(n: number): number | null {
+  const abs = Math.abs(n);
+  if (abs < 1e-9) return null;
+  const normalized = abs / Math.pow(10, Math.floor(Math.log10(abs)));
+  const d = Math.floor(normalized);
+  return d >= 1 && d <= 9 ? d : null;
+}
+
+function AnomalieTab({ zapisy, zapisyLoading, onOpenAI }: { zapisy: JournalEntry[]; zapisyLoading: boolean; onOpenAI: (data: Record<string, unknown>) => void }) {
+  const { t } = useLang();
+
+  const analysis = useMemo(() => {
+    if (!zapisy.length) return null;
+
+    const digitCounts = new Array(10).fill(0); // index 1..9
+    let weekend = 0;
+    let roundAmounts = 0;
+    let periodEnd = 0;
+    let counted = 0;
+
+    for (const z of zapisy) {
+      const amount = z.kwotaWn !== 0 ? z.kwotaWn : z.kwotaMa;
+      if (amount === 0) continue;
+      const digit = firstSignificantDigit(amount);
+      if (digit !== null) { digitCounts[digit]++; counted++; }
+
+      const absAmount = Math.abs(amount);
+      if (absAmount >= 1000 && absAmount % 1000 === 0) roundAmounts++;
+
+      if (z.dataKsiegowania) {
+        const d = new Date(z.dataKsiegowania);
+        if (!isNaN(d.getTime())) {
+          const day = d.getDay();
+          if (day === 0 || day === 6) weekend++;
+          const lastDayOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+          if (lastDayOfMonth - d.getDate() < 3) periodEnd++;
+        }
+      }
+    }
+
+    const benford = counted > 0
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9].map((d, i) => ({
+          digit: String(d),
+          observed: (digitCounts[d] / counted) * 100,
+          expected: BENFORD_EXPECTED[i],
+        }))
+      : [];
+
+    return { total: zapisy.length, counted, benford, weekend, roundAmounts, periodEnd };
+  }, [zapisy]);
+
+  if (zapisyLoading) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('anomaly.loading')}</div>;
+  }
+  if (!analysis) {
+    return <div className="flex items-center justify-center py-16 text-sm text-slate-400">{t('anomaly.noData')}</div>;
+  }
+
+  const pct = (n: number) => analysis.total ? ((n / analysis.total) * 100).toFixed(1) + '%' : '—';
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => onOpenAI({
+            section: 'anomalie', entries_analyzed: analysis.total,
+            weekend_postings: analysis.weekend, round_amounts: analysis.roundAmounts, period_end_postings: analysis.periodEnd,
+            benford_deviation: analysis.benford.map(b => ({ digit: b.digit, observed_pct: b.observed.toFixed(1), expected_pct: b.expected.toFixed(1) })),
+          })}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
+        >🤖 Analiza AI</button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-700">{t('anomaly.title')}</h3>
+          <p className="text-[11px] text-slate-400">{t('anomaly.subtitle', { count: analysis.total })}</p>
+        </div>
+
+        <div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">{t('anomaly.benfordTitle')}</p>
+          <p className="text-[10px] text-slate-400 mb-2">{t('anomaly.benfordHint')}</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={analysis.benford} margin={{ left: -16, right: 8, top: 4, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="digit" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} width={36} />
+              <Tooltip formatter={((v: any, name: any) => [`${Number(v).toFixed(1)}%`, name === 'observed' ? t('anomaly.observed') : t('anomaly.expected')]) as any} />
+              <Bar dataKey="expected" fill="#cbd5e1" radius={[3, 3, 0, 0]} maxBarSize={20} />
+              <Bar dataKey="observed" radius={[3, 3, 0, 0]} maxBarSize={20}>
+                {analysis.benford.map((b, i) => (
+                  <Cell key={i} fill={Math.abs(b.observed - b.expected) > 5 ? '#ef4444' : '#3b82f6'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h3 className="text-sm font-bold text-slate-700">{t('anomaly.flagsTitle')}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className={`rounded-lg p-3 border ${analysis.weekend > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('anomaly.weekendPostings')}</p>
+            <p className="text-lg font-black text-slate-700">{analysis.weekend} <span className="text-xs font-normal text-slate-400">({pct(analysis.weekend)})</span></p>
+            <p className="text-[9px] text-slate-400 mt-0.5">{t('anomaly.weekendHint')}</p>
+          </div>
+          <div className="rounded-lg p-3 border bg-slate-50 border-slate-200">
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('anomaly.roundAmounts')}</p>
+            <p className="text-lg font-black text-slate-700">{analysis.roundAmounts} <span className="text-xs font-normal text-slate-400">({pct(analysis.roundAmounts)})</span></p>
+            <p className="text-[9px] text-slate-400 mt-0.5">{t('anomaly.roundHint')}</p>
+          </div>
+          <div className="rounded-lg p-3 border bg-slate-50 border-slate-200">
+            <p className="text-[9px] text-slate-500 uppercase tracking-wide">{t('anomaly.periodEnd')}</p>
+            <p className="text-lg font-black text-slate-700">{analysis.periodEnd} <span className="text-xs font-normal text-slate-400">({pct(analysis.periodEnd)})</span></p>
+            <p className="text-[9px] text-slate-400 mt-0.5">{t('anomaly.periodEndHint')}</p>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-400">{t('anomaly.entriesAnalyzed')}: {analysis.total.toLocaleString('pl-PL')}</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Narracja auto-analityczna ─────────────────────────────────────────────────
 
 function NarrativeBlock({
@@ -2810,7 +2947,7 @@ function PodsumowanieTab({
 interface AIModalState { section: string; sectionLabel: string; data: Record<string, unknown> }
 
 export default function RatioAnalysis() {
-  const { activeCompany } = useCompanies();
+  const { activeCompany, zapisyLoading } = useCompanies();
   const { t, lang } = useLang();
   const [activeTab, setActiveTab] = useState<SubTab>('podsumowanie');
   const [aiModal, setAiModal] = useState<AIModalState | null>(null);
@@ -2827,6 +2964,7 @@ export default function RatioAnalysis() {
     { key: 'cashflow',         label: t('analysis.cashflow'),       group: t('ratio.indicators') },
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
+    { key: 'anomalie',         label: t('anomaly.tabLabel'),        group: t('ratio.indicators') },
     { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
     { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
   ], [t]);
@@ -2944,6 +3082,7 @@ export default function RatioAnalysis() {
         {activeTab === 'cashflow'        && <CashFlowTab          f1={f1} f2={f2} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('cashflow', t('analysis.cashflow'))} />}
         {activeTab === 'dyskryminacyjne' && <DyskryminacyjneTab   f1={f1} f2={f2} f3={f3} periodLabels={activeCompany.periodLabels} onOpenAI={openAI('dyskryminacyjne', t('analysis.discriminant'))} />}
         {activeTab === 'beneish'         && <BeneishTab           result={beneish} onOpenAI={openAI('beneish', t('beneish.tabLabel'))} />}
+        {activeTab === 'anomalie'        && <AnomalieTab          zapisy={activeCompany.zapisy} zapisyLoading={zapisyLoading} onOpenAI={openAI('anomalie', t('anomaly.tabLabel'))} />}
         {activeTab === 'podsumowanie'    && <PodsumowanieTab      f1={f1} f2={f2} f3={f3} beneish={beneish} periodLabels={activeCompany.periodLabels} companyName={activeCompany.name} onNavigate={setActiveTab} onOpenAI={openAI('podsumowanie', t('analysis.summary'))} />}
         {activeTab === 'bilans_str'      && <BilansStruktura      bilans={activeCompany.bilans} f1={f1} f2={f2} f3={f3} />}
         {activeTab === 'rzis_str'        && <RZiSStruktura        rzis={activeCompany.rzis}    f1={f1} f2={f2} f3={f3} />}
