@@ -46,6 +46,7 @@ const RatioAnalysis = lazy(() => import('./components/RatioAnalysis'));
 const RaportMiesieczny = lazy(() => import('./components/RaportMiesieczny'));
 const RaportGrupy = lazy(() => import('./components/RaportGrupy'));
 const RaportPDF = lazy(() => import('./components/RaportPDF'));
+const PortfelPorownanie = lazy(() => import('./components/PortfelPorownanie'));
 
 const ZOOM_LEVELS = [0.75, 0.875, 1, 1.125, 1.25, 1.5];
 
@@ -93,7 +94,7 @@ function MainApp() {
 
   const handleViewChange = useCallback((v: ViewType) => {
     setActiveView(v);
-    if (v !== 'kontrola' && v !== 'analiza' && v !== 'raport_miesieczny' && v !== 'raport_grupy' && v !== 'raport_ogolny') {
+    if (v !== 'kontrola' && v !== 'analiza' && v !== 'raport_miesieczny' && v !== 'raport_grupy' && v !== 'raport_ogolny' && v !== 'portfel') {
       setReportType(v as ReportType);
       setSelectedRow(null);
       setSearch('');
@@ -186,6 +187,14 @@ function MainApp() {
                   <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{zoom}}>
                       <RaportPDF />
+                    </div>
+                  </Suspense>
+                </ErrorBoundary>
+              ) : activeView === 'portfel' ? (
+                <ErrorBoundary>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-sm">…</div>}>
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{zoom}}>
+                      <PortfelPorownanie />
                     </div>
                   </Suspense>
                 </ErrorBoundary>

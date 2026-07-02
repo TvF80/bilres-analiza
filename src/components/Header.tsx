@@ -30,7 +30,7 @@ export default function Header({
   lang, onLangChange,
 }: HeaderProps) {
   const { t: tr } = useLang();
-  const { activeCompany, updateCompanyName } = useCompanies();
+  const { activeCompany, companies, updateCompanyName } = useCompanies();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -160,6 +160,7 @@ export default function Header({
             ['raport_miesieczny','tab.raportMies', 'bg-amber-600'],
             ['raport_grupy',    'tab.grupyPracy',  'bg-orange-600'],
             ['raport_ogolny',   'tab.raportOgolny','bg-rose-600'],
+            ...(companies.length > 1 ? [['portfel', 'tab.portfel', 'bg-cyan-600'] as [ViewType, string, string]] : []),
           ] as [ViewType, string, string][]).map(([view, key, activeBg]) => (
             <button
               key={view}

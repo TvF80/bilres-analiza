@@ -146,6 +146,7 @@ src/
     RaportMiesieczny.tsx   Raport zarządczy: KPI, marże, heatmapa, koszty (i18n) [lazy]
     RaportGrupy.tsx        Grupy pracy: mapa, drawery, koszt prac (własny T{}) [lazy]
     RaportPDF.tsx          Raport Ogólny PDF: 10 stron, 9 sekcji AI, wspólny cache [lazy]
+    PortfelPorownanie.tsx  Porównanie firm w portfelu: ranking + tabela sortowalna wg 6 metryk [lazy]
     EmptyState.tsx         Ekran powitalny gdy brak firm
   hooks/
     useReportData.ts     Hooki danych aktywnej firmy (useReportData, useAccountsForRow, ...)
@@ -161,17 +162,18 @@ scripts/
 ## Widoki aplikacji (ViewType)
 
 ```ts
-type ViewType = ReportType | 'kontrola' | 'analiza' | 'raport_miesieczny' | 'raport_grupy' | 'raport_ogolny';
+type ViewType = ReportType | 'kontrola' | 'analiza' | 'raport_miesieczny' | 'raport_grupy' | 'raport_ogolny' | 'portfel';
 ```
 
 | Widok | Kolor zakładki | Zawartość |
 |-------|----------------|-----------|
 | `bilans` | niebieski | BilansVisuals + tabela bilansu + drilldown |
 | `rzis` | niebieski | BilansVisuals + tabela RZiS + drilldown |
-| `analiza` | emerald | Analiza wskaźnikowa (8 pod-zakładek) |
-| `raport_miesieczny` | amber | Raport zarządczy (5 pod-zakładek) |
+| `analiza` | emerald | Analiza wskaźnikowa (12 pod-zakładek) |
+| `raport_miesieczny` | amber | Raport zarządczy (6 pod-zakładek) |
 | `raport_grupy` | orange | Grupy pracy (4 pod-zakładki) |
 | `raport_ogolny` | rose | Raport Ogólny PDF (9 sekcji + AI) |
+| `portfel` | cyan | Porównanie firm w portfelu — widoczna dopiero od 2 firm w bibliotece |
 | `kontrola` | slate | Arkusz kontrolny (7 sekcji) — na końcu nav |
 
 **Uwaga**: Zakładka `kontrola` jest ostatnia w nav (po separatorze) — nie jest powiązana z raportami.
@@ -276,14 +278,21 @@ Strony 8 i 9 pojawiają się tylko jeśli firma ma dane `grpData` / `raportMiesi
 ## Analiza wskaźnikowa (`analiza`)
 
 ### Zakładki (każda: wykres + tabela + IndicatorDrawer + 🤖 AI)
+- **Kokpit zdrowia** — wynik 0-100 (donut) agregujący płynność/zadłużenie/rentowność/sprawność
+  + sygnały z Anomalii/Koncentracji/Wiekowania, klikalne alerty przenoszące do zakładki źródłowej
+- **Analiza wskaźnikowa** (podsumowanie) — overall grade, 4 kategorie, 🤖 AI
 - **Płynność** — bieżąca, szybka, gotówkowa
 - **Sprawność** — rotacje aktywów (×3), DSO/DSI/DPO w dniach, CCC
 - **Zadłużenie** — ogólne, KW, dług-/krótkoterminowe, DFL, ICR, dług netto/EBITDA
 - **Rentowność** — ROE, ROA, ROS, marża brutto, EBIT, EBITDA
+- **Cash flow** — rekonstrukcja metodą pośrednią (CFO/CFI/CFF) ze zmian bilansowych
+- **Symulator „co jeśli"** — suwaki Δprzychody/Δkoszty/ΔDSO/ΔWIBOR, przeliczenie na żywo
 - **Dyskryminacyjne** — 8 modeli: Hołda, Gajdka-Stos, Prusak, Altman Z, Altman Z', Springate, Jagiełło (usługi/produkcja)
 - **Beneish M-Score** — 8 wskaźników, interpretacja strefy ryzyka, drawer szczegółów, 🤖 AI
+- **Anomalie** — prawo Benforda (pierwsza cyfra), zapisy weekendowe, kwoty okrągłe, księgowania na przełomie miesiąca
+- **Koncentracja** — HHI + udział TOP5/TOP10 kontrahentów, wykres Pareto
+- **Wiekowanie** — koszyki 0-30/31-60/61-90/90+ dni dla należności/zobowiązań (proxy wg ostatniej operacji, nie prawdziwy termin płatności)
 - **Bilans/RZiS struktura** — donuty + tabela + Δr/r
-- **Analiza wskaźnikowa** (podsumowanie) — overall grade, 4 kategorie, 🤖 AI
 
 ### Wykresy — 3 okresy + kliknięcia
 - `f3: FieldMap | null` — opcjonalny 3. słupek (violet-300, najstarszy okres)
@@ -300,9 +309,22 @@ Strony 8 i 9 pojawiają się tylko jeśli firma ma dane `grpData` / `raportMiesi
 - **Heatmapa** — heatmapa marż + delta r/r + porównanie 3 lat
 - **Koszty** — drzewo kosztów rodzajowych 4xx, trend 3-letni, konta FK
 - **Porównanie** — tabela r/r, wykres radarowy marż, top zmiany %, 🤖 AI "Kluczowe P&L"
+- **Sezonowość** — indeks sezonowy (średnia miesiąca / średnia roczna × 100) dla wybranej metryki,
+  peak/trough highlighting, + `ForecastSection` — prognoza 12 miesięcy (3 scenariusze ±5pp wokół
+  średniego wzrostu r/r) rozłożona wg indeksu sezonowego
 
 ### Dane
 `MonthlyReportData`: `{ company, period, departments: DepartmentMargin[], totals: MonthlyReportTotals, costCategories, result, yearComparison, history }`
+
+---
+
+## Portfel firm (`portfel`)
+
+`PortfelPorownanie.tsx` (lazy-loaded) — widoczny w nav dopiero gdy biblioteka ma ≥2 firmy.
+Porównuje wszystkie firmy z `companies` (nie tylko `activeCompany`) na najnowszym okresie
+(`mapFields(bilans, rzis, 1)` per firma). Metryki: Przychody, Zysk netto, ROE, Płynność bieżąca,
+Zadłużenie ogólne, Marża EBITDA — wybór metryki przełącza ranking (BarChart poziomy) i sortowanie
+tabeli. Okresy mogą się różnić między firmami (brak wspólnej osi czasu) — disclaimer w UI.
 
 ---
 
