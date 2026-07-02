@@ -537,17 +537,26 @@ export default function ControlSheet() {
           <>
             <SectionHeader title={t('analysis.mapping')} subtitle="Diagnostyka dopasowania pozycji bilansu i RZiS do wskaźników finansowych" />
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-              <div className="grid grid-cols-[auto_1fr_auto] gap-0 bg-slate-50 border-b border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <div className="hidden sm:grid grid-cols-[auto_1fr_auto] gap-0 bg-slate-50 border-b border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 <div className="w-56">{t('mapping.field')}</div>
                 <div>{t('mapping.matchedRow')}</div>
                 <div className="w-20 text-center">{t('mapping.status')}</div>
               </div>
               <div className="divide-y divide-slate-100">
                 {Object.entries(fieldSources).map(([key, src]) => (
-                  <div key={key} className="grid grid-cols-[auto_1fr_auto] gap-0 px-4 py-2.5 hover:bg-slate-50/60 transition-colors items-center">
-                    <div className="w-56 text-sm font-semibold text-slate-700">{FIELD_LABELS[key] ?? key}</div>
-                    <div className="text-sm text-slate-500 font-mono truncate pr-4">{src.name}</div>
-                    <div className="w-20 text-center">
+                  <div key={key} className="flex flex-col gap-0.5 sm:grid sm:grid-cols-[auto_1fr_auto] sm:gap-0 sm:items-center px-4 py-2.5 hover:bg-slate-50/60 transition-colors">
+                    <div className="flex items-center justify-between gap-2 sm:contents">
+                      <div className="sm:w-56 text-sm font-semibold text-slate-700">{FIELD_LABELS[key] ?? key}</div>
+                      <div className="sm:hidden shrink-0">
+                        {src.found ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">OK</span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">—</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-500 font-mono truncate sm:pr-4" title={src.name}>{src.name}</div>
+                    <div className="hidden sm:block w-20 text-center">
                       {src.found ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">OK</span>
                       ) : (
