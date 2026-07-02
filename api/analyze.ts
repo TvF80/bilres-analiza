@@ -54,6 +54,9 @@ function isRateLimited(ip: string): boolean {
 
 function buildUserPrompt(section: string, lang: string, period: string, data: unknown): string {
   const langName = lang === 'fr' ? 'French' : lang === 'en' ? 'English' : 'Polish';
+  const instruction = section === 'kokpit'
+    ? `This is a holistic health-check combining several analysis areas: liquidity, debt, profitability, efficiency (DSO), transaction anomaly detection (Benford's law, weekend postings), customer concentration (HHI), and receivables aging. Write ONE coherent 5-6 sentence narrative in ${langName} that connects these signals into a single story about the company's financial trajectory and risk profile — explicitly link cause-and-effect across areas where relevant (e.g. how customer concentration or slower collections feed into liquidity or debt risk), instead of listing isolated observations per area.`
+    : `Write a 3-4 sentence management commentary in ${langName}.`;
   return `Section: ${section}
 Period: ${period}
 Language: ${langName}
@@ -61,7 +64,7 @@ Language: ${langName}
 Data (amounts in PLN):
 ${JSON.stringify(data, null, 2)}
 
-Write a 3-4 sentence management commentary in ${langName}.`;
+${instruction}`;
 }
 
 export default async function handler(req: any, res: any) {
@@ -90,7 +93,7 @@ export default async function handler(req: any, res: any) {
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 400,
+      max_tokens: section === 'kokpit' ? 550 : 400,
       system: SYSTEM,
       messages: [{ role: 'user', content: buildUserPrompt(section, lang, period, data) }],
     });

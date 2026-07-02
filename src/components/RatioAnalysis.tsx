@@ -2832,9 +2832,15 @@ function KokpitTab({ f1, bilans, zapisy, zapisyLoading, onNavigate, onOpenAI }: 
           onClick={() => onOpenAI({
             section: 'kokpit', score, score_label: scoreLabel,
             alerts: alerts.map(a => a.text),
+            current_ratio: ratios.cr?.toFixed(2), debt_ratio_pct: ratios.da !== null ? (ratios.da * 100).toFixed(1) : null,
+            interest_coverage: ratios.icr?.toFixed(2), roe_pct: ratios.roe !== null ? (ratios.roe * 100).toFixed(1) : null,
+            dso_days: ratios.dso?.toFixed(0),
+            benford_max_deviation_pp: anomaly?.maxDeviation.toFixed(1), weekend_postings_pct: anomaly?.weekendPct.toFixed(1),
+            customer_concentration_hhi: concentration?.hhi.toFixed(0),
+            receivables_over_90days_pct: aging?.over90Pct.toFixed(1),
           })}
           className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-lg transition-all"
-        >🤖 Analiza AI</button>
+        >🤖 {t('kokpit.narrativeButton')}</button>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">

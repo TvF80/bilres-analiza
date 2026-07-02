@@ -195,10 +195,19 @@ używa tych samych kluczy co przyciski w zakładkach → dwukierunkowe udostępn
 | `RaportPDF` (PDF-specific) | `` `ai_pdf_${section}_${period}_${lang}` `` |
 
 ### Endpoint AI
-`api/analyze.ts` → Vercel Serverless → `claude-sonnet-4-6`, max_tokens: 400  
+`api/analyze.ts` → Vercel Serverless → `claude-sonnet-4-6`, max_tokens: 400
+(550 dla `section === 'kokpit'` — dłuższa spójna narracja, patrz niżej)
 Body: `{ section, lang, period, data }`  
 Response: `{ text: string }`  
 Błąd 404 lokalnie = "użyj vercel dev" (przyjazny komunikat, nie crash).
+
+**Narracja AI (Kokpit zdrowia, 2026-07)**: sekcja `kokpit` dostaje inny prompt
+niż pozostałe (`buildUserPrompt` w `api/analyze.ts`) — zamiast izolowanego
+komentarza 3-4 zdania, model dostaje instrukcję napisania JEDNEJ spójnej
+narracji 5-6 zdań łączącej sygnały z płynności/zadłużenia/rentowności/
+sprawności z anomaliami (Benford, weekendy), koncentracją kontrahentów (HHI)
+i wiekowaniem należności — z jawnym wskazaniem powiązań przyczynowo-skutkowych
+między obszarami, a nie listą izolowanych obserwacji per zakładka.
 
 **Hardening (2026-07):**
 - Limit rozmiaru `data` — max 20 000 znaków JSON (413 gdy przekroczone)
