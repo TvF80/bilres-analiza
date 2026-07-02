@@ -53,6 +53,20 @@ export default function Header({
     window.print();
   }
 
+  const [exporting, setExporting] = useState(false);
+  async function handleExportExcel() {
+    if (!activeCompany || exporting) return;
+    setExporting(true);
+    try {
+      const { exportCompanyToExcel } = await import('../lib/xlsxExport');
+      await exportCompanyToExcel(activeCompany);
+    } catch (err) {
+      console.error('Export Excel:', (err as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm print:hidden">
       {/* ── Wiersz górny: hamburger + firma + lang + zoom + search + print ── */}
@@ -127,6 +141,15 @@ export default function Header({
           placeholder={tr('header.search')}
           className="w-28 sm:w-36 md:w-48 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors shrink-0"
         />
+
+        {/* Export Excel — ukryty na mobile */}
+        <button onClick={handleExportExcel} disabled={!activeCompany || exporting} title={tr('header.exportExcel')}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-sm font-medium transition-colors shrink-0">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H8a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span className="hidden md:inline">{exporting ? '…' : 'Excel'}</span>
+        </button>
 
         {/* Print — ukryty na mobile */}
         <button onClick={handlePrint} title={tr('header.print')}

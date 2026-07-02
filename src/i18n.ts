@@ -19,6 +19,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'header.zoomReset': 'Resetuj zoom (100%)',
     'header.search': 'Szukaj…',
     'header.print': 'Drukuj / Zapisz jako PDF',
+    'header.exportExcel': 'Eksportuj do Excela (Bilans, RZiS, Wskaźniki)',
 
     // Sidebar
     'sidebar.expand': 'Rozwiń panel',
@@ -34,6 +35,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'sidebar.rename': 'Zmień nazwę',
     'sidebar.deleteCompany': 'Usuń firmę',
     'sidebar.replaceData': 'Podmień dane (nowe pliki Excel)',
+    'sidebar.updatedAt': 'Zaktualizowano',
     'sidebar.confirmDelete': 'Usuń',
 
     // Login
@@ -876,6 +878,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'header.zoomReset': 'Réinitialiser le zoom (100%)',
     'header.search': 'Rechercher…',
     'header.print': 'Imprimer / Enregistrer en PDF',
+    'header.exportExcel': 'Exporter vers Excel (Bilan, CdR, Ratios)',
 
     'sidebar.expand': 'Développer le panneau',
     'sidebar.collapse': 'Réduire le panneau',
@@ -890,6 +893,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'sidebar.rename': 'Renommer',
     'sidebar.deleteCompany': 'Supprimer l\'entreprise',
     'sidebar.replaceData': 'Remplacer les données (nouveaux fichiers Excel)',
+    'sidebar.updatedAt': 'Mis à jour',
     'sidebar.confirmDelete': 'Supprimer',
 
     'login.noUsers': 'Aucun utilisateur enregistré.',
@@ -1700,6 +1704,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'header.zoomReset': 'Reset zoom (100%)',
     'header.search': 'Search…',
     'header.print': 'Print / Save as PDF',
+    'header.exportExcel': 'Export to Excel (Balance sheet, P&L, Ratios)',
 
     'sidebar.expand': 'Expand panel',
     'sidebar.collapse': 'Collapse panel',
@@ -1714,6 +1719,7 @@ const translations: Record<Lang, Record<string, string>> = {
     'sidebar.rename': 'Rename',
     'sidebar.deleteCompany': 'Delete company',
     'sidebar.replaceData': 'Replace data (new Excel files)',
+    'sidebar.updatedAt': 'Updated',
     'sidebar.confirmDelete': 'Delete',
 
     'login.noUsers': 'No registered users.',

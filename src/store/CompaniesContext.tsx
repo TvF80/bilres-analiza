@@ -46,6 +46,7 @@ function rowToCompany(row: Record<string, any>): Company {
     name: row.name as string,
     period: row.period as string,
     createdAt: (row.created_at as string)?.slice(0, 10) ?? '',
+    updatedAt: (row.updated_at as string)?.slice(0, 10) ?? undefined,
     bilans: (row.bilans ?? []) as ReportRow[],
     rzis: (row.rzis ?? []) as ReportRow[],
     obroty: (row.obroty ?? []) as AccountRow[],
@@ -214,10 +215,12 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   const setActiveCompany = useCallback((id: string) => setActiveId(id), []);
 
   const addCompany = useCallback((data: Omit<Company, 'id' | 'createdAt'>): Company => {
+    const today = new Date().toISOString().slice(0, 10);
     const company: Company = {
       ...data,
       id: crypto.randomUUID(),
-      createdAt: new Date().toISOString().slice(0, 10),
+      createdAt: today,
+      updatedAt: today,
     };
     if (company.zapisy.length > 0) cacheZapisy(company.id, company.zapisy);
     setCompanies(prev => [...prev, company]);
@@ -244,6 +247,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         c.id === id
           ? {
               ...c,
+              updatedAt: new Date().toISOString().slice(0, 10),
               ...(data.period !== undefined       ? { period: data.period } : {}),
               ...(data.bilans !== undefined        ? { bilans: data.bilans } : {}),
               ...(data.rzis !== undefined          ? { rzis: data.rzis } : {}),

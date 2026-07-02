@@ -10,8 +10,8 @@ export function importFilesInWorker(files: FilesMap): Promise<ImportedCompanyDat
 
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       worker.terminate();
-      if (e.data.ok) resolve(e.data.data);
-      else reject(new Error(e.data.error));
+      if (e.data.ok && e.data.kind === 'import') resolve(e.data.data);
+      else if (!e.data.ok) reject(new Error(e.data.error));
     };
 
     worker.onerror = (e: ErrorEvent) => {
@@ -19,7 +19,7 @@ export function importFilesInWorker(files: FilesMap): Promise<ImportedCompanyDat
       reject(new Error(e.message || 'Błąd Web Workera podczas importu'));
     };
 
-    const request: WorkerRequest = { files };
+    const request: WorkerRequest = { kind: 'import', files };
     worker.postMessage(request);
   });
 }

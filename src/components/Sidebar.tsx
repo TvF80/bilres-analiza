@@ -231,6 +231,7 @@ function CompanyItem({
         isActive ? 'bg-blue-600/20 border border-blue-500/30 shadow-[inset_0_2px_0_0_rgba(255,255,255,0.06)] shadow-sm' : 'hover:bg-slate-800/60 hover:shadow-md'
       }`}
       onClick={onSelect}
+      title={company.updatedAt ? `${t('sidebar.updatedAt')}: ${company.updatedAt}` : undefined}
     >
       <div className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-blue-400' : 'bg-slate-700'}`} />
       <div className="flex-1 min-w-0">

@@ -172,6 +172,8 @@ export interface Company {
   name: string;
   period: string;
   createdAt: string;
+  /** Data ostatniej podmiany/importu danych (wersjonowanie „lekkie" — bez pełnej historii) */
+  updatedAt?: string;
   bilans: ReportRow[];
   rzis: ReportRow[];
   obroty: AccountRow[];

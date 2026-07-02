@@ -666,3 +666,22 @@ export async function importFiles(files: FilesMap): Promise<ImportedCompanyData>
     grpData:          results.grpData,
   };
 }
+
+// --- eksport do Excela ---
+// Budowanie właściwego pliku .xlsx zostaje w tym module (obok parsowania),
+// żeby biblioteka `xlsx` miała jedną, już zaizolowaną ścieżkę reachability
+// (worker) — druga statyczna ścieżka wciągnęłaby ją z powrotem do głównego
+// bundla (patrz CLAUDE.md „Hardening bezpieczeństwa”).
+export interface ExportSheet {
+  name: string;
+  aoa: (string | number)[][];
+}
+
+export function buildExportWorkbook(sheets: ExportSheet[]): Uint8Array {
+  const wb = XLSX.utils.book_new();
+  for (const sheet of sheets) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet.aoa), sheet.name);
+  }
+  const raw = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  return new Uint8Array(raw as ArrayLike<number>);
+}

@@ -123,7 +123,10 @@ src/
   i18n/
     LanguageContext.tsx   React Context + hook useLang() → { lang, t(key, params) }
   lib/
-    xlsxParser.ts       Parsowanie xlsx w przeglądarce → typy danych
+    xlsxParser.ts       Parsowanie xlsx w przeglądarce → typy danych; też buildExportWorkbook()
+                        (eksport do .xlsx — w tym samym module, żeby `xlsx` miał jedną
+                        ścieżkę reachability przez Worker, patrz niżej)
+    xlsxExport.ts       Przygotowanie arkuszy (AOA) do eksportu — bez importu `xlsx` bezpośrednio
     fieldMapping.ts     Mapowanie pozycji BIL/RZiS → FieldMap (keyword matching)
     controlChecks.ts    Funkcje kontroli integralności + computeBeneish() + computeRatios()
     supabase.ts         Klient Supabase — eksportuje supabaseConfigured + client (null gdy brak env)
@@ -420,3 +423,18 @@ Wszystkie `import` (w tym `import BilansVisuals`) muszą być na górze pliku, p
 ### Supabase — brak env vars
 Aplikacja działa bez Supabase w trybie lokalnym (localStorage only + guest user).
 `supabaseConfigured` flag w `src/lib/supabase.ts` kontroluje czy Supabase jest aktywny.
+
+### `xlsx` — druga statyczna ścieżka wciąga bibliotekę z powrotem do main bundla
+`xlsx` (SheetJS) jest izolowany do `xlsxParser.worker-*.js` (Web Worker, patrz Hardening
+bezpieczeństwa). Próba dodania eksportu do Excela przez nowy moduł z własnym
+`import * as XLSX from 'xlsx'` (nawet dynamicznym `await import('xlsx')`) sprawiła,
+że Rolldown przestał móc tree-shakować `xlsx` z głównego bundla — main chunk urósł
+z ~650 KB do ~1150 KB (ostrzeżenie `INEFFECTIVE_DYNAMIC_IMPORT`), mimo że druga
+ścieżka (ImportModal → xlsxParser.ts) sama w sobie nie wywołuje kodu zależnego od
+`xlsx`. Powód: gdy `xlsx` ma DOWOLNĄ realną (wywoływaną) ścieżkę reachability z main
+entry, Rolldown nie może już udowodnić, że import w `xlsxParser.ts` jest martwy, i
+dołącza całą bibliotekę do wspólnego chunka. Rozwiązanie: cała logika budowania
+pliku `.xlsx` (`XLSX.utils.*`, `XLSX.write`) zostaje wyłącznie w `xlsxParser.ts`
+(jedyne miejsce z `import * as XLSX`), wywoływana przez Worker (nowy request
+`{ kind: 'export' }` w `xlsxParser.worker.ts`) — `xlsxExport.ts` przygotowuje tylko
+dane (AOA) i komunikuje się z workerem, bez własnego importu `xlsx`.
