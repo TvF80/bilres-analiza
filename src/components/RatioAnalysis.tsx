@@ -3552,26 +3552,29 @@ export default function RatioAnalysis() {
     setAiModal({ section, sectionLabel, data });
   }, []);
 
+  // Kokpit zdrowia jest renderowany osobno, poza grupami (patrz JSX niżej) —
+  // to punkt wejścia/przegląd, nie kolejny "wskaźnik" do zaszufladkowania.
   const subTabs: { key: SubTab; label: string; group: string }[] = useMemo(() => [
-    { key: 'kokpit',           label: t('kokpit.tabLabel'),         group: t('ratio.indicators') },
     { key: 'podsumowanie',     label: t('analysis.summary'),        group: t('ratio.indicators') },
     { key: 'plynnosc',         label: t('analysis.liquidity'),      group: t('ratio.indicators') },
     { key: 'sprawnosc',        label: t('analysis.efficiency'),     group: t('ratio.indicators') },
     { key: 'zadluzenie',       label: t('analysis.debt'),           group: t('ratio.indicators') },
     { key: 'rentownosc',       label: t('analysis.profitability'),  group: t('ratio.indicators') },
-    { key: 'cashflow',         label: t('analysis.cashflow'),       group: t('ratio.indicators') },
-    { key: 'symulator',        label: t('analysis.simulator'),      group: t('ratio.indicators') },
     { key: 'dyskryminacyjne',  label: t('analysis.discriminant'),   group: t('ratio.indicators') },
     { key: 'beneish',          label: t('beneish.tabLabel'),        group: t('ratio.indicators') },
-    { key: 'anomalie',         label: t('anomaly.tabLabel'),        group: t('ratio.indicators') },
-    { key: 'koncentracja',     label: t('conc.tabLabel'),           group: t('ratio.indicators') },
-    { key: 'wiekowanie',       label: t('aging.tabLabel'),          group: t('ratio.indicators') },
+    { key: 'anomalie',         label: t('anomaly.tabLabel'),        group: t('ratio.controls') },
+    { key: 'koncentracja',     label: t('conc.tabLabel'),           group: t('ratio.controls') },
+    { key: 'wiekowanie',       label: t('aging.tabLabel'),          group: t('ratio.controls') },
+    { key: 'cashflow',         label: t('analysis.cashflow'),       group: t('ratio.simulation') },
+    { key: 'symulator',        label: t('analysis.simulator'),      group: t('ratio.simulation') },
     { key: 'bilans_str',       label: t('analysis.balance'),        group: t('ratio.structure') },
     { key: 'rzis_str',         label: t('analysis.pnl'),            group: t('ratio.structure') },
   ], [t]);
 
   const groupNames = useMemo(() => [
     t('ratio.indicators'),
+    t('ratio.controls'),
+    t('ratio.simulation'),
     t('ratio.structure'),
   ], [t]);
 
@@ -3643,13 +3646,25 @@ export default function RatioAnalysis() {
           </div>
         </div>
 
-        {/* Sub-tabs — horizontal scroll on mobile, wrap on sm+ */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-          <div className="p-2 flex gap-1 items-center min-w-max sm:min-w-0 sm:flex-wrap">
-          {groupNames.map((group, gi) => (
-            <div key={group} className="flex items-center gap-1">
-              {gi > 0 && <div className="w-px h-5 bg-slate-200 mx-1" />}
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide px-1 hidden sm:inline select-none">
+        {/* Kokpit zdrowia — punkt wejścia, poza grupami wskaźników */}
+        <button
+          onClick={() => setActiveTab('kokpit')}
+          className={`w-full flex items-center gap-2 rounded-xl border shadow-sm px-4 py-2.5 text-sm font-bold transition-all duration-100 ${
+            activeTab === 'kokpit'
+              ? 'bg-violet-600 border-violet-600 text-white shadow-[0_4px_0_0_#5b21b6]'
+              : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'
+          }`}
+        >
+          <span className="text-base">🩺</span>
+          {t('kokpit.tabLabel')}
+        </button>
+
+        {/* Sub-tabs pogrupowane — zawijane, bez przewijania w bok */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-2 flex flex-col gap-1.5">
+          {groupNames.map(group => (
+            <div key={group} className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide px-1 w-full sm:w-auto select-none">
                 {group}
               </span>
               {subTabs.filter(tab => tab.group === group).map(tab => {

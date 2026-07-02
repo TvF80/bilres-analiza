@@ -197,6 +197,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'ratio.p1Current': 'P1 = Okres bieżący',
     'ratio.p2Comparative': 'P2 = Okres porównawczy',
     'ratio.indicators': 'Wskaźniki',
+    'ratio.controls': 'Kontrola',
+    'ratio.simulation': 'Symulacja',
     'ratio.structure': 'Struktura',
     'ratio.tools': 'Narzędzia',
 
@@ -1046,6 +1048,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'ratio.p1Current': 'P1 = Période courante',
     'ratio.p2Comparative': 'P2 = Période comparative',
     'ratio.indicators': 'Indicateurs',
+    'ratio.controls': 'Contrôle',
+    'ratio.simulation': 'Simulation',
     'ratio.structure': 'Structure',
     'ratio.tools': 'Outils',
 
@@ -1872,6 +1876,8 @@ const translations: Record<Lang, Record<string, string>> = {
     'ratio.p1Current': 'P1 = Current period',
     'ratio.p2Comparative': 'P2 = Comparative period',
     'ratio.indicators': 'Indicators',
+    'ratio.controls': 'Controls',
+    'ratio.simulation': 'Simulation',
     'ratio.structure': 'Structure',
     'ratio.tools': 'Tools',
 
